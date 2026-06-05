@@ -1,0 +1,10 @@
+{
+  "name": "@agents-web/agent-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "types": "types.ts",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.78.0"
+  }
+}
