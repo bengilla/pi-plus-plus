@@ -41,6 +41,13 @@ packages/web/lib/
 - Skill scanner: reads SKILL.md YAML frontmatter from agent skill directories
 - Design tokens in `globals.css` via CSS custom properties (light + dark)
 
+## UI Features
+
+- **Explorer**: file tree + New File/Folder, inline rename/delete, COPY path button
+- **Conversations**: NEW button, localStorage persistence, click to resume
+- **Theme**: dark/light toggle (top-right), persisted, no flash
+- **Token counter**: animated status bar during streaming (Generating… 12s · ↓543 tokens · thinking)
+
 ## Phases
 
 - **Phase 1-2**: Project setup, UI shell ✅
