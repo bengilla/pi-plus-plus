@@ -1,14 +1,19 @@
-import { registerAdapter, createPiAdapter, createClaudeCodeAdapter, createCodexAdapter } from "@/lib/agent-bridge";
+import { initAgents } from "@/lib/agents";
 
 let initialized = false;
 
-export function initAgents(): void {
-  if (initialized) return;
+/** Initialize all available agents on first call. Safe to call multiple times. */
+export function init(): string[] {
+  if (initialized) return [];
+  const ids = initAgents();
   initialized = true;
-
-  registerAdapter(createPiAdapter());
-  registerAdapter(createClaudeCodeAdapter());
-  registerAdapter(createCodexAdapter());
-
-  console.log("[agents-web] Registered: Pi, Claude Code, Codex");
+  if (ids.length > 0) {
+    console.log(`[agents-web] Discovered: ${ids.join(", ")}`);
+  } else {
+    console.log("[agents-web] No agents discovered on this device");
+  }
+  return ids;
 }
+
+/** Re-discover agents (e.g. after PATH change) */
+export { initAgents as rediscover } from "@/lib/agents";

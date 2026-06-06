@@ -9,34 +9,59 @@ interface Attachment {
 }
 
 interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "error";
   content: string;
   id: string;
   attachments?: Attachment[];
 }
 
-interface Props {
-  activeAgent: string;
-  workspace: string;
-  fullPage?: boolean;
+interface SimpleMessage {
+  role: string;
+  content: string;
+  id: string;
 }
 
-export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
+interface Props {
+  activeAgent: string;
+  agentName?: string;
+  workspace: string;
+  fullPage?: boolean;
+  initialMessages?: SimpleMessage[];
+  onMessagesChange?: (messages: SimpleMessage[]) => void;
+}
+
+export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initialMessages, onMessagesChange }: Props) {
+  const displayName = agentName ?? activeAgent;
+
+  const [messages, setMessages] = useState<Message[]>(
+    (initialMessages as Message[]) ?? []
+  );
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const streamStartRef = useRef(0);
   const [streamContent, setStreamContent] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [inputDragOver, setInputDragOver] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Clear messages when agent or workspace changes
+  // Report messages back to parent for conversation persistence
+  const onSaveRef = useRef(onMessagesChange);
+  onSaveRef.current = onMessagesChange;
   useEffect(() => {
-    setMessages([]);
-    setStreamContent("");
-    setAttachments([]);
-  }, [activeAgent, workspace]);
+    onSaveRef.current?.(messages.map((m) => ({ role: m.role, content: m.content, id: m.id })));
+  }, [messages]);
+
+  // Elapsed timer during streaming
+  useEffect(() => {
+    if (!streaming) { setElapsed(0); return; }
+    streamStartRef.current = Date.now();
+    const timer = setInterval(() => {
+      setElapsed(Math.round((Date.now() - streamStartRef.current) / 1000));
+    }, 200);
+    return () => clearInterval(timer);
+  }, [streaming]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,33 +79,33 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
         setAttachments((prev) => [...prev, { name: f.name, path: f.name, type: "file" }]);
       }
     }
-    // Reset so same file can be selected again
     e.target.value = "";
   }, []);
 
   // Handle drag-drop files onto input area
   const handleInputDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     setInputDragOver(true);
   }, []);
 
   const handleInputDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     setInputDragOver(false);
   }, []);
 
   const handleInputDrop = useCallback((e: DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     setInputDragOver(false);
 
     const files = e.dataTransfer.files;
     if (files) {
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
-        // Try to get full path from drag data
         const isImage = f.type.startsWith("image/");
         setAttachments((prev) => {
-          // Avoid duplicates
           if (prev.some((a) => a.name === f.name)) return prev;
           return [...prev, { name: f.name, path: f.name, type: isImage ? "image" : "file" }];
         });
@@ -124,7 +149,10 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
         body: JSON.stringify({ agent: activeAgent, prompt, workspace }),
       });
 
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const errData = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+        throw new Error(errData.error ?? `HTTP ${r.status}`);
+      }
 
       const reader = r.body?.getReader();
       if (!reader) throw new Error("No response body");
@@ -145,6 +173,15 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
             if (data === "[DONE]") continue;
             try {
               const parsed = JSON.parse(data);
+              if (parsed.type === "error") {
+                setMessages((prev) => [
+                  ...prev,
+                  { role: "error", content: parsed.error, id: Date.now().toString() },
+                ]);
+                setStreaming(false);
+                setStreamContent("");
+                return;
+              }
               if (parsed.text) full += parsed.text;
             } catch {
               full += data;
@@ -154,10 +191,16 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
         setStreamContent(full);
       }
 
-      setMessages((prev) => [...prev, { role: "assistant", content: full, id: Date.now().toString() }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: full, id: Date.now().toString() },
+      ]);
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : "Chat error";
-      setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${errMsg}`, id: Date.now().toString() }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "error", content: errMsg, id: Date.now().toString() },
+      ]);
     } finally {
       setStreaming(false);
       setStreamContent("");
@@ -177,42 +220,65 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
     <div className="flex flex-col h-full">
       {/* Header — hidden in fullPage mode */}
       {!fullPage && (
-        <div className="px-3 py-2.5 border-b text-xs font-medium tracking-wide shrink-0"
-          style={{ borderColor: "var(--color-border)", color: "var(--color-text-secondary)" }}>
-          CHAT — {activeAgent}
+        <div
+          className="px-3 py-2.5 border-b text-xs font-medium tracking-wide shrink-0"
+          style={{ borderColor: "var(--color-border)", color: "var(--color-text-secondary)" }}
+        >
+          CHAT — {displayName}
         </div>
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && !streaming && (
           <div className="text-center py-12 text-xs" style={{ color: "var(--color-text-secondary)" }}>
             <div className="text-3xl mb-3">💬</div>
-            <div>Ask {activeAgent} to help with your files</div>
+            <div>Ask {displayName} to help with your files</div>
             <div className="mt-1 opacity-60">Drop files or images to attach</div>
           </div>
         )}
 
         {messages.map((msg) => (
           <div key={msg.id} className="fade-in">
-            <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
-              style={{ color: msg.role === "user" ? "var(--color-accent)" : "var(--color-text-secondary)" }}>
-              {msg.role === "user" ? "You" : activeAgent}
+            <div
+              className="text-[10px] font-medium uppercase tracking-wider mb-0.5 flex items-center gap-2"
+              style={{
+                color: msg.role === "user" ? "var(--color-accent)"
+                     : msg.role === "error" ? "oklch(0.55 0.2 30)"
+                     : "var(--color-text-secondary)",
+              }}
+            >
+              <span>{msg.role === "user" ? "You"
+               : msg.role === "error" ? "Error"
+               : displayName}</span>
+              {msg.role === "assistant" && (
+                <span className="text-[9px] opacity-50 inline-flex items-center gap-0.5" style={{ color: "var(--color-text-secondary)" }}>
+                  ↓{Math.round(msg.content.length / 4)} tokens
+                </span>
+              )}
             </div>
             {/* Attachments in user message */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-1.5">
                 {msg.attachments.map((a) => (
-                  <span key={a.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                    style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}>
+                  <span
+                    key={a.name}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+                    style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+                  >
                     {a.type === "image" ? "🖼️" : "📎"} {a.name}
                   </span>
                 ))}
               </div>
             )}
-            <div className="text-sm leading-relaxed whitespace-pre-wrap break-words"
-              style={{ color: "var(--color-text)" }}>
-              {msg.content}
+            <div
+              className="text-sm leading-relaxed whitespace-pre-wrap break-words rounded-md px-3 py-2"
+              style={{
+                color: msg.role === "error" ? "oklch(0.55 0.2 30)" : "var(--color-text)",
+                background: msg.role === "error" ? "oklch(0.55 0.2 30 / 0.08)" : "transparent",
+              }}
+            >
+              {msg.role === "error" ? `⚠️ ${msg.content}` : msg.content}
             </div>
           </div>
         ))}
@@ -220,13 +286,29 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
         {/* Streaming */}
         {streaming && (
           <div className="fade-in">
-            <div className="text-[10px] font-medium uppercase tracking-wider mb-0.5"
-              style={{ color: "var(--color-text-secondary)" }}>
-              {activeAgent}
+            <div
+              className="text-[10px] font-medium uppercase tracking-wider mb-1"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              {displayName}
             </div>
-            <div className="text-sm leading-relaxed whitespace-pre-wrap break-words"
-              style={{ color: "var(--color-text)" }}>
-              {streamContent || "..."}
+            <div
+              className="text-sm leading-relaxed whitespace-pre-wrap break-words mb-1"
+              style={{ color: "var(--color-text)" }}
+            >
+              {streamContent}
+            </div>
+            <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
+              <span>Generating…</span>
+              <span>(</span>
+              <span className="tabular-nums">{elapsed}s</span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
+                ↓<span className="tabular-nums animate-pulse">{Math.round(streamContent.length / 4)}</span> tokens
+              </span>
+              <span>·</span>
+              <span className="animate-pulse">thinking</span>
+              <span>)</span>
             </div>
           </div>
         )}
@@ -235,7 +317,9 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
       </div>
 
       {/* Input area */}
-      <div className="p-3 border-t shrink-0" style={{ borderColor: "var(--color-border)" }}
+      <div
+        className="p-4 border-t shrink-0"
+        style={{ borderColor: "var(--color-border)" }}
         onDragOver={handleInputDragOver}
         onDragLeave={handleInputDragLeave}
         onDrop={handleInputDrop}
@@ -244,8 +328,11 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {attachments.map((a) => (
-              <span key={a.name} className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
-                style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}>
+              <span
+                key={a.name}
+                className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
+                style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+              >
                 {a.type === "image" ? "🖼️" : "📎"} {a.name}
                 <button
                   onClick={() => removeAttachment(a.name)}
@@ -264,7 +351,7 @@ export function ChatPanel({ activeAgent, workspace, fullPage }: Props) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Ask ${activeAgent}...`}
+          placeholder={`Ask ${displayName}...`}
           rows={3}
           className="w-full resize-none p-2 text-sm rounded-md outline-none transition-colors"
           style={{

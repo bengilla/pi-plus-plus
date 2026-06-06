@@ -7,6 +7,12 @@ function getWorkspace(req: NextRequest): string {
   return url.searchParams.get("workspace") || process.env.AGENTS_WEB_WORKSPACE || process.cwd();
 }
 
+function safeResolve(ws: string, filePath: string): string | null {
+  const resolved = path.resolve(ws, filePath);
+  if (!resolved.startsWith(path.resolve(ws))) return null;
+  return resolved;
+}
+
 interface FileNode {
   name: string;
   path: string;
@@ -14,7 +20,6 @@ interface FileNode {
   children?: FileNode[];
 }
 
-// Only scan one level — children are loaded on demand
 function scanDirShallow(dirPath: string, base: string): FileNode[] {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
   const nodes: FileNode[] = [];
@@ -31,13 +36,12 @@ function scanDirShallow(dirPath: string, base: string): FileNode[] {
     const relPath = path.relative(base, fullPath);
 
     if (entry.isDirectory()) {
-      // Has children = will show expand arrow; actual children loaded on click
       const hasChildren = fs.readdirSync(fullPath).some(
         (n) => !n.startsWith(".") && n !== "node_modules"
       );
       nodes.push({
         name: entry.name, path: relPath, type: "directory",
-        children: hasChildren ? [] : undefined, // [] = expandable, undefined = empty
+        children: hasChildren ? [] : undefined,
       });
     } else {
       const ext = path.extname(entry.name).toLowerCase();
@@ -57,8 +61,8 @@ export async function GET(req: NextRequest) {
     const filePath = url.searchParams.get("path") ?? ".";
     const ws = getWorkspace(req);
 
-    const resolved = path.resolve(ws, filePath);
-    if (!resolved.startsWith(path.resolve(ws))) {
+    const resolved = safeResolve(ws, filePath);
+    if (!resolved) {
       return NextResponse.json({ error: "Path outside workspace" }, { status: 403 });
     }
 
@@ -69,7 +73,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ files, path: filePath });
     }
 
-    // Read file content
     const content = fs.readFileSync(resolved, "utf-8");
     return NextResponse.json({ content, path: filePath });
   } catch (e: unknown) {
@@ -78,7 +81,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT /api/files — save file
+// PUT /api/files — save or create file
 export async function PUT(req: NextRequest) {
   try {
     const { path: filePath, content } = await req.json();
@@ -86,8 +89,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "path and content required" }, { status: 400 });
     }
     const ws = getWorkspace(req);
-    const resolved = path.resolve(ws, filePath);
-    if (!resolved.startsWith(path.resolve(ws))) {
+    const resolved = safeResolve(ws, filePath);
+    if (!resolved) {
       return NextResponse.json({ error: "Path outside workspace" }, { status: 403 });
     }
     const dir = path.dirname(resolved);
@@ -97,5 +100,62 @@ export async function PUT(req: NextRequest) {
   } catch (e: unknown) {
     const err = e as NodeJS.ErrnoException;
     return NextResponse.json({ error: err.message ?? "Write error" }, { status: 500 });
+  }
+}
+
+// DELETE /api/files?path=...&workspace=... — delete file or empty directory
+export async function DELETE(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const filePath = url.searchParams.get("path");
+    if (!filePath) {
+      return NextResponse.json({ error: "path required" }, { status: 400 });
+    }
+    const ws = getWorkspace(req);
+    const resolved = safeResolve(ws, filePath);
+    if (!resolved) {
+      return NextResponse.json({ error: "Path outside workspace" }, { status: 403 });
+    }
+    if (!fs.existsSync(resolved)) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const stat = fs.statSync(resolved);
+    if (stat.isDirectory()) {
+      fs.rmdirSync(resolved);
+    } else {
+      fs.unlinkSync(resolved);
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException;
+    return NextResponse.json({ error: err.message ?? "Delete error" }, { status: 500 });
+  }
+}
+
+// PATCH /api/files/rename — rename file or directory
+export async function PATCH(req: NextRequest) {
+  try {
+    const { path: filePath, name: newName } = await req.json();
+    if (!filePath || !newName) {
+      return NextResponse.json({ error: "path and name required" }, { status: 400 });
+    }
+    const ws = getWorkspace(req);
+    const resolved = safeResolve(ws, filePath);
+    if (!resolved) {
+      return NextResponse.json({ error: "Path outside workspace" }, { status: 403 });
+    }
+    if (!fs.existsSync(resolved)) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    const dir = path.dirname(resolved);
+    const newPath = path.join(dir, newName);
+    if (fs.existsSync(newPath)) {
+      return NextResponse.json({ error: `"${newName}" already exists` }, { status: 409 });
+    }
+    fs.renameSync(resolved, newPath);
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException;
+    return NextResponse.json({ error: err.message ?? "Rename error" }, { status: 500 });
   }
 }

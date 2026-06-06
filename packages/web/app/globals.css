@@ -30,15 +30,13 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-surface: #1c1917;
-    --color-surface-secondary: #292524;
-    --color-border: #44403c;
-    --color-text: #fafaf9;
-    --color-text-secondary: #a8a29e;
-    --color-accent-dim: oklch(0.68 0.21 250 / 0.15);
-  }
+[data-theme="dark"] {
+  --color-surface: #1c1917;
+  --color-surface-secondary: #292524;
+  --color-border: #44403c;
+  --color-text: #fafaf9;
+  --color-text-secondary: #a8a29e;
+  --color-accent-dim: oklch(0.68 0.21 250 / 0.15);
 }
 
 /* Base */
