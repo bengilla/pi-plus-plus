@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
+import { initAgents, getAvailableAgents } from "@/lib/agents";
 
 // GET /api/settings — return current config
 export async function GET() {
-  return NextResponse.json({
-    workspace: process.env.AGENTS_WEB_WORKSPACE ?? "(current dir)",
-    agents: ["pi", "claude-code", "codex"],
-    features: {
-      fileBrowser: true,
-      editor: true,
-      chat: true,
-      skills: false, // Phase 4
-    },
-  });
+  try {
+    initAgents();
+    const agents = getAvailableAgents();
+
+    return NextResponse.json({
+      workspace: process.env.AGENTS_WEB_WORKSPACE ?? process.cwd(),
+      agents,
+      features: {
+        fileBrowser: true,
+        editor: true,
+        chat: true,
+        skills: true,
+      },
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Settings unavailable" },
+      { status: 500 },
+    );
+  }
 }

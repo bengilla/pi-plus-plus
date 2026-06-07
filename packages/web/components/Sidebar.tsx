@@ -21,12 +21,16 @@ interface Props {
   onDeleteConversation: (id: string) => void;
 }
 
-const DEFAULT_WORKSPACES = [
-  { label: "Desktop", path: "/Users/bengilla/Desktop" },
-  { label: "Documents", path: "/Users/bengilla/Documents" },
-  { label: "Downloads", path: "/Users/bengilla/Downloads" },
-  { label: "Home", path: "/Users/bengilla" },
-];
+// Default workspaces derived from HOME — server resolves ~ on API calls
+function getDefaultWorkspaces(): { label: string; path: string }[] {
+  const home = process.env.HOME || process.env.USERPROFILE || "/home/user";
+  return [
+    { label: "Desktop", path: `${home}/Desktop` },
+    { label: "Documents", path: `${home}/Documents` },
+    { label: "Downloads", path: `${home}/Downloads` },
+    { label: "Home", path: home },
+  ];
+}
 
 export function Sidebar({
   workspace, onWorkspaceChange, onOpenSettings,
@@ -37,11 +41,12 @@ export function Sidebar({
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [convOpen, setConvOpen] = useState(true);
 
-  const isDefault = DEFAULT_WORKSPACES.some((w) => w.path === workspace);
+  const defaultWorkspaces = getDefaultWorkspaces();
+  const isDefault = defaultWorkspaces.some((w) => w.path === workspace);
   const folderName = workspace.split("/").filter(Boolean).pop() || workspace;
   const options = workspace && !isDefault
-    ? [...DEFAULT_WORKSPACES, { label: `→ ${folderName}`, path: workspace }]
-    : DEFAULT_WORKSPACES;
+    ? [...defaultWorkspaces, { label: `→ ${folderName}`, path: workspace }]
+    : defaultWorkspaces;
 
   return (
     <aside

@@ -67,8 +67,13 @@ interface Props {
 export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initialMessages, onMessagesChange, thinkingLevel }: Props) {
   const displayName = agentName ?? activeAgent;
 
-  const [messages, setMessages] = useState<Message[]>(
-    (initialMessages as Message[]) ?? []
+  const [messages, setMessages] = useState<Message[]>(() =>
+    (initialMessages ?? []).map((m) => ({
+      role: m.role as "user" | "assistant" | "error",
+      content: m.content,
+      id: m.id,
+      createdAt: 0,
+    })),
   );
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);

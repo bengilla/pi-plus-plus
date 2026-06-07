@@ -8,13 +8,14 @@ export type {
   AgentDefinition,
   DiscoveredAgent,
   AgentAdapter,
+  ContentBlock,
 } from "./types";
 
 export { KNOWN_AGENTS, getDefinition, getAllDefinitions } from "./registry";
 export { discoverAgents, clearDiscoveryCache } from "./discovery";
 export { createAdapter } from "./adapters/factory";
 
-import { discoverAgents } from "./discovery";
+import { discoverAgents, clearDiscoveryCache } from "./discovery";
 import { createAdapter } from "./adapters/factory";
 import { getDefinition } from "./registry";
 import type { AgentEvent, AgentAdapter } from "./types";
@@ -48,9 +49,10 @@ export function getAvailableAgents(): string[] {
   return Array.from(adapters.keys());
 }
 
-/** Clear all adapters (re-initialize) */
+/** Clear all adapters and discovery cache (re-initialize) */
 export function resetAgents(): void {
   adapters.clear();
+  clearDiscoveryCache();
 }
 
 /** Chat: spawn agent and yield events */

@@ -65,7 +65,7 @@ function saveConvs(convs: ConvData[]) {
 }
 
 export default function Home() {
-  const [workspace, setWorkspace] = useState("/Users/bengilla/Documents/DXP2800/github/agents-web");
+  const [workspace, setWorkspace] = useState("");
   const [activeAgent, setActiveAgent] = useState("");
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);

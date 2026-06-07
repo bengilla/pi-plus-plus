@@ -2,7 +2,11 @@ import { NextRequest } from "next/server";
 import { initAgents, chat } from "@/lib/agents";
 
 export async function POST(req: NextRequest) {
-  const { agent, prompt, workspace: reqWorkspace, thinkingLevel } = await req.json();
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+  const { agent, prompt, workspace: reqWorkspace, thinkingLevel } = body as Record<string, string | undefined>;
 
   if (!agent || !prompt) {
     return Response.json({ error: "agent and prompt required" }, { status: 400 });
