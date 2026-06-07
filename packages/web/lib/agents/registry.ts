@@ -13,6 +13,8 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     fallbackPaths: ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"],
     spawnArgs: (workspace, prompt) => [
       "-p", prompt,
+      "--output-format", "stream-json",
+      "--verbose",
       "--no-session-persistence",
       "--add-dir", workspace,
     ],

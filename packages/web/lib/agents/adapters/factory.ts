@@ -29,10 +29,27 @@ export function createAdapter(definition: AgentDefinition, binaryPath: string): 
       child = spawnAgent({ binary: binaryPath, args, cwd: workspace });
 
       try {
-        for await (const line of child.lines) {
-          const event = parse(line);
+        let lineBuffer = "";
+        for await (const chunk of child.chunks) {
+          lineBuffer += chunk;
+          const lines = lineBuffer.split("\n");
+          // Last element may be incomplete — carry over to next chunk
+          lineBuffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const event = parse(line);
+            if (event) {
+              if (event.type === "done") { yield event; return; }
+              yield event;
+            }
+          }
+        }
+
+        // Flush any remaining content in the buffer
+        if (lineBuffer.trim()) {
+          const event = parse(lineBuffer);
           if (event) {
-            if (event.type === "done") return; // parser emitted done
+            if (event.type === "done") { yield event; return; }
             yield event;
           }
         }

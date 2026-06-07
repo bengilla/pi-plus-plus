@@ -1,11 +1,24 @@
+// ── Content block types for rich message rendering ─────────
+export type ContentBlock =
+  | { type: "text"; content: string }
+  | { type: "thinking"; content: string; duration?: number }
+  | { type: "tool_use"; id: string; toolName: string; toolInput: Record<string, unknown>; status: "running" | "completed" | "error" }
+  | { type: "tool_result"; id: string; toolOutput: string };
+
 // ── Agent event (SSE stream) ──────────────────────────────
 export interface AgentEvent {
-  type: "text" | "tool_use" | "tool_result" | "error" | "done";
+  type: "text" | "tool_use" | "tool_result" | "error" | "done" | "thinking";
   text?: string;
+  thinkingText?: string;
   toolName?: string;
+  toolId?: string;
   toolInput?: Record<string, unknown>;
   toolOutput?: string;
   error?: string;
+  /** Actual token counts from provider usage (overrides length-based estimate) */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
 }
 
 // ── Agent capabilities ────────────────────────────────────

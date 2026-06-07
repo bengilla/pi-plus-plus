@@ -1,6 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, type DragEvent } from "react";
+import type { ContentBlock } from "@/lib/agents/types";
+import { MarkdownBody } from "./MarkdownBody";
+import { ThinkingBlock } from "./ThinkingBlock";
+import { ToolCallBlock } from "./ToolCallBlock";
+import { ToolResultBlock } from "./ToolResultBlock";
 
 interface Attachment {
   name: string;
@@ -12,13 +17,41 @@ interface Message {
   role: "user" | "assistant" | "error";
   content: string;
   id: string;
+  createdAt: number;
   attachments?: Attachment[];
+  /** Rich content blocks from streaming (undefined = legacy plain-text message) */
+  blocks?: ContentBlock[];
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
 }
 
 interface SimpleMessage {
   role: string;
   content: string;
   id: string;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const hours = d.getHours().toString().padStart(2, "0");
+  const mins = d.getMinutes().toString().padStart(2, "0");
+  return `${month}月${day}日 ${hours}:${mins}`;
+}
+
+// Approximate cost based on typical API pricing ($3/M in, $15/M out)
+function estimateCost(inputTokens: number, outputTokens: number): string {
+  const cost = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
+  if (cost < 0.0001) return "$0.0001";
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
 }
 
 interface Props {
@@ -40,11 +73,24 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
   const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const streamStartRef = useRef(0);
-  const [streamContent, setStreamContent] = useState("");
+  // Ref-backed to bypass React 18 batching — SSE loop writes ref, rAF polls it
+  const streamContentRef = useRef("");
+  const streamOutputTokensRef = useRef(0);
+  const streamInputTokensRef = useRef(0);
+  const streamCacheTokensRef = useRef(0);
+  const streamTickRef = useRef(0);
+  const [streamTick, setStreamTick] = useState(0);
+  // Smooth animated token count — chases the real value each frame
+  const [displayTokens, setDisplayTokens] = useState(0);
+  // Rich content blocks accumulated during streaming
+  const streamBlocksRef = useRef<ContentBlock[]>([]);
+  const streamThinkRef = useRef("");
+  const streamThinkStartRef = useRef(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [inputDragOver, setInputDragOver] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Report messages back to parent for conversation persistence
   const onSaveRef = useRef(onMessagesChange);
@@ -63,9 +109,35 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
     return () => clearInterval(timer);
   }, [streaming]);
 
+  // rAF sync: poll refs each frame, trigger re-render when content changes,
+  // and smoothly animate the token counter toward the real value.
+  useEffect(() => {
+    if (!streaming) { setDisplayTokens(0); return; }
+    let running = true;
+    const tick = () => {
+      if (!running) return;
+      // Trigger re-render if SSE loop wrote new data
+      if (streamTickRef.current !== streamTick) {
+        setStreamTick(streamTickRef.current);
+      }
+      // Smooth token count — chase target with easing
+      const target = streamOutputTokensRef.current > 0
+        ? streamOutputTokensRef.current
+        : Math.round(streamContentRef.current.length / 4);
+      setDisplayTokens(prev => {
+        if (prev >= target) return target;
+        const step = Math.max(1, Math.ceil((target - prev) / 3));
+        return prev + step > target ? target : prev + step;
+      });
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return () => { running = false; };
+  }, [streaming]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamContent]);
+  }, [messages, streamTick]);
 
   // Handle file selection from button
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,6 +190,27 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
     setAttachments((prev) => prev.filter((a) => a.name !== name));
   }, []);
 
+  const handleStop = useCallback(() => {
+    // Abort the fetch — stops reading the SSE stream
+    abortRef.current?.abort();
+    abortRef.current = null;
+    // Tell the server to kill the agent process
+    fetch("/api/agent/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: activeAgent }),
+    }).catch(() => {});
+    setStreaming(false);
+    streamContentRef.current = "";
+    streamOutputTokensRef.current = 0;
+    streamInputTokensRef.current = 0;
+    streamCacheTokensRef.current = 0;
+    streamTickRef.current = 0;
+    streamBlocksRef.current = [];
+    streamThinkRef.current = "";
+    streamThinkStartRef.current = 0;
+  }, [activeAgent]);
+
   const handleSend = async () => {
     const text = input.trim();
     if ((!text && attachments.length === 0) || streaming) return;
@@ -127,13 +220,21 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
       role: "user",
       content: text || "(attachments)",
       id: Date.now().toString(),
+      createdAt: Date.now(),
       attachments: attList.length > 0 ? attList : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setAttachments([]);
     setStreaming(true);
-    setStreamContent("");
+    streamContentRef.current = "";
+    streamOutputTokensRef.current = 0;
+    streamInputTokensRef.current = 0;
+    streamCacheTokensRef.current = 0;
+    streamTickRef.current = 0;
+    streamBlocksRef.current = [];
+    streamThinkRef.current = "";
+    streamThinkStartRef.current = 0;
 
     // Build prompt with attachment references
     let prompt = text;
@@ -143,10 +244,15 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
     }
 
     try {
+      // Create fresh AbortController so handleStop can cancel the SSE stream
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       const r = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent: activeAgent, prompt, workspace }),
+        signal: controller.signal,
       });
 
       if (!r.ok) {
@@ -159,6 +265,30 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
 
       const decoder = new TextDecoder();
       let full = "";
+
+      // Flush accumulated thinking text into a ThinkingBlock.
+      // Skips if thinking content is essentially identical to the text that follows
+      // (DeepSeek models include the full response in the thinking block).
+      const flushThinking = (textContent = "") => {
+        const t = streamThinkRef.current.trim();
+        if (!t) return;
+        // If the thinking content is just the text content repeated, skip it
+        if (textContent.trim() && (t.includes(textContent.trim()) || textContent.trim().includes(t))) {
+          streamThinkRef.current = "";
+          streamThinkStartRef.current = 0;
+          return;
+        }
+        const duration = streamThinkStartRef.current
+          ? (Date.now() - streamThinkStartRef.current) / 1000
+          : undefined;
+        streamBlocksRef.current.push({
+          type: "thinking",
+          content: t,
+          duration,
+        });
+        streamThinkRef.current = "";
+        streamThinkStartRef.current = 0;
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -176,34 +306,146 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               if (parsed.type === "error") {
                 setMessages((prev) => [
                   ...prev,
-                  { role: "error", content: parsed.error, id: Date.now().toString() },
+                  { role: "error", content: parsed.error, id: Date.now().toString(), createdAt: Date.now() },
                 ]);
                 setStreaming(false);
-                setStreamContent("");
+                streamContentRef.current = "";
+                streamOutputTokensRef.current = 0;
+                streamInputTokensRef.current = 0;
+                streamTickRef.current = 0;
                 return;
               }
-              if (parsed.text) full += parsed.text;
+              if (parsed.type === "thinking") {
+                // Accumulate thinking text for display
+                if (parsed.thinkingText) {
+                  if (!streamThinkRef.current) {
+                    streamThinkStartRef.current = Date.now();
+                  }
+                  streamThinkRef.current += parsed.thinkingText;
+                  streamTickRef.current++;
+                }
+                if (parsed.outputTokens != null) {
+                  streamOutputTokensRef.current = parsed.outputTokens;
+                  streamTickRef.current++;
+                }
+                if (parsed.inputTokens != null) {
+                  streamInputTokensRef.current = parsed.inputTokens;
+                  streamTickRef.current++;
+                }
+                continue;
+              }
+              if (parsed.type === "tool_use") {
+                flushThinking(); // no text arg — tool events don't carry text for dedup
+                const id = parsed.toolId ?? `tool-${streamBlocksRef.current.length}`;
+                if (parsed.toolName) {
+                  // New tool call
+                  streamBlocksRef.current.push({
+                    type: "tool_use",
+                    id,
+                    toolName: parsed.toolName,
+                    toolInput: parsed.toolInput ?? {},
+                    status: "running",
+                  });
+                } else if (parsed.toolInput?.__partial != null) {
+                  // Partial JSON delta — append to last tool_use block
+                  const last = streamBlocksRef.current[streamBlocksRef.current.length - 1];
+                  if (last?.type === "tool_use") {
+                    last.toolInput = {
+                      ...last.toolInput,
+                      __partial: ((last.toolInput as Record<string, unknown>).__partial as string ?? "") + (parsed.toolInput.__partial as string),
+                    };
+                  }
+                }
+                streamTickRef.current++;
+                continue;
+              }
+              if (parsed.type === "tool_result") {
+                flushThinking();
+                const targetId = parsed.toolId;
+                // Mark matching tool_use as completed
+                for (let i = streamBlocksRef.current.length - 1; i >= 0; i--) {
+                  const b = streamBlocksRef.current[i];
+                  if (b.type === "tool_use" && b.id === targetId) {
+                    b.status = "completed";
+                    break;
+                  }
+                }
+                // Append tool_result block
+                streamBlocksRef.current.push({
+                  type: "tool_result",
+                  id: targetId ?? `result-${streamBlocksRef.current.length}`,
+                  toolOutput: parsed.toolOutput ?? "",
+                });
+                streamTickRef.current++;
+                continue;
+              }
+
+              if (parsed.type === "done") {
+                if (parsed.cacheTokens != null) {
+                  streamCacheTokensRef.current = parsed.cacheTokens;
+                  streamTickRef.current++;
+                }
+                if (parsed.inputTokens != null) streamInputTokensRef.current = parsed.inputTokens;
+                if (parsed.outputTokens != null) streamOutputTokensRef.current = parsed.outputTokens;
+                continue;
+              }
+              if (parsed.text) {
+                // Flush pending thinking block before text, with dedup
+                flushThinking(parsed.text);
+                full += parsed.text;
+                streamContentRef.current = full;
+                streamTickRef.current++;
+              }
             } catch {
               full += data;
+              streamContentRef.current = full;
+              streamTickRef.current++;
             }
           }
         }
-        setStreamContent(full);
+      }
+
+      // Flush any remaining thinking (dedup against final text)
+      flushThinking(full);
+
+      // Build blocks array: thinking blocks first, then final text block
+      const blocks: ContentBlock[] = [...streamBlocksRef.current];
+      if (full.trim()) {
+        blocks.push({ type: "text", content: full });
       }
 
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: full, id: Date.now().toString() },
+        {
+          role: "assistant",
+          content: full,
+          id: Date.now().toString(),
+          createdAt: Date.now(),
+          blocks: blocks.length > 0 ? blocks : undefined,
+          inputTokens: streamInputTokensRef.current || undefined,
+          outputTokens: streamOutputTokensRef.current || undefined,
+          cacheTokens: streamCacheTokensRef.current || undefined,
+        },
       ]);
     } catch (e: unknown) {
+      // AbortError = user clicked Stop — not a real error
+      if (e instanceof DOMException && e.name === "AbortError") return;
       const errMsg = e instanceof Error ? e.message : "Chat error";
       setMessages((prev) => [
         ...prev,
-        { role: "error", content: errMsg, id: Date.now().toString() },
+        { role: "error", content: errMsg, id: Date.now().toString(), createdAt: Date.now() },
       ]);
     } finally {
+      abortRef.current = null;
       setStreaming(false);
-      setStreamContent("");
+      streamContentRef.current = "";
+      streamOutputTokensRef.current = 0;
+      streamInputTokensRef.current = 0;
+      streamCacheTokensRef.current = 0;
+      streamTickRef.current = 0;
+      streamBlocksRef.current = [];
+      streamThinkRef.current = "";
+      streamThinkStartRef.current = 0;
     }
   };
 
@@ -217,14 +459,14 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
   const canSend = (input.trim() || attachments.length > 0) && !streaming;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       {/* Header — hidden in fullPage mode */}
       {!fullPage && (
         <div
-          className="px-3 py-2.5 border-b text-xs font-medium tracking-wide shrink-0"
+          className="px-3 py-2.5 border-b text-xs font-medium tracking-wide shrink-0 flex items-center justify-between"
           style={{ borderColor: "var(--color-border)", color: "var(--color-text-secondary)" }}
         >
-          CHAT — {displayName}
+          <span>CHAT — {displayName}</span>
         </div>
       )}
 
@@ -251,11 +493,6 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               <span>{msg.role === "user" ? "You"
                : msg.role === "error" ? "Error"
                : displayName}</span>
-              {msg.role === "assistant" && (
-                <span className="text-[9px] opacity-50 inline-flex items-center gap-0.5" style={{ color: "var(--color-text-secondary)" }}>
-                  ↓{Math.round(msg.content.length / 4)} tokens
-                </span>
-              )}
             </div>
             {/* Attachments in user message */}
             {msg.attachments && msg.attachments.length > 0 && (
@@ -272,14 +509,82 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               </div>
             )}
             <div
-              className="text-sm leading-relaxed whitespace-pre-wrap break-words rounded-md px-3 py-2"
+              className="text-sm leading-relaxed break-words rounded-md px-3 py-2"
               style={{
                 color: msg.role === "error" ? "oklch(0.55 0.2 30)" : "var(--color-text)",
                 background: msg.role === "error" ? "oklch(0.55 0.2 30 / 0.08)" : "transparent",
               }}
             >
-              {msg.role === "error" ? `⚠️ ${msg.content}` : msg.content}
+              {msg.role === "error" ? (
+                `⚠️ ${msg.content}`
+              ) : msg.role === "assistant" && msg.blocks ? (
+                msg.blocks.map((block, i) => {
+                  switch (block.type) {
+                    case "thinking":
+                      return (
+                        <ThinkingBlock
+                          key={i}
+                          content={block.content}
+                          duration={block.duration}
+                          defaultOpen={false}
+                        />
+                      );
+                    case "tool_use":
+                      return (
+                        <ToolCallBlock
+                          key={i}
+                          toolName={block.toolName}
+                          toolInput={block.toolInput}
+                          status={block.status}
+                        />
+                      );
+                    case "tool_result":
+                      return (
+                        <ToolResultBlock
+                          key={i}
+                          toolOutput={block.toolOutput}
+                        />
+                      );
+                    case "text":
+                      return <MarkdownBody key={i} content={block.content} />;
+                    default:
+                      return null;
+                  }
+                })
+              ) : (
+                <MarkdownBody content={msg.content} />
+              )}
             </div>
+            {/* Per-message usage + copy + time for assistant messages */}
+            {msg.role === "assistant" && (
+              <div className="flex items-center justify-between mt-1 gap-2">
+                <span className="text-[10px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
+                  <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
+                  <span>·</span>
+                  <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
+                  {msg.cacheTokens != null && msg.cacheTokens > 0 && (
+                    <>
+                      <span>·</span>
+                      <span>{formatTokens(msg.cacheTokens)} cache</span>
+                    </>
+                  )}
+                  <span>·</span>
+                  <span>${estimateCost(msg.inputTokens ?? Math.round(msg.content.length / 2), msg.outputTokens ?? Math.round(msg.content.length / 4))}</span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
+                    className="text-[10px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
+                    style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+                  >
+                    📋 Copy
+                  </button>
+                  <span className="text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>
+                    {formatTime(msg.createdAt)}
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
         ))}
 
@@ -293,21 +598,30 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               {displayName}
             </div>
             <div
-              className="text-sm leading-relaxed whitespace-pre-wrap break-words mb-1"
+              className="text-sm leading-relaxed break-words mb-1"
               style={{ color: "var(--color-text)" }}
             >
-              {streamContent}
+              {streamContentRef.current ? (
+                <MarkdownBody content={streamContentRef.current} />
+              ) : null}
             </div>
             <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
               <span>Generating…</span>
               <span>(</span>
               <span className="tabular-nums">{elapsed}s</span>
-              <span>·</span>
-              <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
-                ↓<span className="tabular-nums animate-pulse">{Math.round(streamContent.length / 4)}</span> tokens
-              </span>
-              <span>·</span>
-              <span className="animate-pulse">thinking</span>
+              {displayTokens > 0 ? (
+                <>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
+                    ↓<span className="tabular-nums">{displayTokens}</span> tokens
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>·</span>
+                  <span className="animate-pulse">thinking</span>
+                </>
+              )}
               <span>)</span>
             </div>
           </div>
@@ -393,18 +707,28 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               Enter to send · Shift+Enter for newline
             </span>
           </div>
-          <button
-            onClick={handleSend}
-            disabled={!canSend}
-            className="px-3 py-1 text-xs rounded-md transition-colors"
-            style={{
-              background: canSend ? "var(--color-accent)" : "var(--color-border)",
-              color: canSend ? "#fff" : "var(--color-text-secondary)",
-              opacity: canSend ? 1 : 0.5,
-            }}
-          >
-            {streaming ? "..." : "Send"}
-          </button>
+          {streaming ? (
+            <button
+              onClick={handleStop}
+              className="px-3 py-1 text-xs rounded-md transition-colors hover:opacity-80"
+              style={{ background: "oklch(0.55 0.2 30)", color: "#fff" }}
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              className="px-3 py-1 text-xs rounded-md transition-colors"
+              style={{
+                background: canSend ? "var(--color-accent)" : "var(--color-border)",
+                color: canSend ? "#fff" : "var(--color-text-secondary)",
+                opacity: canSend ? 1 : 0.5,
+              }}
+            >
+              Send
+            </button>
+          )}
         </div>
       </div>
     </div>

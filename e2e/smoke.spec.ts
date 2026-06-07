@@ -65,4 +65,32 @@ test.describe("agents-web smoke tests", () => {
     // The model switcher select or text should mention Claude Code
     await expect(page.locator("header")).toContainText("Claude Code");
   });
+
+  test("token counter shows during streaming", async ({ page }) => {
+    await page.goto(BASE);
+
+    // Type a prompt in the chat textarea
+    const textarea = page.locator("textarea");
+    await textarea.fill("say hi");
+
+    // Click Send to start streaming
+    await page.locator("button", { hasText: "Send" }).click();
+
+    // During streaming, the status bar should show:
+    // - "Generating…" label
+    // - elapsed time in seconds
+    // - token count (↓N tokens)
+    // - "thinking" indicator
+    await expect(page.getByText("Generating…")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/↓\d+ tokens/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("thinking")).toBeVisible();
+
+    // After streaming finishes, the button text returns to "Send"
+    // (input is cleared, so it will be disabled — just verify streaming ended)
+    await expect(page.getByText("Generating…")).not.toBeVisible({ timeout: 60000 });
+
+    // Verify at least one completed message shows a token count
+    const tokenBadge = page.locator("text=/↓\\d+ tokens/").first();
+    await expect(tokenBadge).toBeVisible({ timeout: 5000 });
+  });
 });

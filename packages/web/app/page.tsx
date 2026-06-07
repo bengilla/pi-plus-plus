@@ -169,7 +169,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-full" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+    <div className="flex flex-1 min-h-0" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       <Sidebar
         workspace={workspace}
         onWorkspaceChange={navigateTo}

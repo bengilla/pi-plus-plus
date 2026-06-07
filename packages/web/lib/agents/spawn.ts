@@ -1,10 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createInterface } from "node:readline";
 import type { AgentEvent } from "./types";
 
 // ── Spawn helper ───────────────────────────────────────────
-// Spawns a CLI agent, reads stdout line by line, yields raw
-// lines so per-agent parsers can transform them into AgentEvents.
+// Spawns a CLI agent, reads stdout in raw chunks (not line-buffered),
+// yields text as soon as the OS delivers data from the pipe.
 
 export interface SpawnOptions {
   binary: string;
@@ -16,7 +15,7 @@ export interface SpawnOptions {
 
 export interface SpawnSession {
   child: ChildProcess;
-  lines: AsyncIterable<string>;
+  chunks: AsyncIterable<string>;
   kill: () => void;
   /** Resolves when process exits: { code, stderr } */
   result: Promise<{ code: number | null; stderr: string }>;
@@ -31,7 +30,6 @@ export function spawnAgent(opts: SpawnOptions): SpawnSession {
   // Close stdin immediately — agents read from args, not stdin
   child.stdin?.end();
 
-  const rl = createInterface({ input: child.stdout! });
   let killed = false;
 
   const kill = () => {
@@ -64,18 +62,53 @@ export function spawnAgent(opts: SpawnOptions): SpawnSession {
     });
   });
 
-  async function* lines(): AsyncIterable<string> {
+  // Yield raw stdout chunks as they arrive — no readline buffering.
+  // Uses double-check pattern to prevent race between push() and the promise.
+  async function* chunks(): AsyncIterable<string> {
+    const events: string[] = [];
+    let resolveWait: (() => void) | null = null;
+    let done = false;
+
+    const push = (s: string) => {
+      events.push(s);
+      resolveWait?.();
+    };
+    const finish = () => {
+      done = true;
+      resolveWait?.();
+    };
+
+    const waitForNext = () => new Promise<void>((r) => {
+      if (events.length > 0 || done) { r(); return; }
+      resolveWait = () => { resolveWait = null; r(); };
+      // Re-check: push() may have fired between first check and setting resolveWait
+      if (events.length > 0 || done) {
+        resolveWait = null;
+        r();
+      }
+    });
+
+    child.stdout!.on("data", (d: Buffer) => push(d.toString()));
+    child.stdout!.on("end", finish);
+
     try {
-      for await (const line of rl) {
-        if (killed) break;
-        yield line;
+      while (true) {
+        if (events.length > 0) {
+          if (killed) return;
+          yield events.shift()!;
+          continue;
+        }
+        if (done) break;
+        await waitForNext();
       }
     } finally {
+      child.stdout!.off("data", push);
+      child.stdout!.off("end", finish);
       clearTimeout(timer);
     }
   }
 
-  return { child, lines: lines(), kill, result };
+  return { child, chunks: chunks(), kill, result };
 }
 
 // ── Common line-to-event parsers ──────────────────────────
@@ -95,17 +128,102 @@ export function parseClaudeLine(line: string): AgentEvent | null {
       // Stream event — Anthropic Message Stream format
       if (msg.type === "stream_event" && msg.event) {
         const evt = msg.event;
+
+        // Text delta — actual response content
         if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
           return evt.delta.text ? { type: "text", text: evt.delta.text } : null;
         }
-        // Skip thinking_delta, message_start, content_block_start/stop, etc.
+
+        // Thinking delta — show thinking progress in UI
+        if (evt.type === "content_block_delta" && evt.delta?.type === "thinking_delta") {
+          return evt.delta.text ? { type: "thinking", thinkingText: evt.delta.text } : null;
+        }
+
+        // Message start — capture input token count
+        if (evt.type === "message_start" && evt.message?.usage) {
+          return { type: "thinking", inputTokens: evt.message.usage.input_tokens ?? 0 };
+        }
+
+        // Message delta — capture real output token count
+        if (evt.type === "message_delta" && evt.delta?.usage) {
+          return { type: "thinking", outputTokens: evt.delta.usage.output_tokens ?? 0 };
+        }
+
+        // Tool use start — content_block_start with tool_use type
+        if (evt.type === "content_block_start" && evt.content_block?.type === "tool_use") {
+          return {
+            type: "tool_use",
+            toolId: evt.content_block.id,
+            toolName: evt.content_block.name,
+            toolInput: evt.content_block.input ?? {},
+          };
+        }
+
+        // Tool input delta — incremental JSON
+        if (evt.type === "content_block_delta" && evt.delta?.type === "input_json_delta") {
+          return {
+            type: "tool_use",
+            toolInput: { __partial: evt.delta.partial_json },
+          };
+        }
+
         return null;
+      }
+
+      // Aggregated assistant message (bulk mode — entire message at once)
+      if (msg.type === "assistant" && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if (block.type === "text" && block.text) {
+            return { type: "text", text: block.text };
+          }
+          if (block.type === "thinking" && block.thinking) {
+            return { type: "thinking", thinkingText: block.thinking };
+          }
+          if (block.type === "tool_use") {
+            return {
+              type: "tool_use",
+              toolId: block.id,
+              toolName: block.name,
+              toolInput: block.input ?? {},
+            };
+          }
+        }
+        return null;
+      }
+
+      // User message (tool results in multi-turn)
+      if (msg.type === "user" && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if (block.type === "tool_result") {
+            return {
+              type: "tool_result",
+              toolId: block.tool_use_id,
+              toolOutput: typeof block.content === "string"
+                ? block.content
+                : JSON.stringify(block.content),
+            };
+          }
+        }
+        return null;
+      }
+
+      // Final result — done with token counts
+      if (msg.type === "result") {
+        return {
+          type: "done",
+          inputTokens: msg.usage?.input_tokens,
+          outputTokens: msg.usage?.output_tokens,
+          cacheTokens: (msg.usage?.cache_read_input_tokens ?? 0) + (msg.usage?.cache_creation_input_tokens ?? 0) || undefined,
+        };
       }
 
       // Error
       if (msg.type === "error") {
         return { type: "error", error: msg.error?.message ?? "Claude error" };
       }
+
+      // Unknown JSON event type — skip silently (don't dump raw JSON as text)
+      return null;
     } catch {
       // Invalid JSON — treat as text line
     }

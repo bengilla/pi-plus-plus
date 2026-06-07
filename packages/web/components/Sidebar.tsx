@@ -45,7 +45,7 @@ export function Sidebar({
 
   return (
     <aside
-      className="w-72 shrink-0 border-r flex flex-col"
+      className="w-72 shrink-0 border-r flex flex-col overflow-hidden min-h-0"
       style={{ borderColor: "var(--color-border)", background: "var(--color-surface-secondary)" }}
     >
       {/* Workspace dropdown */}
@@ -93,8 +93,7 @@ export function Sidebar({
           className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
           style={{ color: "var(--color-text-secondary)" }}
         >
-          Explorer
-          <span>{explorerOpen ? "▾" : "▸"}</span>
+          {explorerOpen ? "▾" : "▸"} Explorer
         </button>
         {explorerOpen && (
           <div className="max-h-72 overflow-auto">
@@ -105,7 +104,7 @@ export function Sidebar({
 
       {/* Conversations section */}
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between px-3 py-1 border-b" style={{ borderColor: "var(--color-border)" }}>
+        <div className="flex items-center justify-between px-3 py-1 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
           <button
             onClick={() => setConvOpen(!convOpen)}
             className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider"
@@ -122,7 +121,7 @@ export function Sidebar({
           </button>
         </div>
         {convOpen && (
-          <div className="flex-1 overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto py-1 min-h-0">
             {conversations.length === 0 ? (
               <div className="px-3 py-4 text-[10px] text-center" style={{ color: "var(--color-text-secondary)" }}>
                 No conversations yet
