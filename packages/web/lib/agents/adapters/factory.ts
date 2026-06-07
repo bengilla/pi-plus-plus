@@ -24,8 +24,8 @@ export function createAdapter(definition: AgentDefinition, binaryPath: string): 
     definition,
     path: binaryPath,
 
-    async *chat(workspace: string, prompt: string): AsyncIterable<AgentEvent> {
-      const args = definition.spawnArgs(workspace, prompt);
+    async *chat(workspace: string, prompt: string, thinkingLevel?: string): AsyncIterable<AgentEvent> {
+      const args = definition.spawnArgs(workspace, prompt, thinkingLevel);
       child = spawnAgent({ binary: binaryPath, args, cwd: workspace });
 
       try {

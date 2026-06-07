@@ -61,9 +61,10 @@ interface Props {
   fullPage?: boolean;
   initialMessages?: SimpleMessage[];
   onMessagesChange?: (messages: SimpleMessage[]) => void;
+  thinkingLevel?: string;
 }
 
-export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initialMessages, onMessagesChange }: Props) {
+export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initialMessages, onMessagesChange, thinkingLevel }: Props) {
   const displayName = agentName ?? activeAgent;
 
   const [messages, setMessages] = useState<Message[]>(
@@ -251,7 +252,7 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
       const r = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent: activeAgent, prompt, workspace }),
+        body: JSON.stringify({ agent: activeAgent, prompt, workspace, thinkingLevel }),
         signal: controller.signal,
       });
 

@@ -3,6 +3,12 @@
 import { useState, useCallback, useEffect, type DragEvent } from "react";
 import type { ConvInfo } from "@/components/Sidebar";
 import { Sidebar } from "@/components/Sidebar";
+import { getAllDefinitions } from "@/lib/agents/registry";
+
+const DEFAULT_THINKING_LEVELS = [
+  { value: "auto", label: "Auto" },
+  { value: "off", label: "Off" },
+];
 import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ChatPanel } from "@/components/ChatPanel";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -66,6 +72,7 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [thinkingLevel, setThinkingLevel] = useState("auto");
 
   // Conversations
   const [convs, setConvs] = useState<ConvData[]>([]);
@@ -189,7 +196,20 @@ export default function Home() {
             {agentsLoading ? (
               <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Scanning...</span>
             ) : (
-              <ModelSwitcher value={activeAgent} onChange={setActiveAgent} />
+              <>
+                <ModelSwitcher value={activeAgent} onChange={(id) => { setActiveAgent(id); setThinkingLevel("auto"); }} />
+                <select
+                  value={thinkingLevel}
+                  onChange={(e) => setThinkingLevel(e.target.value)}
+                  className="text-[11px] px-2 py-0.5 rounded cursor-pointer"
+                  style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                  title="Thinking level"
+                >
+                  {(getAllDefinitions().find(d => d.id === activeAgent)?.thinkingLevels ?? DEFAULT_THINKING_LEVELS).map((l) => (
+                    <option key={l.value} value={l.value}>{l.label}</option>
+                  ))}
+                </select>
+              </>
             )}
           </div>
           <button onClick={toggleTheme} className="shrink-0 p-1 rounded hover:opacity-70 transition-colors"
@@ -215,6 +235,7 @@ export default function Home() {
             fullPage
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
+            thinkingLevel={thinkingLevel === "auto" ? undefined : thinkingLevel}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center" style={{ color: "var(--color-text-secondary)" }}>

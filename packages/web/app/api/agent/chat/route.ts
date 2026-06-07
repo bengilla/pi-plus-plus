@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { initAgents, chat } from "@/lib/agents";
 
 export async function POST(req: NextRequest) {
-  const { agent, prompt, workspace: reqWorkspace } = await req.json();
+  const { agent, prompt, workspace: reqWorkspace, thinkingLevel } = await req.json();
 
   if (!agent || !prompt) {
     return Response.json({ error: "agent and prompt required" }, { status: 400 });
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   (async () => {
     try {
-      for await (const event of chat(agent, workspace, prompt)) {
+      for await (const event of chat(agent, workspace, prompt, thinkingLevel)) {
         await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         if (event.type === "done" || event.type === "error") {
           // Yield a tick so the stream flushes the done event before close

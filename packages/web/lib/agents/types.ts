@@ -41,10 +41,12 @@ export interface AgentDefinition {
   binary: string;
   /** Extra PATH directories to check */
   fallbackPaths: string[];
-  /** How to spawn: build args array from workspace + prompt */
-  spawnArgs: (workspace: string, prompt: string) => string[];
+  /** How to spawn: build args array from workspace + prompt + thinking level */
+  spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string) => string[];
   /** Capabilities */
   capabilities: AgentCapabilities;
+  /** Supported thinking levels (if empty, thinking control is hidden for this agent) */
+  thinkingLevels: { value: string; label: string }[];
 }
 
 // ── Discovered agent (result of scanning PATH) ────────────
@@ -61,6 +63,6 @@ export interface DiscoveredAgent {
 export interface AgentAdapter {
   readonly definition: AgentDefinition;
   readonly path: string;
-  chat(workspace: string, prompt: string): AsyncIterable<AgentEvent>;
+  chat(workspace: string, prompt: string, thinkingLevel?: string): AsyncIterable<AgentEvent>;
   interrupt(): void;
 }

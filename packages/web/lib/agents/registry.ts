@@ -11,14 +11,36 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "Anthropic Claude Code — multi-agent coding CLI",
     binary: "claude",
     fallbackPaths: ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"],
-    spawnArgs: (workspace, prompt) => [
-      "-p", prompt,
-      "--output-format", "stream-json",
-      "--verbose",
-      "--no-session-persistence",
-      "--add-dir", workspace,
-    ],
+    spawnArgs: (workspace, prompt, thinkingLevel) => {
+      const args = [
+        "-p", prompt,
+        "--output-format", "stream-json",
+        "--verbose",
+        "--no-session-persistence",
+        "--add-dir", workspace,
+      ];
+      // Map thinking level → --thinking flag
+      if (thinkingLevel === "off") args.push("--thinking", "off");
+      else if (thinkingLevel && thinkingLevel !== "auto") {
+        const budgets: Record<string, string> = {
+          minimal: "500", low: "1000", medium: "4000",
+          high: "16000", xhigh: "32000",
+        };
+        const budget = budgets[thinkingLevel];
+        if (budget) args.push("--thinking", budget);
+      }
+      return args;
+    },
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 200_000 },
+    thinkingLevels: [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+      { value: "minimal", label: "Minimal" },
+      { value: "low", label: "Low" },
+      { value: "medium", label: "Medium" },
+      { value: "high", label: "High" },
+      { value: "xhigh", label: "X-High" },
+    ],
   },
   {
     id: "codex",
@@ -35,6 +57,10 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       prompt,
     ],
     capabilities: { skills: false, imageGen: true, fileOps: true, maxContext: 200_000 },
+    thinkingLevels: [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+    ],
   },
   {
     id: "pi",
@@ -49,6 +75,10 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       prompt,
     ],
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 200_000 },
+    thinkingLevels: [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+    ],
   },
   {
     id: "openclaw",
@@ -63,6 +93,10 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       "--local",
     ],
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 128_000 },
+    thinkingLevels: [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+    ],
   },
   {
     id: "hermes",
@@ -77,6 +111,10 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       "--yolo",
     ],
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 128_000 },
+    thinkingLevels: [
+      { value: "auto", label: "Auto" },
+      { value: "off", label: "Off" },
+    ],
   },
 ];
 
