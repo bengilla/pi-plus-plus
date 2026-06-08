@@ -577,9 +577,9 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                   <button
                     onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
                     className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: "oklch(65% 0.015 252)", border: "1px solid var(--border)" }}
+                    style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}
                   >
-                    📋 Copy
+                    Copy
                   </button>
                   <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
                     {formatTime(msg.createdAt)}
