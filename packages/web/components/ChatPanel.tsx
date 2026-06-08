@@ -487,7 +487,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text-tertiary)",
+                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text-secondary)",
                   background: msg.role === "user" ? "oklch(66% 0.19 252 / 0.08)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.08)" : "var(--bg-hover)",
                   border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "var(--border)"}`,
                 }}
@@ -599,7 +599,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: "var(--text-tertiary)",
+                  color: "var(--text-secondary)",
                   background: "var(--bg-hover)",
                   border: "1px solid var(--border)",
                 }}
