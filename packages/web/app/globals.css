@@ -1,192 +1,368 @@
 @import "tailwindcss";
 
-/* Design tokens — default to dark so SSR and CSS agree on first paint. */
-/* The inline theme script flips to light if the user prefers it. */
+/* ═══════════════════════════════════════════════════════════════
+   agents-web — Design System
+   Direction: Dark Industrial Precision
+   References: pi-web, Codex Desktop
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ──────────────────────────────────────────── */
+/* Dark theme is the default (SSR-safe, no white flash). */
+
 :root {
-  --color-surface: #1c1917;
-  --color-surface-secondary: #292524;
-  --color-border: #44403c;
-  --color-text: #fafaf9;
-  --color-text-secondary: #a8a29e;
-  --color-accent: oklch(0.68 0.21 250);
-  --color-accent-dim: oklch(0.68 0.21 250 / 0.15);
+  /* Surfaces */
+  --bg:            oklch(16% 0.006 260);
+  --bg-panel:      oklch(20% 0.005 260);
+  --bg-hover:      oklch(24% 0.004 260);
+  --bg-selected:   oklch(27% 0.004 260);
+  --bg-elevated:   oklch(22% 0.005 260);
 
-  --text-base: clamp(0.875rem, 0.85rem + 0.15vw, 0.9375rem);
-  --text-sm: 0.8125rem;
-  --text-xs: 0.75rem;
-  --text-lg: clamp(1.125rem, 1.05rem + 0.3vw, 1.25rem);
+  /* Borders */
+  --border:        oklch(30% 0.003 260);
+  --border-light:  oklch(26% 0.003 260);
 
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 0.75rem;
-  --space-lg: 1rem;
-  --space-xl: 1.5rem;
+  /* Text */
+  --text:          oklch(93% 0 0);
+  --text-secondary: oklch(62% 0.01 260);
+  --text-tertiary: oklch(45% 0.01 260);
 
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  /* Accent — cobalt blue */
+  --accent:        oklch(66% 0.19 252);
+  --accent-hover:  oklch(72% 0.19 252);
+  --accent-dim:    oklch(66% 0.19 252 / 0.12);
 
-  --duration-fast: 120ms;
-  --duration-normal: 200ms;
+  /* Semantic */
+  --user-bg:       oklch(26% 0.04 250);
+  --user-border:   oklch(34% 0.04 250);
+  --tool-bg:       oklch(22% 0.005 260);
+  --tool-border:   oklch(28% 0.004 260);
+  --success:       oklch(62% 0.19 160);
+  --warning:       oklch(70% 0.17 85);
+  --error:         oklch(55% 0.22 20);
+
+  /* Typography */
+  --font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:     "JetBrains Mono", "Fira Code", "Noto Sans Mono", ui-monospace, monospace;
+  --text-base:     13px;
+  --text-sm:       12px;
+  --text-xs:       11px;
+  --text-lg:       15px;
+  --text-xl:       18px;
+
+  /* Spacing (4px grid) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+
+  /* Radii */
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
+
+  /* Shadows */
+  --shadow-panel:   0 1px 3px rgba(0,0,0,0.3);
+  --shadow-overlay: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-modal:   0 8px 24px rgba(0,0,0,0.5);
+
+  /* Animations */
+  --duration-fast:   100ms;
+  --duration-normal: 150ms;
+  --duration-slow:   200ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Panel */
+  --sidebar-width: 260px;
+  --right-panel-ratio: 42%;
 }
 
+/* ── Light Theme ───────────────────────────────────────────── */
 [data-theme="light"] {
-  --color-surface: #fafaf9;
-  --color-surface-secondary: #f5f5f4;
-  --color-border: #e7e5e4;
-  --color-text: #1c1917;
-  --color-text-secondary: #78716c;
-  --color-accent-dim: oklch(0.68 0.21 250 / 0.1);
+  --bg:            oklch(98% 0.002 260);
+  --bg-panel:      oklch(96% 0.002 260);
+  --bg-hover:      oklch(93% 0.003 260);
+  --bg-selected:   oklch(90% 0.003 260);
+  --bg-elevated:   oklch(94% 0.002 260);
+
+  --border:        oklch(88% 0.002 260);
+  --border-light:  oklch(92% 0.001 260);
+
+  --text:          oklch(15% 0.002 260);
+  --text-secondary: oklch(48% 0.01 260);
+  --text-tertiary: oklch(62% 0.008 260);
+
+  --accent:        oklch(52% 0.19 252);
+  --accent-hover:  oklch(46% 0.19 252);
+  --accent-dim:    oklch(52% 0.19 252 / 0.08);
+
+  --user-bg:       oklch(93% 0.03 250);
+  --user-border:   oklch(84% 0.03 250);
+  --tool-bg:       oklch(95% 0.004 260);
+  --tool-border:   oklch(90% 0.003 260);
+
+  --shadow-panel:   0 0.5px 2px rgba(0,0,0,0.06);
+  --shadow-overlay: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-modal:   0 8px 24px rgba(0,0,0,0.1);
 }
 
+/* ── Base ──────────────────────────────────────────────────── */
 html {
-  background: var(--color-surface);
+  background: var(--bg);
   color-scheme: light dark;
 }
 
-/* Base */
 body {
-  background: var(--color-surface);
-  color: var(--color-text);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar */
+/* ── Scrollbar (thin, muted) ──────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--border);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
+  background: var(--text-tertiary);
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
-/* Focus */
+/* ── Focus ─────────────────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
 }
 
-/* Logo shimmer animation */
-@keyframes shimmer {
-  0%   { opacity: 0.3; }
-  50%  { opacity: 1; }
-  100% { opacity: 0.3; }
-}
-.animate-shimmer {
-  animation: shimmer 2.5s ease-in-out infinite;
+/* ── Selection ─────────────────────────────────────────────── */
+::selection {
+  background: oklch(66% 0.19 252 / 0.25);
+  color: var(--text);
 }
 
-/* Animation utilities */
+/* ── Code blocks ───────────────────────────────────────────── */
+code, pre {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
 .fade-in {
-  animation: fadeIn var(--duration-normal) var(--ease-out);
+  animation: fade-in var(--duration-normal) var(--ease-out);
 }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+.slide-in-left {
+  animation: slide-in-left var(--duration-slow) var(--ease-out);
+}
+.slide-in-right {
+  animation: slide-in-right var(--duration-slow) var(--ease-out);
 }
 
-/* Markdown prose — scoped to .md-body wrapper */
-.md-body h1,
-.md-body h2,
-.md-body h3,
-.md-body h4 {
+/* ── Legacy aliases (for components not yet updated) ────────── */
+:root {
+  --color-surface: var(--bg);
+  --color-surface-secondary: var(--bg-panel);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --radius-md: var(--radius-lg);
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-xl);
+  --duration-fast: var(--duration-fast);
+  --duration-normal: var(--duration-normal);
+  --ease-out: var(--ease-out);
+}
+[data-theme="light"] {
+  --color-surface: var(--bg);
+  --color-surface-secondary: var(--bg-panel);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+}
+
+/* ── Panel Collapse Transitions ────────────────────────────── */
+.sidebar-panel {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  transition: width var(--duration-slow) var(--ease-out),
+              min-width var(--duration-slow) var(--ease-out),
+              opacity var(--duration-normal) var(--ease-out);
+  overflow: hidden;
+}
+.sidebar-panel.collapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  border-right: none !important;
+}
+
+.right-panel {
+  width: var(--right-panel-ratio);
+  min-width: 300px;
+  transition: width var(--duration-slow) var(--ease-out),
+              min-width var(--duration-slow) var(--ease-out),
+              opacity var(--duration-normal) var(--ease-out);
+  overflow: hidden;
+}
+.right-panel.collapsed {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  border-left: none !important;
+}
+/* On narrow screens, right panel goes full overlay instead */
+@media (max-width: 1024px) {
+  .right-panel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    width: 100% !important;
+    max-width: 420px;
+    min-width: 300px;
+    box-shadow: var(--shadow-modal);
+  }
+  .right-panel.collapsed {
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0;
+  }
+}
+
+/* ── Markdown Body ─────────────────────────────────────────── */
+.md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 {
   font-weight: 600;
-  line-height: 1.3;
-  margin-top: 1.25em;
-  margin-bottom: 0.5em;
-  color: var(--color-text);
+  line-height: 1.35;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+  color: var(--text);
 }
-.md-body h1 { font-size: 1.25rem; }
-.md-body h2 { font-size: 1.125rem; }
-.md-body h3 { font-size: 1rem; }
-.md-body h4 { font-size: 0.9375rem; }
-
+.md-body h1 { font-size: var(--text-xl); }
+.md-body h2 { font-size: var(--text-lg); }
+.md-body h3 { font-size: var(--text-base); }
+.md-body h4 { font-size: var(--text-sm); }
 .md-body p {
-  margin-bottom: 0.75em;
+  margin-bottom: 0.6em;
 }
 .md-body p:last-child {
   margin-bottom: 0;
 }
-
-.md-body ul,
-.md-body ol {
+.md-body ul, .md-body ol {
   padding-left: 1.5em;
-  margin-bottom: 0.75em;
+  margin-bottom: 0.6em;
 }
 .md-body li {
-  margin-bottom: 0.25em;
+  margin-bottom: 0.15em;
 }
-
 .md-body blockquote {
-  border-left: 3px solid var(--color-accent);
-  padding-left: 1em;
-  margin: 0.75em 0;
-  color: var(--color-text-secondary);
+  border-left: 2.5px solid var(--accent);
+  padding-left: 0.75em;
+  margin: 0.6em 0;
+  color: var(--text-secondary);
 }
-
 .md-body table {
   width: 100%;
   border-collapse: collapse;
-  margin: 0.75em 0;
+  margin: 0.6em 0;
   font-size: var(--text-xs);
 }
-.md-body th,
-.md-body td {
-  border: 1px solid var(--color-border);
-  padding: 0.375rem 0.75rem;
+.md-body th, .md-body td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
   text-align: left;
 }
 .md-body th {
-  background: var(--color-surface-secondary);
+  background: var(--bg-panel);
   font-weight: 600;
 }
-
 .md-body a {
-  color: var(--color-accent);
+  color: var(--accent);
   text-decoration: underline;
 }
 .md-body a:hover {
   opacity: 0.8;
 }
-
 .md-body hr {
   border: none;
-  border-top: 1px solid var(--color-border);
-  margin: 1em 0;
+  border-top: 1px solid var(--border);
+  margin: 0.75em 0;
 }
-
 .md-body img {
   max-width: 100%;
   border-radius: var(--radius-md);
 }
-
-.md-body .inline-code {
-  background: var(--color-surface-secondary);
-  padding: 0.125em 0.375em;
-  border-radius: 0.25rem;
-  font-size: 0.875em;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  color: oklch(0.75 0.17 60);
-}
-
-[data-theme="light"] .md-body .inline-code {
-  color: oklch(0.55 0.17 0);
-}
-
 .md-body strong {
   font-weight: 600;
 }
-
 .md-body em {
   font-style: italic;
+}
+
+/* ── Inline Code ───────────────────────────────────────────── */
+.md-body code:not(pre code) {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  color: oklch(0.75 0.17 60);
+}
+[data-theme="light"] .md-body code:not(pre code) {
+  color: oklch(0.45 0.15 25);
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .sidebar-panel {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    box-shadow: var(--shadow-modal);
+  }
+  .sidebar-panel.collapsed {
+    transform: translateX(-100%);
+    width: 280px !important;
+    min-width: 280px !important;
+  }
 }

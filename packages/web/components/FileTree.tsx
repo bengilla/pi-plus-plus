@@ -12,9 +12,10 @@ interface FileNode {
 interface Props {
   workspace: string;
   onNavigate: (newWorkspace: string) => void;
+  onFileClick?: (filePath: string) => void;
 }
 
-export function FileTree({ workspace, onNavigate }: Props) {
+export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedPath, setExpandedPath] = useState(false);
@@ -164,7 +165,7 @@ export function FileTree({ workspace, onNavigate }: Props) {
             </div>
           ) : (
             <div key={node.path} className="group flex items-center gap-0.5 px-1 py-0.5">
-              <button onClick={() => { if (node.type === "directory") onNavigate(workspace.replace(/\/$/, "") + "/" + node.name); }}
+              <button onClick={() => { if (node.type === "directory") onNavigate(workspace.replace(/\/$/, "") + "/" + node.name); else onFileClick?.(workspace.replace(/\/$/, "") + "/" + node.name); }}
                 className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs rounded-sm hover:opacity-80 min-w-0"
                 style={{ color: node.type === "directory" ? "var(--color-text)" : "var(--color-text-secondary)" }}>
                 <span className="shrink-0">{node.type === "directory" ? "📁" : fileIcon(node.name)}</span>

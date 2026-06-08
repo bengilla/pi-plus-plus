@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning style={{ background: "#1c1917" }}>
+    <html lang="en" suppressHydrationWarning style={{ background: "oklch(16% 0.006 260)" }}>
       <head>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function() {
@@ -17,15 +17,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             var dark = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
             if (dark) {
               document.documentElement.setAttribute('data-theme', 'dark');
-              document.documentElement.style.background = '#1c1917';
+              document.documentElement.style.background = 'oklch(16% 0.006 260)';
             } else {
               document.documentElement.setAttribute('data-theme', 'light');
-              document.documentElement.style.background = '#fafaf9';
+              document.documentElement.style.background = 'oklch(98% 0.002 260)';
             }
           })()`}
         </Script>
       </head>
-      <body className="h-screen overflow-hidden flex flex-col antialiased">
+      <body className="h-screen overflow-hidden antialiased" style={{ display: "flex", flexDirection: "column" }}>
         {children}
       </body>
     </html>

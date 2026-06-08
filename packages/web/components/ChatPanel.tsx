@@ -58,13 +58,12 @@ interface Props {
   activeAgent: string;
   agentName?: string;
   workspace: string;
-  fullPage?: boolean;
   initialMessages?: SimpleMessage[];
   onMessagesChange?: (messages: SimpleMessage[]) => void;
   thinkingLevel?: string;
 }
 
-export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+export function ChatPanel({ activeAgent, agentName, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
   const displayName = agentName ?? activeAgent;
 
   const [messages, setMessages] = useState<Message[]>(() =>
@@ -466,16 +465,6 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Header — hidden in fullPage mode */}
-      {!fullPage && (
-        <div
-          className="px-3 py-2.5 border-b text-xs font-medium tracking-wide shrink-0 flex items-center justify-between"
-          style={{ borderColor: "var(--color-border)", color: "var(--color-text-secondary)" }}
-        >
-          <span>CHAT — {displayName}</span>
-        </div>
-      )}
-
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && !streaming && (
