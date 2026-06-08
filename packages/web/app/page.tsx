@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect, type DragEvent } from "react";
 import type { ConvInfo } from "@/components/Sidebar";
 import { Sidebar } from "@/components/Sidebar";
 import { getAllDefinitions } from "@/lib/agents/registry";
-import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ChatPanel } from "@/components/ChatPanel";
 import { RightPanel } from "@/components/RightPanel";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -285,7 +284,6 @@ export default function Home() {
               <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Scanning...</span>
             ) : (
               <>
-                <ModelSwitcher value={activeAgent} onChange={(id) => { setActiveAgent(id); setThinkingLevel("auto"); }} />
                 <select
                   value={thinkingLevel}
                   onChange={(e) => setThinkingLevel(e.target.value)}
