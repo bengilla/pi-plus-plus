@@ -121,7 +121,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
         {!expandedPath && (
           <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(workspace); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
             className="shrink-0 px-1.5 py-0.5 rounded text-[10px] transition-all ml-auto"
-            style={{ color: "#fff", background: copied ? "oklch(0.55 0.15 160)" : "oklch(0.48 0.2 255)" }}>
+            style={{ color: "#fff", background: copied ? "oklch(0.55 0.15 160)" : "oklch(68% 0.15 55)" }}>
             {copied ? "COPIED!" : "COPY"}
           </button>
         )}
@@ -130,9 +130,9 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
         <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "#fff", background: "oklch(0.48 0.2 255)" }}>📄 New File</button>
+          style={{ color: "#fff", background: "oklch(68% 0.15 55)" }}>📄 New File</button>
         <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "#fff", background: "oklch(0.48 0.2 255)" }}>📁 New Folder</button>
+          style={{ color: "#fff", background: "oklch(68% 0.15 55)" }}>📁 New Folder</button>
       </div>
 
       {/* New item input */}
@@ -146,7 +146,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
             style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
             autoFocus spellCheck={false} />
           <button onClick={handleCreate} className="px-2 py-0.5 rounded text-[10px]"
-            style={{ background: "oklch(0.48 0.2 255)", color: "#fff" }}>Create</button>
+            style={{ background: "oklch(68% 0.15 55)", color: "#fff" }}>Create</button>
         </div>
       )}
 
