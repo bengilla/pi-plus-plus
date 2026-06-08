@@ -6,6 +6,7 @@ import { MarkdownBody } from "./MarkdownBody";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { ToolResultBlock } from "./ToolResultBlock";
+import { WelcomeScreen } from "./WelcomeScreen";
 
 interface Attachment {
   name: string;
@@ -57,13 +58,14 @@ function estimateCost(inputTokens: number, outputTokens: number): string {
 interface Props {
   activeAgent: string;
   agentName?: string;
+  agentDescription?: string;
   workspace: string;
   initialMessages?: SimpleMessage[];
   onMessagesChange?: (messages: SimpleMessage[]) => void;
   thinkingLevel?: string;
 }
 
-export function ChatPanel({ activeAgent, agentName, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+export function ChatPanel({ activeAgent, agentName, agentDescription, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
   const displayName = agentName ?? activeAgent;
 
   const [messages, setMessages] = useState<Message[]>(() =>
@@ -468,11 +470,13 @@ export function ChatPanel({ activeAgent, agentName, workspace, initialMessages, 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {messages.length === 0 && !streaming && (
-          <div className="text-center py-12 text-xs" style={{ color: "var(--color-text-secondary)" }}>
-            <div className="text-3xl mb-3">💬</div>
-            <div>Ask {displayName} to help with your files</div>
-            <div className="mt-1 opacity-60">Drop files or images to attach</div>
-          </div>
+          <WelcomeScreen
+            agentName={displayName}
+            agentDescription={agentDescription}
+            onStarterClick={(prompt) => {
+              setInput(prompt);
+            }}
+          />
         )}
 
         {messages.map((msg) => (

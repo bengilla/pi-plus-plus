@@ -319,6 +319,7 @@ export default function Home() {
             key={activeConvId ?? "new"}
             activeAgent={activeAgent}
             agentName={currentAgent ? agentLabel(currentAgent) : activeAgent}
+            agentDescription={currentAgent?.description}
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
