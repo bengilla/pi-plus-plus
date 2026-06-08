@@ -295,19 +295,126 @@ export function parseCodexLine(line: string): AgentEvent | null {
   }
 }
 
+/** Extract text from a Pi assistant message partial's content array */
+function extractContentText(content: unknown): string {
+  if (Array.isArray(content)) {
+    return content
+      .filter((b: { type?: string; text?: string }) => b.type === "text" && b.text)
+      .map((b: { text: string }) => b.text)
+      .join("");
+  }
+  return "";
+}
+
 /** Parse Pi JSON Lines output (pi --mode json) */
 export function parsePiLine(line: string): AgentEvent | null {
   if (!line.trim()) return null;
   try {
     const evt = JSON.parse(line);
 
-    // Pi uses "message_update" events with nested assistantMessageEvent
+    // ── message_update: streaming deltas from the LLM ────────
     if (evt.type === "message_update" && evt.assistantMessageEvent) {
       const ame = evt.assistantMessageEvent;
-      if (ame.type === "text_delta" && ame.delta) {
-        return { type: "text", text: ame.delta };
+      switch (ame.type) {
+        case "text_start":
+        case "text_end":
+          // Text lifecycle markers — no visible content to emit
+          return null;
+        case "text_delta":
+          return ame.delta ? { type: "text", text: ame.delta } : null;
+        case "thinking_start":
+          // Emit empty thinking to initialize the thinking block on the client
+          return { type: "thinking", thinkingText: "" };
+        case "thinking_delta":
+          return ame.delta ? { type: "thinking", thinkingText: ame.delta } : null;
+        case "thinking_end":
+          // Thinking block complete — no visible content to emit
+          return null;
+        case "toolcall_start":
+          // Tool call starting — allocate an id from contentIndex, name unknown yet
+          return {
+            type: "tool_use",
+            toolId: `call_${ame.contentIndex}`,
+            toolName: "",
+            toolInput: {},
+          };
+        case "toolcall_delta":
+          // Partial JSON arguments streamed token-by-token
+          return {
+            type: "tool_use",
+            toolId: `call_${ame.contentIndex}`,
+            toolInput: { __partial: ame.delta },
+          };
+        case "toolcall_end": {
+          // Tool call complete — emit full tool_use with name + parsed arguments
+          const tc = ame.toolCall;
+          if (!tc) return null;
+          return {
+            type: "tool_use",
+            toolId: tc.id ?? `call_${ame.contentIndex}`,
+            toolName: tc.name ?? "",
+            toolInput: (tc.arguments ?? {}) as Record<string, unknown>,
+          };
+        }
+        case "done": {
+          // Message complete — extract usage from the message
+          const msg = ame.message || evt.message;
+          const usage = msg?.usage;
+          return {
+            type: "done",
+            inputTokens: usage?.inputTokens,
+            outputTokens: usage?.outputTokens,
+            cacheTokens: (usage?.cacheReadInputTokens ?? 0) + (usage?.cacheCreationInputTokens ?? 0) || undefined,
+          };
+        }
+        case "error": {
+          // Stream error
+          return { type: "error", error: ame.error?.message ?? ame.reason ?? "Pi stream error" };
+        }
+        default:
+          return null;
       }
-      // Skip thinking_delta, thinking_end, text_end
+    }
+
+    // ── tool_execution_*: actual tool execution (bash, read, write, edit) ──
+    if (evt.type === "tool_execution_start") {
+      return {
+        type: "tool_use",
+        toolId: evt.toolCallId ?? "",
+        toolName: evt.toolName ?? "",
+        toolInput: (evt.args ?? {}) as Record<string, unknown>,
+      };
+    }
+    if (evt.type === "tool_execution_update") {
+      // Partial output — stream it as incremental tool result
+      const partial = extractContentText(evt.partialResult?.content);
+      return {
+        type: "tool_result",
+        toolId: evt.toolCallId ?? "",
+        toolOutput: partial,
+      };
+    }
+    if (evt.type === "tool_execution_end") {
+      const output = extractContentText(evt.result?.content);
+      return {
+        type: "tool_result",
+        toolId: evt.toolCallId ?? "",
+        toolOutput: output || (evt.isError ? "Tool execution error" : ""),
+      };
+    }
+
+    // ── message_end: extract final usage if not already captured ──
+    if (evt.type === "message_end") {
+      const msg = evt.message;
+      const usage = msg?.usage;
+      if (usage) {
+        return {
+          type: "done",
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          cacheTokens: (usage?.cacheReadInputTokens ?? 0) + (usage?.cacheCreationInputTokens ?? 0) || undefined,
+        };
+      }
       return null;
     }
 
@@ -319,43 +426,18 @@ export function parsePiLine(line: string): AgentEvent | null {
       evt.type === "turn_start" ||
       evt.type === "turn_end" ||
       evt.type === "message_start" ||
-      evt.type === "message_end"
+      evt.type === "queue_update" ||
+      evt.type === "compaction_start" ||
+      evt.type === "compaction_end" ||
+      evt.type === "auto_retry_start" ||
+      evt.type === "auto_retry_end" ||
+      evt.type === "session_info_changed" ||
+      evt.type === "thinking_level_changed"
     ) {
       return null;
     }
 
-    // Direct text events
-    switch (evt.type) {
-      case "text":
-      case "content":
-      case "delta": {
-        return { type: "text", text: evt.text ?? evt.content ?? evt.delta ?? "" };
-      }
-      case "tool_call":
-      case "tool_use": {
-        return {
-          type: "tool_use",
-          toolName: evt.tool ?? evt.name ?? evt.tool_name ?? "",
-          toolInput: (evt.input ?? evt.arguments ?? {}) as Record<string, unknown>,
-        };
-      }
-      case "tool_result":
-      case "tool_response": {
-        return {
-          type: "tool_result",
-          toolOutput: typeof evt.output === "string" ? evt.output : JSON.stringify(evt.output ?? evt.result),
-        };
-      }
-      case "error": {
-        return { type: "error", error: evt.message ?? evt.error ?? "Pi error" };
-      }
-      case "done":
-      case "complete": {
-        return { type: "done" };
-      }
-    }
-
-    // Unrecognized JSON — skip (don't dump raw JSON as text)
+    // Catch-all for unrecognized event types
     return null;
   } catch {
     return { type: "text", text: line };

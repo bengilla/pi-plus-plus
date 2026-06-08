@@ -4,6 +4,27 @@ import type { AgentDefinition } from "./types";
 // To add a new agent: add an entry here. That's it.
 // Discovery scans PATH for the binary; no other code changes needed.
 
+const CLAUDE_THINKING_LEVELS = [
+  { value: "auto", label: "Auto" },
+  { value: "off", label: "Off" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "X-High" },
+];
+
+const CODEX_REASONING_LEVELS = [
+  { value: "auto", label: "Auto" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "X-High" },
+];
+
+const PI_THINKING_LEVELS = CLAUDE_THINKING_LEVELS;
+
 export const KNOWN_AGENTS: AgentDefinition[] = [
   {
     id: "claude-code",
@@ -32,15 +53,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       return args;
     },
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 200_000 },
-    thinkingLevels: [
-      { value: "auto", label: "Auto" },
-      { value: "off", label: "Off" },
-      { value: "minimal", label: "Minimal" },
-      { value: "low", label: "Low" },
-      { value: "medium", label: "Medium" },
-      { value: "high", label: "High" },
-      { value: "xhigh", label: "X-High" },
-    ],
+    thinkingLevels: CLAUDE_THINKING_LEVELS,
   },
   {
     id: "codex",
@@ -48,16 +61,22 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "OpenAI Codex CLI — gpt-image2, sandboxed execution",
     binary: "codex",
     fallbackPaths: ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"],
-    spawnArgs: (workspace, prompt) => [
-      "exec",
-      "--json",
-      "--color", "never",
-      "--ephemeral",
-      "-C", workspace,
-      prompt,
-    ],
+    spawnArgs: (workspace, prompt, thinkingLevel) => {
+      const args = [
+        "exec",
+        "--json",
+        "--color", "never",
+        "--ephemeral",
+        "-C", workspace,
+      ];
+      if (thinkingLevel && thinkingLevel !== "auto") {
+        args.push("-c", `model_reasoning_effort="${thinkingLevel}"`);
+      }
+      args.push(prompt);
+      return args;
+    },
     capabilities: { skills: false, imageGen: true, fileOps: true, maxContext: 200_000 },
-    thinkingLevels: [{ value: "auto", label: "Auto" }],
+    thinkingLevels: CODEX_REASONING_LEVELS,
   },
   {
     id: "pi",
@@ -65,17 +84,20 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "Earendil Pi coding agent — multi-provider, RPC mode",
     binary: "pi",
     fallbackPaths: ["/opt/homebrew/bin/pi", "/usr/local/bin/pi"],
-    spawnArgs: (_workspace, prompt) => [
-      "--mode", "json",
-      "-p",
-      "--no-session",
-      prompt,
-    ],
+    spawnArgs: (_workspace, prompt, thinkingLevel) => {
+      const args = [
+        "--mode", "json",
+        "-p",
+        "--no-session",
+      ];
+      if (thinkingLevel && thinkingLevel !== "auto") {
+        args.push("--thinking", thinkingLevel);
+      }
+      args.push(prompt);
+      return args;
+    },
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 200_000 },
-    thinkingLevels: [
-      { value: "auto", label: "Auto" },
-      { value: "off", label: "Off" },
-    ],
+    thinkingLevels: PI_THINKING_LEVELS,
   },
   {
     id: "openclaw",

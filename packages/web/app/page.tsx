@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect, type DragEvent } from "react";
 import type { ConvInfo } from "@/components/Sidebar";
 import { Sidebar } from "@/components/Sidebar";
-import { getAllDefinitions } from "@/lib/agents/registry";
-import { ChatPanel } from "@/components/ChatPanel";
+import { getDefinition } from "@/lib/agents/registry";
+import { ChatPanel, type ChatMessageSnapshot } from "@/components/ChatPanel";
 import { RightPanel } from "@/components/RightPanel";
 import { SettingsModal } from "@/components/SettingsModal";
 
@@ -13,6 +13,7 @@ interface AgentInfo {
   name: string;
   description: string;
   version?: string;
+  path?: string;
 }
 
 interface ConvData {
@@ -20,7 +21,7 @@ interface ConvData {
   title: string;
   agentId: string;
   workspace?: string;
-  messages: { role: string; content: string; id: string }[];
+  messages: ChatMessageSnapshot[];
   createdAt: number;
 }
 
@@ -153,7 +154,7 @@ export default function Home() {
   };
 
   const onMessagesChange = useCallback(
-    (messages: { role: string; content: string; id: string }[]) => {
+    (messages: ChatMessageSnapshot[]) => {
       const firstUser = messages.find((m) => m.role === "user");
       const cid = activeConvId;
 
@@ -217,6 +218,7 @@ export default function Home() {
   }, [navigateTo]);
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
+  const currentAgentDefinition = getDefinition(activeAgent);
   const activeConv = currentProjectConvs.find((c) => c.id === activeConvId);
 
   // ── No agents state ────────────────────────────────────────
@@ -295,25 +297,8 @@ export default function Home() {
               </svg>
             </button>
 
-            {agentsLoading ? (
+            {agentsLoading && (
               <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Scanning...</span>
-            ) : (
-              <>
-                <select
-                  value={thinkingLevel}
-                  onChange={(e) => setThinkingLevel(e.target.value)}
-                  className="text-[11px] px-2 py-0.5 rounded cursor-pointer"
-                  style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
-                  title="Thinking level"
-                >
-                  {(getAllDefinitions().find(d => d.id === activeAgent)?.thinkingLevels ?? [
-                    { value: "auto", label: "Auto" },
-                    { value: "off", label: "Off" },
-                  ]).map((l) => (
-                    <option key={l.value} value={l.value}>{l.label}</option>
-                  ))}
-                </select>
-              </>
             )}
           </div>
 
@@ -350,7 +335,9 @@ export default function Home() {
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
-            thinkingLevel={thinkingLevel === "auto" ? undefined : thinkingLevel}
+            thinkingLevel={thinkingLevel}
+            thinkingLevels={currentAgentDefinition?.thinkingLevels ?? []}
+            onThinkingLevelChange={setThinkingLevel}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
@@ -369,6 +356,7 @@ export default function Home() {
           view={rightPanelView}
           filePath={selectedFilePath}
           agent={currentAgent}
+          agentDefinition={currentAgentDefinition}
           workspace={workspace}
           onClose={closeRightPanel}
         />

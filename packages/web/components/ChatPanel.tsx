@@ -27,10 +27,16 @@ interface Message {
   cacheTokens?: number;
 }
 
-interface SimpleMessage {
+export interface ChatMessageSnapshot {
   role: string;
   content: string;
   id: string;
+  createdAt?: number;
+  attachments?: Attachment[];
+  blocks?: ContentBlock[];
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
 }
 
 function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
@@ -73,21 +79,39 @@ interface Props {
   agentDescription?: string;
   conversationId?: string | null;
   workspace: string;
-  initialMessages?: SimpleMessage[];
-  onMessagesChange?: (messages: SimpleMessage[]) => void;
+  initialMessages?: ChatMessageSnapshot[];
+  onMessagesChange?: (messages: ChatMessageSnapshot[]) => void;
   thinkingLevel?: string;
+  thinkingLevels?: { value: string; label: string }[];
+  onThinkingLevelChange?: (level: string) => void;
 }
 
-function toMessages(messages?: SimpleMessage[]): Message[] {
+function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
   return (messages ?? []).map((m) => ({
     role: m.role as "user" | "assistant" | "error",
     content: m.content,
     id: m.id,
-    createdAt: 0,
+    createdAt: m.createdAt ?? 0,
+    attachments: m.attachments,
+    blocks: m.blocks,
+    inputTokens: m.inputTokens,
+    outputTokens: m.outputTokens,
+    cacheTokens: m.cacheTokens,
   }));
 }
 
-export function ChatPanel({ activeAgent, agentName, agentDescription, conversationId, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+export function ChatPanel({
+  activeAgent,
+  agentName,
+  agentDescription,
+  conversationId,
+  workspace,
+  initialMessages,
+  onMessagesChange,
+  thinkingLevel = "auto",
+  thinkingLevels = [],
+  onThinkingLevelChange,
+}: Props) {
   const displayName = agentName ?? activeAgent;
 
   const [messages, setMessages] = useState<Message[]>(() => toMessages(initialMessages));
@@ -126,7 +150,17 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
   const onSaveRef = useRef(onMessagesChange);
   onSaveRef.current = onMessagesChange;
   useEffect(() => {
-    onSaveRef.current?.(messages.map((m) => ({ role: m.role, content: m.content, id: m.id })));
+    onSaveRef.current?.(messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      id: m.id,
+      createdAt: m.createdAt,
+      attachments: m.attachments,
+      blocks: m.blocks,
+      inputTokens: m.inputTokens,
+      outputTokens: m.outputTokens,
+      cacheTokens: m.cacheTokens,
+    })));
   }, [messages]);
 
   // Elapsed timer during streaming
@@ -281,7 +315,12 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
       const r = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent: activeAgent, prompt, workspace, thinkingLevel }),
+        body: JSON.stringify({
+          agent: activeAgent,
+          prompt,
+          workspace,
+          thinkingLevel: thinkingLevel === "auto" ? undefined : thinkingLevel,
+        }),
         signal: controller.signal,
       });
 
@@ -365,26 +404,56 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                 continue;
               }
               if (parsed.type === "tool_use") {
-                flushThinking(); // no text arg — tool events don't carry text for dedup
+                flushThinking();
                 const id = parsed.toolId ?? `tool-${streamBlocksRef.current.length}`;
-                if (parsed.toolName) {
-                  // New tool call
+                // Pi toolcall_end: has both toolName and toolId — replace or create
+                if (parsed.toolName && parsed.toolId) {
+                  const existing = streamBlocksRef.current.find(
+                    (b) => b.type === "tool_use" && b.id === id,
+                  );
+                  if (existing && existing.type === "tool_use") {
+                    // Replace placeholder with full tool call
+                    existing.toolName = parsed.toolName;
+                    existing.toolInput = parsed.toolInput ?? {};
+                  } else {
+                    streamBlocksRef.current.push({
+                      type: "tool_use",
+                      id,
+                      toolName: parsed.toolName,
+                      toolInput: parsed.toolInput ?? {},
+                      status: "running",
+                    });
+                  }
+                } else if (parsed.toolInput?.__partial != null) {
+                  // Partial JSON delta — append to matching tool_use block or last one
+                  const target = parsed.toolId
+                    ? streamBlocksRef.current.find((b) => b.type === "tool_use" && b.id === parsed.toolId)
+                    : streamBlocksRef.current[streamBlocksRef.current.length - 1];
+                  if (target?.type === "tool_use") {
+                    const prev = (target.toolInput as Record<string, unknown>).__partial as string ?? "";
+                    target.toolInput = {
+                      ...target.toolInput,
+                      __partial: prev + (parsed.toolInput.__partial as string),
+                    };
+                  } else {
+                    // No existing block — create placeholder
+                    streamBlocksRef.current.push({
+                      type: "tool_use",
+                      id,
+                      toolName: "",
+                      toolInput: { __partial: parsed.toolInput.__partial },
+                      status: "running",
+                    });
+                  }
+                } else {
+                  // New tool call with no ID/name (pi tool_execution_start)
                   streamBlocksRef.current.push({
                     type: "tool_use",
                     id,
-                    toolName: parsed.toolName,
+                    toolName: parsed.toolName ?? "",
                     toolInput: parsed.toolInput ?? {},
                     status: "running",
                   });
-                } else if (parsed.toolInput?.__partial != null) {
-                  // Partial JSON delta — append to last tool_use block
-                  const last = streamBlocksRef.current[streamBlocksRef.current.length - 1];
-                  if (last?.type === "tool_use") {
-                    last.toolInput = {
-                      ...last.toolInput,
-                      __partial: ((last.toolInput as Record<string, unknown>).__partial as string ?? "") + (parsed.toolInput.__partial as string),
-                    };
-                  }
                 }
                 streamTickRef.current++;
                 continue;
@@ -400,12 +469,21 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                     break;
                   }
                 }
-                // Append tool_result block
-                streamBlocksRef.current.push({
-                  type: "tool_result",
-                  id: targetId ?? `result-${streamBlocksRef.current.length}`,
-                  toolOutput: parsed.toolOutput ?? "",
-                });
+                // Check for existing tool_result with same id (partial update)
+                const existing = streamBlocksRef.current.find(
+                  (b) => b.type === "tool_result" && b.id === targetId,
+                );
+                if (existing && existing.type === "tool_result") {
+                  // Update existing — accumulates partial output in place
+                  existing.toolOutput = (existing.toolOutput ?? "") + (parsed.toolOutput ?? "");
+                } else {
+                  // New tool_result block
+                  streamBlocksRef.current.push({
+                    type: "tool_result",
+                    id: targetId ?? `result-${streamBlocksRef.current.length}`,
+                    toolOutput: parsed.toolOutput ?? "",
+                  });
+                }
                 streamTickRef.current++;
                 continue;
               }
@@ -636,14 +714,60 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
           {streaming && (
             <div className="fade-in flex justify-start">
               <div className="w-full max-w-[820px] px-3 py-2">
-                <div
-                  className="text-sm leading-relaxed break-words mb-1"
-                  style={{ color: "var(--color-text)" }}
-                >
-                  {streamContentRef.current ? (
+                {/* Real-time thinking blocks */}
+                {streamThinkRef.current.trim() && (
+                  <ThinkingBlock
+                    content={streamThinkRef.current}
+                    duration={
+                      streamThinkStartRef.current
+                        ? (Date.now() - streamThinkStartRef.current) / 1000
+                        : undefined
+                    }
+                    defaultOpen={true}
+                  />
+                )}
+                {/* Real-time thinking / tool call / tool result blocks */}
+                {streamBlocksRef.current.map((block, i) => {
+                  switch (block.type) {
+                    case "thinking":
+                      return (
+                        <ThinkingBlock
+                          key={`think-${i}`}
+                          content={block.content}
+                          duration={block.duration}
+                          defaultOpen={false}
+                        />
+                      );
+                    case "tool_use":
+                      return (
+                        <ToolCallBlock
+                          key={`tool-${i}`}
+                          toolName={block.toolName || "…"}
+                          toolInput={block.toolInput}
+                          status={block.status}
+                        />
+                      );
+                    case "tool_result":
+                      return (
+                        <ToolResultBlock
+                          key={`result-${i}`}
+                          toolOutput={block.toolOutput}
+                        />
+                      );
+                    default:
+                      return null;
+                  }
+                })}
+                {/* Streaming text */}
+                {streamContentRef.current && (
+                  <div
+                    className="text-sm leading-relaxed break-words mb-1"
+                    style={{ color: "var(--color-text)" }}
+                  >
                     <MarkdownBody content={streamContentRef.current} />
-                  ) : null}
-                </div>
+                  </div>
+                )}
+                {/* Status bar */}
                 <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
                   <span>Generating…</span>
                   <span>(</span>
@@ -774,8 +898,8 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
           />
 
           {/* Bottom bar: attach button + hint + send */}
-          <div className="flex justify-between items-center mt-2">
-            <div className="flex items-center gap-2">
+          <div className="flex justify-between items-center gap-3 mt-2">
+            <div className="flex min-w-0 items-center gap-2">
               {/* Attach button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -800,6 +924,29 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                 onChange={handleFileSelect}
                 accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
               />
+              {thinkingLevels.length > 1 && onThinkingLevelChange && (
+                <label className="flex min-w-0 items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  <span className="shrink-0">Thinking</span>
+                  <select
+                    value={thinkingLevel}
+                    onChange={(e) => onThinkingLevelChange(e.target.value)}
+                    className="max-w-[112px] rounded px-2 py-1 text-[11px] outline-none"
+                    style={{
+                      background: "var(--bg)",
+                      color: "var(--text)",
+                      border: "1px solid var(--border)",
+                    }}
+                    disabled={streaming}
+                    title="Thinking level"
+                  >
+                    {thinkingLevels.map((level) => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
             {streaming ? (
               <button

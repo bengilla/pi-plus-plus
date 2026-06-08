@@ -11,6 +11,7 @@ export async function GET() {
       name: a.name,
       description: a.description,
       version: a.version,
+      path: a.path,
       capabilities: a.capabilities,
     })),
   });

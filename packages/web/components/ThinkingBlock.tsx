@@ -20,19 +20,30 @@ export function ThinkingBlock({ content, duration, defaultOpen = true }: Props) 
 
   return (
     <div
-      className="my-2 rounded-md overflow-hidden"
-      style={{ border: "1px solid var(--color-border)" }}
+      className="my-2 overflow-hidden rounded-md"
+      style={{
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
+      }}
     >
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-medium cursor-pointer hover:opacity-80 transition-opacity"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-opacity hover:opacity-85"
         style={{
           background: "var(--color-surface-secondary)",
-          color: "var(--color-text-secondary)",
+          color: "var(--color-text)",
         }}
       >
-        <span className="text-[10px]">{open ? "▾" : "▸"}</span>
-        <span>Thinking</span>
+        <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>{open ? "▾" : "▸"}</span>
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{
+            background: open ? "var(--color-accent)" : "transparent",
+            border: "1px solid var(--color-accent)",
+            boxShadow: open ? "0 0 0 3px color-mix(in oklch, var(--color-accent) 18%, transparent)" : "none",
+          }}
+        />
+        <span className="text-[11px] font-semibold">Thinking</span>
         {duration != null && (
           <span className="tabular-nums ml-auto" style={{ fontSize: "10px", opacity: 0.6 }}>
             {duration >= 1

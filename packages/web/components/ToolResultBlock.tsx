@@ -8,14 +8,33 @@ interface Props {
 
 export function ToolResultBlock({ toolOutput }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const truncated = toolOutput.length > 500 && !expanded
+  const output = toolOutput.trim();
+  const truncated = output.length > 500 && !expanded
     ? toolOutput.slice(0, 500) + "…"
     : toolOutput;
 
+  if (!output) return null;
+
   return (
-    <div className="my-1 ml-4 rounded-md px-3 py-1.5" style={{ borderLeft: "2px solid var(--color-border)" }}>
+    <div
+      className="my-1 ml-4 overflow-hidden rounded-md"
+      style={{
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
+      }}
+    >
       <div
-        className="text-[11px] whitespace-pre-wrap break-words"
+        className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-medium"
+        style={{
+          color: "var(--color-text-secondary)",
+          background: "var(--color-surface-secondary)",
+        }}
+      >
+        <span>Output</span>
+        <span className="tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
+      </div>
+      <div
+        className="whitespace-pre-wrap break-words px-3 py-2 text-[11px]"
         style={{
           fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
           color: "var(--color-text-secondary)",
@@ -25,10 +44,10 @@ export function ToolResultBlock({ toolOutput }: Props) {
       >
         {truncated}
       </div>
-      {toolOutput.length > 500 && (
+      {output.length > 500 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="text-[10px] mt-1 hover:opacity-70"
+          className="px-3 pb-2 text-[10px] hover:opacity-70"
           style={{ color: "var(--color-accent)" }}
         >
           {expanded ? "Show less" : "Show more"}

@@ -7,7 +7,7 @@ export type ContentBlock =
 
 // ── Agent event (SSE stream) ──────────────────────────────
 export interface AgentEvent {
-  type: "text" | "tool_use" | "tool_result" | "error" | "done" | "thinking";
+  type: "text" | "tool_use" | "tool_result" | "tool_execution" | "error" | "done" | "thinking";
   text?: string;
   thinkingText?: string;
   toolName?: string;
@@ -19,6 +19,10 @@ export interface AgentEvent {
   inputTokens?: number;
   outputTokens?: number;
   cacheTokens?: number;
+  /** For tool_execution events: partial streaming output from a running tool */
+  partialOutput?: string;
+  /** For tool_execution events: true when tool finishes with an error */
+  isError?: boolean;
 }
 
 // ── Agent capabilities ────────────────────────────────────

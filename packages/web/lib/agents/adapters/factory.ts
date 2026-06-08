@@ -54,9 +54,9 @@ export function createAdapter(definition: AgentDefinition, binaryPath: string): 
           }
         }
 
-        // Check exit code
+        // Check exit code — 143 (128+SIGTERM) means user clicked Stop, not an error
         const { code, stderr } = await child.result;
-        if (code !== 0 && code !== null) {
+        if (code !== 0 && code !== null && code !== 143) {
           const errMsg = stderr.trim() || `exited with code ${code}`;
           yield { type: "error", error: `${definition.name}: ${errMsg}` };
         }

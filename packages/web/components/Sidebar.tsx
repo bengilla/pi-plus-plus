@@ -112,7 +112,7 @@ export function Sidebar({
                 }}
               >
                 <AgentIcon agentId={a.id} size={18} />
-                <span className="flex-1 truncate font-medium">{a.name}</span>
+                <span className="flex-1 truncate font-medium">{a.name.toLowerCase()}</span>
               </button>
             );
           })}

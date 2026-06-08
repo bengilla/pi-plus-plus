@@ -6,7 +6,7 @@ test.describe("agents-web smoke tests", () => {
   test("page loads and shows sidebar", async ({ page }) => {
     await page.goto(BASE);
     await expect(page.getByText("Agents")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Claude/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /claude/ })).toBeVisible();
   });
 
   test("agents API returns discovered agents", async ({ request }) => {
@@ -60,9 +60,9 @@ test.describe("agents-web smoke tests", () => {
     await expect(page.getByText("Skills").first()).not.toBeVisible();
   });
 
-  test("agent switcher shows Claude", async ({ page }) => {
+  test("agent switcher shows claude", async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.getByRole("button", { name: /Claude/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /claude/ })).toBeVisible();
   });
 
   test("conversations are scoped to the active workspace", async ({ page }) => {
