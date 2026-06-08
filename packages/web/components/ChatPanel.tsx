@@ -564,7 +564,7 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
             {/* Per-message usage + copy + time for assistant messages */}
             {msg.role === "assistant" && (
               <div className="flex items-center justify-between mt-1 gap-2">
-                <span className="text-[10px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
+                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
                   <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                   <span>·</span>
                   <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
@@ -580,12 +580,12 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
                 <span className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                    className="text-[10px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
+                    className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
                     style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
                   >
                     📋 Copy
                   </button>
-                  <span className="text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>
+                  <span className="text-[11px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>
                     {formatTime(msg.createdAt)}
                   </span>
                 </span>
@@ -709,9 +709,6 @@ export function ChatPanel({ activeAgent, agentName, workspace, fullPage, initial
               onChange={handleFileSelect}
               accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
             />
-            <span className="text-[10px] hidden sm:inline" style={{ color: "var(--color-text-secondary)" }}>
-              Enter to send · Shift+Enter for newline
-            </span>
           </div>
           {streaming ? (
             <button

@@ -57,7 +57,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       prompt,
     ],
     capabilities: { skills: false, imageGen: true, fileOps: true, maxContext: 200_000 },
-    thinkingLevels: [],
+    thinkingLevels: [{ value: "auto", label: "Auto" }],
   },
   {
     id: "pi",

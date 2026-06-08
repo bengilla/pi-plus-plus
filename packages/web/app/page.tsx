@@ -53,6 +53,7 @@ function getDroppedPath(e: DragEvent): string | null {
 }
 
 const STORAGE_KEY = "agents-web-conversations";
+const WORKSPACE_KEY = "agents-web-workspace";
 
 function loadConvs(): ConvData[] {
   try {
@@ -82,11 +83,15 @@ export default function Home() {
     const t = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
     setTheme(t === "dark" ? "dark" : "light");
     setConvs(loadConvs());
+    // Restore persisted workspace after hydration
+    const saved = localStorage.getItem(WORKSPACE_KEY);
+    if (saved) setWorkspace(saved);
   }, []);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
+    document.documentElement.style.background = next === "dark" ? "#1c1917" : "#fafaf9";
     localStorage.setItem("theme", next);
     setTheme(next);
   };
@@ -141,10 +146,13 @@ export default function Home() {
     [activeConvId],
   );
 
-  const navigateTo = useCallback((newPath: string) => setWorkspace(newPath), []);
+  const navigateTo = useCallback((newPath: string) => {
+    setWorkspace(newPath);
+    localStorage.setItem(WORKSPACE_KEY, newPath);
+  }, []);
   const handleDragOver = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }, []);
   const handleDragLeave = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }, []);
-  const handleDrop = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); const path = getDroppedPath(e); if (path) setWorkspace(path); }, []);
+  const handleDrop = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); const path = getDroppedPath(e); if (path) { setWorkspace(path); localStorage.setItem(WORKSPACE_KEY, path); } }, []);
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
   const activeConv = convs.find((c) => c.id === activeConvId);

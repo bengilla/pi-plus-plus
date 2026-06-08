@@ -15,7 +15,7 @@ Multi-agent web workspace — Claude Code, Codex, Pi in your browser.
 
 ```
 packages/
-└── web/            # Next.js frontend (port 3005)
+└── web/            # Next.js frontend (port 31508)
 
 packages/web/lib/
 ├── agents/         # Agent discovery + CLI spawn adapters
@@ -87,9 +87,9 @@ packages/web/lib/
 ## Scripts
 
 ```bash
-npm run dev           # Next.js dev server on :3005
+npm run dev           # Next.js dev server on :31508
 npm run build         # Production build
-npm run start         # Production server on :3005
+npm run start         # Production server on :31508
 npm run test:e2e      # Playwright E2E tests
 ```
 
@@ -107,4 +107,4 @@ npm run test:e2e      # Playwright E2E tests
 ## E2E Tests
 
 Located in `e2e/smoke.spec.ts`. Config: `e2e/playwright.config.ts`.
-Server must be running on :3005.
+Server must be running on :31508.

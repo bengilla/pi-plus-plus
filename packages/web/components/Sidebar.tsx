@@ -40,6 +40,7 @@ export function Sidebar({
   const [showCustom, setShowCustom] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [convOpen, setConvOpen] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<ConvInfo | null>(null);
 
   const defaultWorkspaces = getDefaultWorkspaces();
   const isDefault = defaultWorkspaces.some((w) => w.path === workspace);
@@ -145,12 +146,12 @@ export function Sidebar({
                     💬 {c.title}
                   </button>
                   <button
-                    onClick={() => onDeleteConversation(c.id)}
-                    className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ color: "oklch(0.55 0.2 30)" }}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                    className="shrink-0 px-1 py-0.5 rounded text-[14px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: "oklch(0.55 0.22 20)" }}
                     title="Delete"
                   >
-                    🗑
+                    ✕
                   </button>
                 </div>
               ))
@@ -172,6 +173,44 @@ export function Sidebar({
           Settings
         </button>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.4)" }}
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="rounded-lg p-6 shadow-xl max-w-sm mx-4 text-center"
+            style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm mb-3" style={{ color: "var(--color-text)" }}>
+              Delete "<span className="font-semibold">{deleteTarget.title}</span>"?
+            </p>
+            <p className="text-[11px] mb-5" style={{ color: "var(--color-text-secondary)" }}>
+              This cannot be undone.
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-1.5 text-xs rounded-md transition-opacity hover:opacity-80"
+                style={{ color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onDeleteConversation(deleteTarget.id); setDeleteTarget(null); }}
+                className="px-4 py-1.5 text-xs rounded-md transition-opacity hover:opacity-80"
+                style={{ background: "oklch(0.55 0.22 20)", color: "#fff" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

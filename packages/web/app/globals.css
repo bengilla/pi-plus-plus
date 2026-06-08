@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
-/* Design tokens */
+/* Design tokens — default to dark so SSR and CSS agree on first paint. */
+/* The inline theme script flips to light if the user prefers it. */
 :root {
-  --color-surface: #fafaf9;
-  --color-surface-secondary: #f5f5f4;
-  --color-border: #e7e5e4;
-  --color-text: #1c1917;
-  --color-text-secondary: #78716c;
+  --color-surface: #1c1917;
+  --color-surface-secondary: #292524;
+  --color-border: #44403c;
+  --color-text: #fafaf9;
+  --color-text-secondary: #a8a29e;
   --color-accent: oklch(0.68 0.21 250);
-  --color-accent-dim: oklch(0.68 0.21 250 / 0.1);
+  --color-accent-dim: oklch(0.68 0.21 250 / 0.15);
 
   --text-base: clamp(0.875rem, 0.85rem + 0.15vw, 0.9375rem);
   --text-sm: 0.8125rem;
@@ -30,13 +31,18 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="dark"] {
-  --color-surface: #1c1917;
-  --color-surface-secondary: #292524;
-  --color-border: #44403c;
-  --color-text: #fafaf9;
-  --color-text-secondary: #a8a29e;
-  --color-accent-dim: oklch(0.68 0.21 250 / 0.15);
+[data-theme="light"] {
+  --color-surface: #fafaf9;
+  --color-surface-secondary: #f5f5f4;
+  --color-border: #e7e5e4;
+  --color-text: #1c1917;
+  --color-text-secondary: #78716c;
+  --color-accent-dim: oklch(0.68 0.21 250 / 0.1);
+}
+
+html {
+  background: var(--color-surface);
+  color-scheme: light dark;
 }
 
 /* Base */
@@ -160,11 +166,11 @@ body {
   border-radius: 0.25rem;
   font-size: 0.875em;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  color: oklch(0.55 0.17 0);
+  color: oklch(0.75 0.17 60);
 }
 
-[data-theme="dark"] .md-body .inline-code {
-  color: oklch(0.75 0.17 60);
+[data-theme="light"] .md-body .inline-code {
+  color: oklch(0.55 0.17 0);
 }
 
 .md-body strong {

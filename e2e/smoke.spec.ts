@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const BASE = "http://localhost:3005";
+const BASE = "http://localhost:31508";
 
 test.describe("agents-web smoke tests", () => {
   test("page loads and shows header", async ({ page }) => {
