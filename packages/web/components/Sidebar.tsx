@@ -186,7 +186,7 @@ export function Sidebar({
           <button
             onClick={onNewConversation}
             className="px-2 py-0.5 rounded text-[10px] font-medium transition-opacity hover:opacity-80"
-            style={{ color: "#fff", background: "oklch(68% 0.15 55)" }}
+            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}
           >
             NEW
           </button>
