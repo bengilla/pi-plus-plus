@@ -132,18 +132,38 @@ export default function Home() {
 
   const onMessagesChange = useCallback(
     (messages: { role: string; content: string; id: string }[]) => {
-      if (!activeConvId) return;
-      setConvs((prev) => {
-        const updated = prev.map((c) => {
-          if (c.id !== activeConvId) return c;
-          const firstUser = messages.find((m) => m.role === "user");
-          return { ...c, messages, title: firstUser ? firstUser.content.slice(0, 40) : c.title };
+      const firstUser = messages.find((m) => m.role === "user");
+      const cid = activeConvId;
+
+      if (cid) {
+        // Update existing conversation
+        setConvs((prev) => {
+          const updated = prev.map((c) => {
+            if (c.id !== cid) return c;
+            return { ...c, messages, title: firstUser ? firstUser.content.slice(0, 40) : c.title };
+          });
+          saveConvs(updated);
+          return updated;
         });
-        saveConvs(updated);
-        return updated;
-      });
+      } else if (messages.length > 0) {
+        // Auto-create a new conversation (only when there are actual messages)
+        const newId = Date.now().toString();
+        const newConv: ConvData = {
+          id: newId,
+          title: firstUser ? firstUser.content.slice(0, 40) : "New conversation",
+          agentId: activeAgent,
+          messages,
+          createdAt: Date.now(),
+        };
+        setConvs((prev) => {
+          const updated = [newConv, ...prev];
+          saveConvs(updated);
+          return updated;
+        });
+        setActiveConvId(newId);
+      }
     },
-    [activeConvId],
+    [activeConvId, activeAgent],
   );
 
   const navigateTo = useCallback((newPath: string) => {
@@ -197,10 +217,9 @@ export default function Home() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center justify-between px-4 py-2 border-b shrink-0"
+        <header className="flex items-center justify-between px-4 h-[42px] border-b shrink-0"
           style={{ borderColor: "var(--color-border)", background: "var(--color-surface-secondary)" }}>
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-sm tracking-tight">agents-web</span>
             {agentsLoading ? (
               <span className="text-xs" style={{ color: "var(--color-text-secondary)" }}>Scanning...</span>
             ) : (

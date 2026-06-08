@@ -5,8 +5,8 @@ const BASE = "http://localhost:31508";
 test.describe("agents-web smoke tests", () => {
   test("page loads and shows header", async ({ page }) => {
     await page.goto(BASE);
-    // The header "agents-web" span is in the top bar
-    await expect(page.locator("header").getByText("agents-web")).toBeVisible();
+    // The "agents-web" brand is in the sidebar
+    await expect(page.locator("aside").getByText("agents-web")).toBeVisible();
   });
 
   test("agents API returns discovered agents", async ({ request }) => {

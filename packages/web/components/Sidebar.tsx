@@ -54,46 +54,18 @@ export function Sidebar({
       className="w-72 shrink-0 border-r flex flex-col overflow-hidden min-h-0"
       style={{ borderColor: "var(--color-border)", background: "var(--color-surface-secondary)" }}
     >
-      {/* Workspace dropdown */}
-      <div className="px-4 py-2 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex items-center gap-1.5">
-          <select
-            value={workspace}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === "__custom__") { setShowCustom(true); }
-              else if (val) { onWorkspaceChange(val); }
-            }}
-            className="flex-1 w-0 pl-2 pr-6 py-1 text-xs rounded-md cursor-pointer appearance-none truncate"
-            style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
-          >
-            <option value="" disabled>Select workspace...</option>
-            {options.map((w) => (
-              <option key={w.path} value={w.path}>{w.label}</option>
-            ))}
-            <option value="__custom__">+ Custom path...</option>
-          </select>
-          <svg className="pointer-events-none -ml-5" width="10" height="6" viewBox="0 0 10 6" fill="none">
-            <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ color: "var(--color-text-secondary)" }} />
-          </svg>
-        </div>
-        {showCustom && (
-          <div className="mt-1.5 flex gap-1">
-            <input type="text" value={customPath} onChange={(e) => setCustomPath(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && customPath.trim()) { onWorkspaceChange(customPath.trim()); setShowCustom(false); setCustomPath(""); } if (e.key === "Escape") { setShowCustom(false); setCustomPath(""); } }}
-              placeholder="/path/to/folder"
-              className="flex-1 px-2 py-1 text-xs rounded-sm outline-none"
-              style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
-              spellCheck={false} autoFocus />
-            <button onClick={() => { setShowCustom(false); setCustomPath(""); }}
-              className="px-2 py-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>✕</button>
-          </div>
-        )}
+      {/* Brand — at the top of the sidebar */}
+      <div className="px-3 h-[42px] flex items-center border-b" style={{ borderColor: "var(--color-border)" }}>
+        <span className="text-sm font-semibold tracking-tight" style={{ color: "var(--color-text)" }}>
+          agents-web
+        </span>
       </div>
 
-      {/* Explorer section */}
-      <div className="border-b" style={{ borderColor: "var(--color-border)" }}>
+      {/* Explorer section — workspace dropdown + file tree */}
+      <div
+        className="border-b-2"
+        style={{ borderColor: "var(--color-border)" }}
+      >
         <button
           onClick={() => setExplorerOpen(!explorerOpen)}
           className="w-full flex items-center justify-between px-3 py-1 text-[10px] font-semibold uppercase tracking-wider"
@@ -102,14 +74,56 @@ export function Sidebar({
           {explorerOpen ? "▾" : "▸"} Explorer
         </button>
         {explorerOpen && (
-          <div className="max-h-72 overflow-auto">
-            <FileTree workspace={workspace} onNavigate={onWorkspaceChange} />
-          </div>
+          <>
+            {/* Workspace selector — inside Explorer */}
+            <div className="px-4 py-2 border-b" style={{ borderColor: "var(--color-border)" }}>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={workspace}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "__custom__") { setShowCustom(true); }
+                    else if (val) { onWorkspaceChange(val); }
+                  }}
+                  className="flex-1 w-0 pl-2 pr-6 py-1 text-xs rounded-md cursor-pointer appearance-none truncate"
+                  style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                >
+                  <option value="" disabled>Select workspace...</option>
+                  {options.map((w) => (
+                    <option key={w.path} value={w.path}>{w.label}</option>
+                  ))}
+                  <option value="__custom__">+ Custom path...</option>
+                </select>
+                <svg className="pointer-events-none -ml-5" width="10" height="6" viewBox="0 0 10 6" fill="none">
+                  <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ color: "var(--color-text-secondary)" }} />
+                </svg>
+              </div>
+              {showCustom && (
+                <div className="mt-1.5 flex gap-1">
+                  <input type="text" value={customPath} onChange={(e) => setCustomPath(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && customPath.trim()) { onWorkspaceChange(customPath.trim()); setShowCustom(false); setCustomPath(""); } if (e.key === "Escape") { setShowCustom(false); setCustomPath(""); } }}
+                    placeholder="/path/to/folder"
+                    className="flex-1 px-2 py-1 text-xs rounded-sm outline-none"
+                    style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                    spellCheck={false} autoFocus />
+                  <button onClick={() => { setShowCustom(false); setCustomPath(""); }}
+                    className="px-2 py-1 text-xs" style={{ color: "var(--color-text-secondary)" }}>✕</button>
+                </div>
+              )}
+            </div>
+            <div className="max-h-72 overflow-auto">
+              <FileTree workspace={workspace} onNavigate={onWorkspaceChange} />
+            </div>
+          </>
         )}
       </div>
 
+      {/* Section divider — visible gap between Explorer and Conversations */}
+      <div className="h-1 shrink-0" style={{ background: "var(--color-surface-secondary)", opacity: 0.6 }} />
+
       {/* Conversations section */}
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 border-t-2" style={{ borderColor: "var(--color-border)" }}>
         <div className="flex items-center justify-between px-3 py-1 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
           <button
             onClick={() => setConvOpen(!convOpen)}
