@@ -129,6 +129,15 @@ npm run start         # Production server on :31508
 npm run test:e2e      # Playwright E2E tests
 ```
 
+## Persistent Server
+
+Production server runs via macOS launchd:
+- **Config**: `~/Library/LaunchAgents/com.agents-web.server.plist`
+- **Port**: 31508 (production mode)
+- **Logs**: `~/.local/log/agents-web.log` / `.err.log`
+- **Auto-start**: at login, auto-restart on crash
+- **Rebuild + reload**: `npm run build && launchctl unload ... && launchctl load ...`
+
 ## Environment
 
 - `AGENTS_WEB_WORKSPACE` — default workspace path
