@@ -7,8 +7,8 @@ import type { AgentDefinition } from "./types";
 export const KNOWN_AGENTS: AgentDefinition[] = [
   {
     id: "claude-code",
-    name: "Claude Code",
-    description: "Anthropic Claude Code — multi-agent coding CLI",
+    name: "Claude",
+    description: "Anthropic Claude — multi-agent coding CLI",
     binary: "claude",
     fallbackPaths: ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"],
     spawnArgs: (workspace, prompt, thinkingLevel) => {

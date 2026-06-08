@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FileTree } from "./FileTree";
+import { AgentIcon } from "./AgentIcon";
 
 export interface ConvInfo {
   id: string;
@@ -96,9 +97,7 @@ export function Sidebar({
                   fontSize: "var(--text-sm)",
                 }}
               >
-                <span className="shrink-0 text-base">
-                  {a.id === "claude-code" ? "🧠" : a.id === "codex" ? "🔮" : a.id === "pi" ? "⚡" : a.id === "openclaw" ? "🦞" : a.id === "hermes" ? "🕊️" : "🤖"}
-                </span>
+                <AgentIcon agentId={a.id} size={18} />
                 <span className="flex-1 truncate font-medium">{a.name}</span>
                 {ver && (
                   <span className="text-[10px] opacity-50 shrink-0" style={{ fontFamily: "var(--font-mono)" }}>{ver}</span>
