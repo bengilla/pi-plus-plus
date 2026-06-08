@@ -560,7 +560,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
             {/* Per-message usage + copy + time for assistant messages */}
             {msg.role === "assistant" && (
               <div className="flex items-center justify-between mt-1 gap-2">
-                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(85% 0.015 252)" }}>
+                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(65% 0.015 252)" }}>
                   <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                   <span>·</span>
                   <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
@@ -577,11 +577,11 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                   <button
                     onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
                     className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: "oklch(85% 0.015 252)", border: "1px solid var(--border)" }}
+                    style={{ color: "oklch(65% 0.015 252)", border: "1px solid var(--border)" }}
                   >
                     📋 Copy
                   </button>
-                  <span className="text-[11px]" style={{ color: "oklch(85% 0.015 252)" }}>
+                  <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
                     {formatTime(msg.createdAt)}
                   </span>
                 </span>
@@ -615,7 +615,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 <MarkdownBody content={streamContentRef.current} />
               ) : null}
             </div>
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(85% 0.015 252)" }}>
+            <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
               <span>Generating…</span>
               <span>(</span>
               <span className="tabular-nums">{elapsed}s</span>
