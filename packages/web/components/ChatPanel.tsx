@@ -487,7 +487,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text-secondary)",
+                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "oklch(85% 0.01 260)",
                   background: msg.role === "user" ? "oklch(66% 0.19 252 / 0.08)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.08)" : "var(--bg-hover)",
                   border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "var(--border)"}`,
                 }}
@@ -560,7 +560,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
             {/* Per-message usage + copy + time for assistant messages */}
             {msg.role === "assistant" && (
               <div className="flex items-center justify-between mt-1 gap-2">
-                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
+                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(85% 0.015 252)" }}>
                   <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                   <span>·</span>
                   <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
@@ -577,11 +577,11 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                   <button
                     onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
                     className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: "var(--color-text-secondary)", border: "1px solid var(--color-border)" }}
+                    style={{ color: "oklch(85% 0.015 252)", border: "1px solid var(--border)" }}
                   >
                     📋 Copy
                   </button>
-                  <span className="text-[11px]" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }}>
+                  <span className="text-[11px]" style={{ color: "oklch(85% 0.015 252)" }}>
                     {formatTime(msg.createdAt)}
                   </span>
                 </span>
@@ -599,7 +599,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: "var(--text-secondary)",
+                  color: "oklch(85% 0.01 260)",
                   background: "var(--bg-hover)",
                   border: "1px solid var(--border)",
                 }}
@@ -615,7 +615,7 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 <MarkdownBody content={streamContentRef.current} />
               ) : null}
             </div>
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.7 }}>
+            <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(85% 0.015 252)" }}>
               <span>Generating…</span>
               <span>(</span>
               <span className="tabular-nums">{elapsed}s</span>
