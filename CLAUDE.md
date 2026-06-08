@@ -61,6 +61,7 @@ packages/web/lib/
 - **Phase 4**: Skills marketplace + settings modal + E2E tests ✅
 - **Phase 5**: pi-web style UI (markdown, thinking/tool blocks, usage row) ✅
 - **Phase 6**: Thinking level control (agent-specific) ✅
+- **Phase 7**: Three-column redesign — "Dark Industrial Precision" design system, AgentSwitcher, RightPanel, WelcomeScreen, @mention, keyboard shortcuts, font scale setting ✅
 
 ## Lessons Learned
 
@@ -92,6 +93,32 @@ packages/web/lib/
 
 ### Conversations
 - Auto-create conversation when sending without active one. **Guard with `messages.length > 0`** — otherwise deleting active conv triggers ChatPanel remount → `useEffect` save → ghost conversation.
+
+### Design System & Layout
+- Three-column layout with collapsible panels: use CSS transition on `width` + `min-width`, NOT `display:none`. Overflow hidden on the panel container, inner content at fixed width.
+- **CSS variable aliases**: add backward-compatible aliases (`--color-surface: var(--bg)`) when rewriting tokens so existing components don't break during incremental migration.
+- `text-[Xpx]` Tailwind arbitrary values use `px`, not `rem` — they don't scale with `html font-size`. For scalable text, use CSS custom properties with `calc()`.
+- **Font scale persistence**: apply `--font-scale` in the theme init script (before paint), same as theme — avoids flash of wrong size.
+
+### pi-web Design Patterns
+- Message role labels: tiny 9px monospace pills (`fontFamily: "var(--font-mono)"`) with bordered background, not uppercase labels.
+- User messages: tinted background (`--user-bg`) + subtle border (`--user-border`), assistant messages transparent.
+- Footer text (tokens/time/copy): muted color at ~65% luminance so it doesn't compete with content.
+
+### @lobehub/icons
+- `@lobehub/icons` provides SVG React components for AI brands (ClaudeCode, Codex, NousResearch, OpenClaw, etc.)
+- Each icon has variants: Mono, Color, Avatar, Text, Combine. Not all brands have all variants.
+- Import Color variants directly from `@lobehub/icons/es/<Brand>/components/Color` to avoid TS `CompoundedIcon` type issues.
+- Icons are React client components (`'use client'`) — safe in `"use client"` parent.
+
+### Agent UI
+- Agent switcher in sidebar (tabs) eliminates need for top-bar dropdown — single source of truth for active agent.
+- LobeHub icons give professional brand identity per agent (Claude ⬡, Codex ◈, Hermes ☤, Pi π).
+- Agent name "Claude Code" renamed to "Claude" for cleaner display.
+
+### CSS Range Input
+- Style `input[type="range"]` thumb with `::-webkit-slider-thumb` + `::-moz-range-thumb` pseudo-elements.
+- Gradient track via `background: linear-gradient(...)` on the input itself, calculating fill percentage inline.
 
 ## Scripts
 
