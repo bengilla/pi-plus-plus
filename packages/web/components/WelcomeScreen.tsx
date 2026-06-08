@@ -64,7 +64,7 @@ function MatrixTitle() {
       className="mb-5 select-none"
       style={{
         fontFamily: "var(--font-mono)",
-        fontSize: "clamp(28px, 5vw, 44px)",
+        fontSize: "clamp(20px, 3.5vw, 31px)",
         fontWeight: 700,
         letterSpacing: "0.06em",
         lineHeight: 1.1,
