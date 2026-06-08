@@ -84,6 +84,15 @@ packages/web/lib/
 - `stdout.on('data')` → `push` + `resolveWait` pattern needs double-check after setting promise
 - Without the re-check, data arriving between `yield` and next `await` gets stuck until next data event
 
+### Theme & SSR
+- **Prevent white flash on refresh**: CSS `:root` defaults to dark, `[data-theme="light"]` overrides. SSR `<html style="background:#1c1917">` as initial fallback. All three layers (SSR, CSS, script) must agree on the default.
+- **Next.js Script component**: `strategy="beforeInteractive"` is queued via `__next_s.push()`, NOT truly synchronous. Don't rely on it for pre-paint execution.
+- **Never put `style` prop on `<body>` in SSR** if a script clears it before hydration — causes attribute mismatch.
+- **`useState` lazy init with `localStorage`** causes hydration mismatch. Instead: init with SSR-safe default, load from localStorage in `useEffect` after mount.
+
+### Conversations
+- Auto-create conversation when sending without active one. **Guard with `messages.length > 0`** — otherwise deleting active conv triggers ChatPanel remount → `useEffect` save → ghost conversation.
+
 ## Scripts
 
 ```bash
