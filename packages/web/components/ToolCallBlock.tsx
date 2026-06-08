@@ -76,7 +76,7 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
         <div
           className="px-3 py-2 text-[12px] overflow-auto"
           style={{
-            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+            fontFamily: "var(--font-mono)",
             color: "var(--color-text-secondary)",
             maxHeight: "12rem",
             background: "var(--color-surface)",

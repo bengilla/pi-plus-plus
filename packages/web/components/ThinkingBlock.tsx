@@ -45,7 +45,7 @@ export function ThinkingBlock({ content, duration, defaultOpen = true }: Props) 
         <div
           className="px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words"
           style={{
-            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+            fontFamily: "var(--font-mono)",
             color: "var(--color-text-secondary)",
             maxHeight: "16rem",
             overflowY: "auto",
