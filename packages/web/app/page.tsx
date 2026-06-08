@@ -23,12 +23,6 @@ interface ConvData {
   createdAt: number;
 }
 
-function agentLabel(a: AgentInfo): string {
-  const m = a.version?.match(/(\d+\.\d+\.\d+)/);
-  const ver = m ? m[1] : "";
-  return ver ? `${a.name} (${ver})` : a.name;
-}
-
 function getDroppedPath(e: DragEvent): string | null {
   const uri = e.dataTransfer.getData("text/uri-list");
   if (uri) {
@@ -330,7 +324,7 @@ export default function Home() {
           <ChatPanel
             key={activeConvId ?? "new"}
             activeAgent={activeAgent}
-            agentName={currentAgent ? agentLabel(currentAgent) : activeAgent}
+            agentName={currentAgent ? currentAgent.name : activeAgent}
             agentDescription={currentAgent?.description}
             workspace={workspace}
             initialMessages={activeConv?.messages}

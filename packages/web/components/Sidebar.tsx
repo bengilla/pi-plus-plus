@@ -83,8 +83,6 @@ export function Sidebar({
         <div className="space-y-0.5">
           {agents.map((a) => {
             const isActive = a.id === activeAgent;
-            const m = a.version?.match(/(\d+\.\d+\.\d+)/);
-            const ver = m ? m[1] : "";
             return (
               <button
                 key={a.id}
@@ -99,9 +97,6 @@ export function Sidebar({
               >
                 <AgentIcon agentId={a.id} size={18} />
                 <span className="flex-1 truncate font-medium">{a.name}</span>
-                {ver && (
-                  <span className="text-[10px] opacity-50 shrink-0" style={{ fontFamily: "var(--font-mono)" }}>{ver}</span>
-                )}
               </button>
             );
           })}
