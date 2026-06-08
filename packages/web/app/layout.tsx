@@ -5,6 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "agents-web",
   description: "Multi-agent web workspace — Claude Code, Codex, Pi in your browser",
+  icons: { icon: "/favicon.svg", type: "image/svg+xml" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
