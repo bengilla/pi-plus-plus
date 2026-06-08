@@ -326,6 +326,7 @@ export default function Home() {
             activeAgent={activeAgent}
             agentName={currentAgent ? currentAgent.name : activeAgent}
             agentDescription={currentAgent?.description}
+            convAgentName={activeConv ? (agents.find(a => a.id === activeConv.agentId)?.name ?? activeConv.agentId) : undefined}
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}

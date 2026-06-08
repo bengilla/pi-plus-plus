@@ -71,14 +71,17 @@ interface Props {
   activeAgent: string;
   agentName?: string;
   agentDescription?: string;
+  convAgentName?: string;
   workspace: string;
   initialMessages?: SimpleMessage[];
   onMessagesChange?: (messages: SimpleMessage[]) => void;
   thinkingLevel?: string;
 }
 
-export function ChatPanel({ activeAgent, agentName, agentDescription, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+export function ChatPanel({ activeAgent, agentName, agentDescription, convAgentName, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
   const displayName = agentName ?? activeAgent;
+  // The name to show on assistant messages — conversation's original agent, not current
+  const assistantName = convAgentName ?? displayName;
 
   const [messages, setMessages] = useState<Message[]>(() =>
     (initialMessages ?? []).map((m) => ({
@@ -522,12 +525,12 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "oklch(85% 0.01 260)",
+                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text)",
                   background: msg.role === "user" ? "oklch(66% 0.19 252 / 0.08)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.08)" : "var(--bg-hover)",
-                  border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "var(--border)"}`,
+                  border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "oklch(50% 0 0 / 0.25)"}`,
                 }}
               >
-                {msg.role === "user" ? "user" : msg.role === "error" ? "error" : displayName.toLowerCase().replace(/\s+/g, "-")}
+                {msg.role === "user" ? "user" : msg.role === "error" ? "error" : assistantName.toLowerCase().replace(/\s+/g, "-")}
               </span>
             </div>
             {/* Attachments in user message */}
@@ -634,9 +637,9 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
                 className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
                 style={{
                   fontFamily: "var(--font-mono)",
-                  color: "oklch(85% 0.01 260)",
+                  color: "var(--text)",
                   background: "var(--bg-hover)",
-                  border: "1px solid var(--border)",
+                  border: "1px solid oklch(50% 0 0 / 0.25)",
                 }}
               >
                 {displayName.toLowerCase().replace(/\s+/g, "-")}
