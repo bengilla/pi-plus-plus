@@ -27,36 +27,55 @@ function MatrixTitle() {
   );
 
   useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    TITLE.split("").forEach((target, i) => {
-      const start = i * 60;
-      const settleTime = start + 600 + i * 40;
-      const interval = 50;
+    let active = true;
+    let loopTimer: ReturnType<typeof setTimeout>;
+
+    const run = () => {
+      if (!active) return;
+      setSettled(false);
+      setChars(Array.from({ length: TITLE.length }, () => CHARS[Math.floor(Math.random() * CHARS.length)]));
+
+      const timers: ReturnType<typeof setTimeout>[] = [];
       const t0 = Date.now();
 
-      const flip = () => {
-        const elapsed = Date.now() - t0;
-        const done = elapsed >= settleTime;
+      TITLE.split("").forEach((target, i) => {
+        const start = i * 60;
+        const settleTime = start + 600 + i * 40;
+        const interval = 50;
 
-        setChars((prev) => {
-          const next = [...prev];
-          next[i] = done ? target : CHARS[Math.floor(Math.random() * CHARS.length)];
-          return next;
-        });
+        const flip = () => {
+          const elapsed = Date.now() - t0;
+          const done = elapsed >= settleTime;
 
-        if (!done) {
-          const remaining = settleTime - elapsed;
-          const delay = remaining > 300 ? interval : interval + Math.floor(Math.random() * 80) + 40;
-          timers.push(setTimeout(flip, delay));
-        } else if (i === TITLE.length - 1) {
-          timers.push(setTimeout(() => setSettled(true), 100));
-        }
-      };
+          setChars((prev) => {
+            const next = [...prev];
+            next[i] = done ? target : CHARS[Math.floor(Math.random() * CHARS.length)];
+            return next;
+          });
 
-      timers.push(setTimeout(flip, start));
-    });
+          if (!done) {
+            const remaining = settleTime - elapsed;
+            const delay = remaining > 300 ? interval : interval + Math.floor(Math.random() * 80) + 40;
+            timers.push(setTimeout(flip, delay));
+          } else if (i === TITLE.length - 1) {
+            timers.push(setTimeout(() => {
+              setSettled(true);
+              // Schedule next run in 5s
+              if (active) loopTimer = setTimeout(run, 5000);
+            }, 100));
+          }
+        };
 
-    return () => timers.forEach(clearTimeout);
+        timers.push(setTimeout(flip, start));
+      });
+    };
+
+    run();
+
+    return () => {
+      active = false;
+      clearTimeout(loopTimer);
+    };
   }, []);
 
   return (
