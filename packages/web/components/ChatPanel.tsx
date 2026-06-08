@@ -481,17 +481,19 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
 
         {messages.map((msg) => (
           <div key={msg.id} className="fade-in">
-            <div
-              className="text-[10px] font-medium uppercase tracking-wider mb-0.5 flex items-center gap-2"
-              style={{
-                color: msg.role === "user" ? "var(--color-accent)"
-                     : msg.role === "error" ? "oklch(0.55 0.2 30)"
-                     : "var(--color-text-secondary)",
-              }}
-            >
-              <span>{msg.role === "user" ? "You"
-               : msg.role === "error" ? "Error"
-               : displayName}</span>
+            {/* Role pill — tiny monospace chip like pi-web */}
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text-tertiary)",
+                  background: msg.role === "user" ? "oklch(66% 0.19 252 / 0.08)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.08)" : "var(--bg-hover)",
+                  border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "var(--border)"}`,
+                }}
+              >
+                {msg.role === "user" ? "user" : msg.role === "error" ? "error" : displayName.toLowerCase().replace(/\s+/g, "-")}
+              </span>
             </div>
             {/* Attachments in user message */}
             {msg.attachments && msg.attachments.length > 0 && (
@@ -508,10 +510,11 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
               </div>
             )}
             <div
-              className="text-sm leading-relaxed break-words rounded-md px-3 py-2"
+              className="text-sm leading-relaxed break-words rounded-lg px-3 py-2"
               style={{
-                color: msg.role === "error" ? "oklch(0.55 0.2 30)" : "var(--color-text)",
-                background: msg.role === "error" ? "oklch(0.55 0.2 30 / 0.08)" : "transparent",
+                color: msg.role === "error" ? "var(--error)" : "var(--text)",
+                background: msg.role === "user" ? "var(--user-bg)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.06)" : "transparent",
+                border: msg.role === "user" ? "1px solid var(--user-border)" : msg.role === "error" ? "1px solid oklch(55% 0.22 20 / 0.15)" : "none",
               }}
             >
               {msg.role === "error" ? (
@@ -590,11 +593,19 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
         {/* Streaming */}
         {streaming && (
           <div className="fade-in">
-            <div
-              className="text-[10px] font-medium uppercase tracking-wider mb-1"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              {displayName}
+            {/* Streaming role pill */}
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--text-tertiary)",
+                  background: "var(--bg-hover)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {displayName.toLowerCase().replace(/\s+/g, "-")}
+              </span>
             </div>
             <div
               className="text-sm leading-relaxed break-words mb-1"
