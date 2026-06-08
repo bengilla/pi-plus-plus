@@ -68,6 +68,7 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [fontScale, setFontScale] = useState(1.1);
   const [thinkingLevel, setThinkingLevel] = useState("auto");
 
   // Panel state
@@ -86,6 +87,8 @@ export default function Home() {
     setConvs(loadConvs());
     const saved = localStorage.getItem(WORKSPACE_KEY);
     if (saved) setWorkspace(saved);
+    const fs = localStorage.getItem("fontScale");
+    if (fs) setFontScale(parseFloat(fs));
   }, []);
 
   // ── Keyboard shortcuts ────────────────────────────────────
@@ -359,7 +362,7 @@ export default function Home() {
       </div>
 
       {/* Settings modal */}
-      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} agents={agents} />
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} agents={agents} fontScale={fontScale} onFontScaleChange={(s: number) => { setFontScale(s); document.documentElement.style.setProperty("--font-scale", String(s)); localStorage.setItem("fontScale", String(s)); }} />
 
       {/* Drag overlay */}
       {dragOver && (

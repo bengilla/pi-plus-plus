@@ -22,6 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               document.documentElement.setAttribute('data-theme', 'light');
               document.documentElement.style.background = 'oklch(98% 0.002 260)';
             }
+            var fs = localStorage.getItem('fontScale');
+            if (fs) document.documentElement.style.setProperty('--font-scale', fs);
           })()`}
         </Script>
       </head>

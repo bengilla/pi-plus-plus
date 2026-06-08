@@ -29,11 +29,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   agents: AgentInfo[];
+  fontScale?: number;
+  onFontScaleChange?: (scale: number) => void;
 }
 
 type Tab = "skills" | "general";
 
-export function SettingsModal({ open, onClose, agents }: Props) {
+export function SettingsModal({ open, onClose, agents, fontScale, onFontScaleChange }: Props) {
   const [tab, setTab] = useState<Tab>("skills");
 
   useEffect(() => {
@@ -111,7 +113,7 @@ export function SettingsModal({ open, onClose, agents }: Props) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {tab === "skills" && <SkillsTab agents={agents} />}
-          {tab === "general" && <GeneralTab agents={agents} />}
+          {tab === "general" && <GeneralTab agents={agents} fontScale={fontScale} onFontScaleChange={onFontScaleChange} />}
         </div>
       </div>
     </div>
@@ -345,14 +347,57 @@ function SkillsTab({ agents }: { agents: AgentInfo[] }) {
 
 // ── General Tab ─────────────────────────────────────────────
 
-function GeneralTab({ agents }: { agents: AgentInfo[] }) {
+function GeneralTab({ agents, fontScale, onFontScaleChange }: { agents: AgentInfo[]; fontScale?: number; onFontScaleChange?: (s: number) => void }) {
   const handleRefresh = async () => {
     await fetch("/api/agents");
     window.location.reload();
   };
 
+  const scale = fontScale ?? 1;
+
   return (
-    <div className="p-5 space-y-4">
+    <div className="p-5 space-y-5">
+      {/* Font scale */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-medium" style={{ color: "var(--color-text)" }}>Font Size</span>
+          <span className="text-[10px] tabular-nums" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}>
+            {Math.round(scale * 100)}%
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>80%</span>
+          <input
+            type="range"
+            min="0.8"
+            max="1.4"
+            step="0.05"
+            value={scale}
+            onChange={(e) => onFontScaleChange?.(parseFloat(e.target.value))}
+            className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((scale - 0.8) / 0.6) * 100}%, var(--border) ${((scale - 0.8) / 0.6) * 100}%, var(--border) 100%)`,
+            }}
+          />
+          <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>140%</span>
+        </div>
+        <div className="flex justify-between mt-1">
+          {[0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4].map((v) => (
+            <button
+              key={v}
+              onClick={() => onFontScaleChange?.(v)}
+              className="text-[9px] px-1 py-0.5 rounded transition-colors hover:opacity-70"
+              style={{
+                color: scale === v ? "var(--accent)" : "var(--text-secondary)",
+                background: scale === v ? "var(--accent-dim)" : "transparent",
+              }}
+            >
+              {Math.round(v * 100)}%
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Agents */}
       <div>
         <div className="text-xs font-medium mb-2" style={{ color: "var(--color-text)" }}>Discovered Agents</div>
