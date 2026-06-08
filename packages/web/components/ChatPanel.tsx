@@ -71,26 +71,26 @@ interface Props {
   activeAgent: string;
   agentName?: string;
   agentDescription?: string;
-  convAgentName?: string;
+  conversationId?: string | null;
   workspace: string;
   initialMessages?: SimpleMessage[];
   onMessagesChange?: (messages: SimpleMessage[]) => void;
   thinkingLevel?: string;
 }
 
-export function ChatPanel({ activeAgent, agentName, agentDescription, convAgentName, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
-  const displayName = agentName ?? activeAgent;
-  // The name to show on assistant messages — conversation's original agent, not current
-  const assistantName = convAgentName ?? displayName;
+function toMessages(messages?: SimpleMessage[]): Message[] {
+  return (messages ?? []).map((m) => ({
+    role: m.role as "user" | "assistant" | "error",
+    content: m.content,
+    id: m.id,
+    createdAt: 0,
+  }));
+}
 
-  const [messages, setMessages] = useState<Message[]>(() =>
-    (initialMessages ?? []).map((m) => ({
-      role: m.role as "user" | "assistant" | "error",
-      content: m.content,
-      id: m.id,
-      createdAt: 0,
-    })),
-  );
+export function ChatPanel({ activeAgent, agentName, agentDescription, conversationId, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+  const displayName = agentName ?? activeAgent;
+
+  const [messages, setMessages] = useState<Message[]>(() => toMessages(initialMessages));
   const [input, setInput] = useState("");
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionResults, setMentionResults] = useState<{ name: string; path: string }[]>([]);
@@ -117,6 +117,10 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, convAgentN
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    setMessages(toMessages(initialMessages));
+  }, [conversationId]);
 
   // Report messages back to parent for conversation persistence
   const onSaveRef = useRef(onMessagesChange);
@@ -519,20 +523,6 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, convAgentN
 
         {messages.map((msg) => (
           <div key={msg.id} className="fade-in">
-            {/* Role pill — tiny monospace chip like pi-web */}
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  color: msg.role === "user" ? "var(--accent)" : msg.role === "error" ? "var(--error)" : "var(--text)",
-                  background: msg.role === "user" ? "oklch(66% 0.19 252 / 0.08)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.08)" : "var(--bg-hover)",
-                  border: `1px solid ${msg.role === "user" ? "oklch(66% 0.19 252 / 0.2)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.2)" : "oklch(50% 0 0 / 0.25)"}`,
-                }}
-              >
-                {msg.role === "user" ? "user" : msg.role === "error" ? "error" : assistantName.toLowerCase().replace(/\s+/g, "-")}
-              </span>
-            </div>
             {/* Attachments in user message */}
             {msg.attachments && msg.attachments.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-1.5">
@@ -631,20 +621,6 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, convAgentN
         {/* Streaming */}
         {streaming && (
           <div className="fade-in">
-            {/* Streaming role pill */}
-            <div className="flex items-center gap-2 mb-1">
-              <span
-                className="inline-flex items-center px-1.5 py-px rounded text-[9px] leading-relaxed shrink-0"
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  color: "var(--text)",
-                  background: "var(--bg-hover)",
-                  border: "1px solid oklch(50% 0 0 / 0.25)",
-                }}
-              >
-                {displayName.toLowerCase().replace(/\s+/g, "-")}
-              </span>
-            </div>
             <div
               className="text-sm leading-relaxed break-words mb-1"
               style={{ color: "var(--color-text)" }}

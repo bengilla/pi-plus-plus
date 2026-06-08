@@ -3,10 +3,10 @@ import { test, expect } from "@playwright/test";
 const BASE = "http://localhost:31508";
 
 test.describe("agents-web smoke tests", () => {
-  test("page loads and shows header", async ({ page }) => {
+  test("page loads and shows sidebar", async ({ page }) => {
     await page.goto(BASE);
-    // The "agents-web" brand is in the sidebar
-    await expect(page.locator("aside").getByText("agents-web")).toBeVisible();
+    await expect(page.getByText("Agents")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Claude/ })).toBeVisible();
   });
 
   test("agents API returns discovered agents", async ({ request }) => {
@@ -60,37 +60,59 @@ test.describe("agents-web smoke tests", () => {
     await expect(page.getByText("Skills").first()).not.toBeVisible();
   });
 
-  test("agent switcher shows Claude Code", async ({ page }) => {
+  test("agent switcher shows Claude", async ({ page }) => {
     await page.goto(BASE);
-    // The model switcher select or text should mention Claude Code
-    await expect(page.locator("header")).toContainText("Claude Code");
+    await expect(page.getByRole("button", { name: /Claude/ })).toBeVisible();
   });
 
-  test("token counter shows during streaming", async ({ page }) => {
+  test("conversations are scoped to the active workspace", async ({ page }) => {
     await page.goto(BASE);
+    await page.evaluate(() => {
+      localStorage.setItem("agents-web-workspace", "/tmp/project-a");
+      localStorage.setItem("agents-web-conversations", JSON.stringify([
+        {
+          id: "project-a-conv",
+          title: "Project A chat",
+          agentId: "claude-code",
+          workspace: "/tmp/project-a",
+          messages: [{ role: "user", content: "Project A chat", id: "a-msg" }],
+          createdAt: Date.now(),
+        },
+        {
+          id: "project-b-conv",
+          title: "Project B chat",
+          agentId: "claude-code",
+          workspace: "/tmp/project-b",
+          messages: [{ role: "user", content: "Project B chat", id: "b-msg" }],
+          createdAt: Date.now() - 1,
+        },
+      ]));
+    });
+    await page.reload();
 
-    // Type a prompt in the chat textarea
+    await expect(page.getByRole("button", { name: "Project A chat" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Project B chat" })).not.toBeVisible();
+
+    await page.evaluate(() => localStorage.setItem("agents-web-workspace", "/tmp/project-b"));
+    await page.reload();
+
+    await expect(page.getByRole("button", { name: "Project B chat" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Project A chat" })).not.toBeVisible();
+  });
+
+  test("first message from an empty conversation receives an agent reply", async ({ page }) => {
+    await page.goto(BASE);
+    await page.evaluate(() => localStorage.removeItem("agents-web-conversations"));
+    await page.reload();
+
     const textarea = page.locator("textarea");
-    await textarea.fill("say hi");
-
-    // Click Send to start streaming
+    await textarea.fill("Say OK only");
     await page.locator("button", { hasText: "Send" }).click();
 
-    // During streaming, the status bar should show:
-    // - "Generating…" label
-    // - elapsed time in seconds
-    // - token count (↓N tokens)
-    // - "thinking" indicator
     await expect(page.getByText("Generating…")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/↓\d+ tokens/)).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("thinking")).toBeVisible();
-
-    // After streaming finishes, the button text returns to "Send"
-    // (input is cleared, so it will be disabled — just verify streaming ended)
     await expect(page.getByText("Generating…")).not.toBeVisible({ timeout: 60000 });
 
-    // Verify at least one completed message shows a token count
-    const tokenBadge = page.locator("text=/↓\\d+ tokens/").first();
-    await expect(tokenBadge).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("OK", { exact: true })).toBeVisible();
+    await expect(page.getByText(/\d+ out/).first()).toBeVisible();
   });
 });

@@ -19,6 +19,7 @@ interface ConvData {
   id: string;
   title: string;
   agentId: string;
+  workspace?: string;
   messages: { role: string; content: string; id: string }[];
   createdAt: number;
 }
@@ -44,13 +45,24 @@ function getDroppedPath(e: DragEvent): string | null {
 const STORAGE_KEY = "agents-web-conversations";
 const WORKSPACE_KEY = "agents-web-workspace";
 
-function loadConvs(): ConvData[] {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+function loadConvs(defaultWorkspace = ""): ConvData[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as ConvData[];
+    return parsed.map((c) => ({ ...c, workspace: c.workspace ?? defaultWorkspace }));
+  }
   catch { return []; }
 }
 
 function saveConvs(convs: ConvData[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
+}
+
+function projectConvs(convs: ConvData[], workspace: string): ConvData[] {
+  return convs.filter((c) => (c.workspace ?? "") === workspace);
+}
+
+function latestConversationId(convs: ConvData[], workspace: string, agentId?: string): string | null {
+  return projectConvs(convs, workspace).find((c) => !agentId || c.agentId === agentId)?.id ?? null;
 }
 
 export default function Home() {
@@ -77,8 +89,8 @@ export default function Home() {
   useEffect(() => {
     const t = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
     setTheme(t === "light" ? "light" : "dark");
-    setConvs(loadConvs());
     const saved = localStorage.getItem(WORKSPACE_KEY);
+    setConvs(loadConvs(saved ?? ""));
     if (saved) setWorkspace(saved);
     const fs = localStorage.getItem("fontScale");
     if (fs) setFontScale(parseFloat(fs));
@@ -118,13 +130,14 @@ export default function Home() {
   }, []);
 
   // ── Conversations ──────────────────────────────────────────
-  const convList: ConvInfo[] = convs.map((c) => ({
+  const currentProjectConvs = projectConvs(convs, workspace);
+  const convList: ConvInfo[] = currentProjectConvs.map((c) => ({
     id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt,
   }));
 
   const newConversation = () => {
     const id = Date.now().toString();
-    const c: ConvData = { id, title: "New conversation", agentId: activeAgent, messages: [], createdAt: Date.now() };
+    const c: ConvData = { id, title: "New conversation", agentId: activeAgent, workspace, messages: [], createdAt: Date.now() };
     const updated = [c, ...convs];
     setConvs(updated); saveConvs(updated); setActiveConvId(id);
   };
@@ -148,7 +161,7 @@ export default function Home() {
         setConvs((prev) => {
           const updated = prev.map((c) => {
             if (c.id !== cid) return c;
-            return { ...c, messages, title: firstUser ? firstUser.content.slice(0, 40) : c.title };
+            return { ...c, workspace, messages, title: firstUser ? firstUser.content.slice(0, 40) : c.title };
           });
           saveConvs(updated);
           return updated;
@@ -159,6 +172,7 @@ export default function Home() {
           id: newId,
           title: firstUser ? firstUser.content.slice(0, 40) : "New conversation",
           agentId: activeAgent,
+          workspace,
           messages,
           createdAt: Date.now(),
         };
@@ -170,13 +184,14 @@ export default function Home() {
         setActiveConvId(newId);
       }
     },
-    [activeConvId, activeAgent],
+    [activeConvId, activeAgent, workspace],
   );
 
   const navigateTo = useCallback((newPath: string) => {
     setWorkspace(newPath);
     localStorage.setItem(WORKSPACE_KEY, newPath);
-  }, []);
+    setActiveConvId(latestConversationId(convs, newPath, activeAgent));
+  }, [activeAgent, convs]);
 
   const handleFileClick = useCallback((filePath: string) => {
     setSelectedFilePath(filePath);
@@ -198,11 +213,11 @@ export default function Home() {
   const handleDrop = useCallback((e: DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setDragOver(false);
     const path = getDroppedPath(e);
-    if (path) { setWorkspace(path); localStorage.setItem(WORKSPACE_KEY, path); }
-  }, []);
+    if (path) { navigateTo(path); }
+  }, [navigateTo]);
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
-  const activeConv = convs.find((c) => c.id === activeConvId);
+  const activeConv = currentProjectConvs.find((c) => c.id === activeConvId);
 
   // ── No agents state ────────────────────────────────────────
   if (!agentsLoading && agents.length === 0) {
@@ -248,7 +263,13 @@ export default function Home() {
           onDeleteConversation={deleteConversation}
           agents={agents}
           activeAgent={activeAgent}
-          onAgentChange={(id) => { setActiveAgent(id); setThinkingLevel("auto"); }}
+          onAgentChange={(id) => {
+            setActiveAgent(id);
+            setThinkingLevel("auto");
+            // Switch to the most recent conversation for this agent, or start fresh
+            const agentConvs = currentProjectConvs.filter(c => c.agentId === id);
+            setActiveConvId(agentConvs.length > 0 ? agentConvs[0].id : null);
+          }}
           onFileClick={handleFileClick}
           onAgentInfoClick={handleAgentInfoClick}
           onToggleSidebar={() => setSidebarOpen(false)}
@@ -322,11 +343,10 @@ export default function Home() {
         {/* Chat or welcome */}
         {activeAgent ? (
           <ChatPanel
-            key={activeConvId ?? "new"}
             activeAgent={activeAgent}
             agentName={currentAgent ? currentAgent.name : activeAgent}
             agentDescription={currentAgent?.description}
-            convAgentName={activeConv ? (agents.find(a => a.id === activeConv.agentId)?.name ?? activeConv.agentId) : undefined}
+            conversationId={activeConvId}
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}

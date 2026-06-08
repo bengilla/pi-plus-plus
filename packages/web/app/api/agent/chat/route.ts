@@ -1,5 +1,10 @@
 import { NextRequest } from "next/server";
-import { initAgents, chat } from "@/lib/agents";
+import { initAgents, chat, interrupt } from "@/lib/agents";
+
+function isAbortLikeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === "AbortError" || error.name === "ResponseAborted";
+}
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -31,9 +36,31 @@ export async function POST(req: NextRequest) {
   const writer = writable.getWriter();
 
   (async () => {
+    let disconnected = false;
+    const abort = () => {
+      disconnected = true;
+      interrupt(agent);
+    };
+    req.signal.addEventListener("abort", abort, { once: true });
+
+    const writeEvent = async (event: unknown) => {
+      if (disconnected || req.signal.aborted) return false;
+      try {
+        await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        return true;
+      } catch (error) {
+        if (isAbortLikeError(error) || req.signal.aborted) {
+          abort();
+          return false;
+        }
+        throw error;
+      }
+    };
+
     try {
       for await (const event of chat(agent, workspace, prompt, thinkingLevel)) {
-        await writer.write(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        const wrote = await writeEvent(event);
+        if (!wrote) break;
         if (event.type === "done" || event.type === "error") {
           // Yield a tick so the stream flushes the done event before close
           await new Promise((r) => setTimeout(r, 0));
@@ -41,12 +68,11 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (e) {
-      await writer.write(
-        encoder.encode(
-          `data: ${JSON.stringify({ type: "error", error: e instanceof Error ? e.message : "Unknown" })}\n\n`,
-        ),
-      );
+      if (!disconnected && !isAbortLikeError(e)) {
+        await writeEvent({ type: "error", error: e instanceof Error ? e.message : "Unknown" });
+      }
     } finally {
+      req.signal.removeEventListener("abort", abort);
       try { await writer.close(); } catch { /* already closed */ }
     }
   })();
