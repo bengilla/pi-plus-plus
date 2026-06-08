@@ -88,6 +88,17 @@ export default function Home() {
     if (saved) setWorkspace(saved);
   }, []);
 
+  // ── Keyboard shortcuts ────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "b") { e.preventDefault(); setSidebarOpen((p) => !p); }
+      if (e.key === "Escape") { setRightPanelOpen(false); setShowSettings(false); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);

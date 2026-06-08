@@ -50,14 +50,15 @@ export function SettingsModal({ open, onClose, agents }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.3)", backdropFilter: "blur(3px)" }}
+      style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl max-h-[80vh] rounded-xl shadow-2xl flex flex-col overflow-hidden fade-in"
+        className="w-full max-w-2xl max-h-[80vh] rounded-xl flex flex-col overflow-hidden fade-in"
         style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          boxShadow: "var(--shadow-modal)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -77,10 +78,12 @@ export function SettingsModal({ open, onClose, agents }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="px-1.5 py-0.5 rounded text-lg leading-none hover:opacity-70"
-            style={{ color: "var(--color-text-secondary)" }}
+            className="p-1 rounded-md hover:opacity-70 transition-opacity"
+            style={{ color: "var(--text-secondary)" }}
           >
-            ×
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 

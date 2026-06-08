@@ -33,6 +33,18 @@ interface SimpleMessage {
   id: string;
 }
 
+function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
+  const out: { name: string; path: string }[] = [];
+  const walk = (list: typeof nodes, prefix: string) => {
+    for (const n of list) {
+      out.push({ name: n.name, path: n.path });
+      if (n.type === "directory" && n.children) walk(n.children as typeof nodes, prefix);
+    }
+  };
+  walk(nodes, "");
+  return out;
+}
+
 function formatTokens(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
@@ -77,6 +89,10 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
     })),
   );
   const [input, setInput] = useState("");
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionResults, setMentionResults] = useState<{ name: string; path: string }[]>([]);
+  const [mentionSelected, setMentionSelected] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const streamStartRef = useRef(0);
@@ -463,6 +479,25 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
     }
   };
 
+  const insertMention = () => {
+    const ta = textareaRef.current;
+    if (!ta || mentionResults.length === 0) return;
+    const file = mentionResults[mentionSelected];
+    const cursor = ta.selectionStart;
+    const textBefore = input.slice(0, cursor);
+    const atIdx = textBefore.lastIndexOf("@");
+    if (atIdx === -1) return;
+    const newInput = input.slice(0, atIdx) + file.path + " " + input.slice(cursor);
+    setInput(newInput);
+    setMentionOpen(false);
+    // Restore cursor after inserted path
+    setTimeout(() => {
+      const pos = atIdx + file.path.length + 1;
+      ta.setSelectionRange(pos, pos);
+      ta.focus();
+    }, 0);
+  };
+
   const canSend = (input.trim() || attachments.length > 0) && !streaming;
 
   return (
@@ -670,11 +705,65 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, workspace,
           </div>
         )}
 
+        {/* @mention dropdown */}
+        {mentionOpen && mentionResults.length > 0 && (
+          <div className="mb-1 rounded-md border overflow-hidden"
+            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", boxShadow: "var(--shadow-overlay)" }}>
+            {mentionResults.map((f, i) => (
+              <button
+                key={f.path}
+                onClick={() => { setMentionSelected(i); insertMention(); }}
+                onMouseEnter={() => setMentionSelected(i)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors"
+                style={{
+                  color: "var(--text)",
+                  background: i === mentionSelected ? "var(--bg-selected)" : "transparent",
+                }}
+              >
+                <span className="shrink-0 opacity-50">{f.name.includes(".") ? "📄" : "📁"}</span>
+                <span className="truncate" style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{f.path}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Textarea */}
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          ref={textareaRef}
+          onChange={(e) => {
+            setInput(e.target.value);
+            // @mention detection
+            const ta = e.target;
+            const cursor = ta.selectionStart;
+            const textBefore = e.target.value.slice(0, cursor);
+            const atMatch = textBefore.match(/@(\S*)$/);
+            if (atMatch) {
+              const q = atMatch[1].toLowerCase();
+              setMentionSelected(0);
+              // Fetch files lazily
+              if (workspace) {
+                fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
+                  .then(r => r.json()).then(d => {
+                    const files = (d.files ?? []) as { name: string; path: string; type: string }[];
+                    const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
+                    setMentionResults(flat.slice(0, 8));
+                    setMentionOpen(flat.length > 0);
+                  }).catch(() => {});
+              }
+            } else {
+              setMentionOpen(false);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (mentionOpen) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
+              if (e.key === "Escape") { setMentionOpen(false); return; }
+            }
+            handleKeyDown(e);
+          }}
           placeholder={`Ask ${displayName}...`}
           rows={3}
           className="w-full resize-none p-2 text-sm rounded-md outline-none transition-colors"
