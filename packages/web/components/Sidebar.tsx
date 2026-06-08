@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { FileTree } from "./FileTree";
 import { AgentIcon } from "./AgentIcon";
 
@@ -45,6 +45,18 @@ function getDefaultWorkspaces(): { label: string; path: string }[] {
   ];
 }
 
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.max(0, Math.floor(diff / 60_000));
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export function Sidebar({
   workspace, onWorkspaceChange, onOpenSettings,
   conversations, activeConvId, onNewConversation, onSelectConversation, onDeleteConversation,
@@ -57,12 +69,16 @@ export function Sidebar({
   const [convOpen, setConvOpen] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<ConvInfo | null>(null);
 
-  const defaultWorkspaces = getDefaultWorkspaces();
+  const defaultWorkspaces = useMemo(() => getDefaultWorkspaces(), []);
   const isDefault = defaultWorkspaces.some((w) => w.path === workspace);
-  const folderName = workspace.split("/").filter(Boolean).pop() || workspace;
-  const options = workspace && !isDefault
-    ? [...defaultWorkspaces, { label: `→ ${folderName}`, path: workspace }]
-    : defaultWorkspaces;
+  const folderName = workspace.split("/").filter(Boolean).pop() || workspace || "Select project";
+  const options = useMemo(
+    () => workspace && !isDefault
+      ? [...defaultWorkspaces, { label: `→ ${folderName}`, path: workspace }]
+      : defaultWorkspaces,
+    [defaultWorkspaces, folderName, isDefault, workspace],
+  );
+  const agentNameById = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents]);
 
   return (
     <>
@@ -104,18 +120,42 @@ export function Sidebar({
       </div>
 
       {/* ── Explorer ──────────────────────────────────────── */}
-      <div className="border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <button
-          onClick={() => setExplorerOpen(!explorerOpen)}
-          className="w-full flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
-          style={{ color: "var(--text-tertiary)" }}
-        >
-          <span className="text-[8px]">{explorerOpen ? "▼" : "▶"}</span>
-          Explorer
-        </button>
+      <div className="border-b shrink-0 px-2 py-2" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => setExplorerOpen(!explorerOpen)}
+            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <span className="text-[8px]">{explorerOpen ? "▼" : "▶"}</span>
+            Explorer
+          </button>
+          {workspace && (
+            <span className="max-w-[120px] truncate text-[10px]" style={{ color: "var(--text-secondary)" }}>
+              {folderName}
+            </span>
+          )}
+        </div>
         {explorerOpen && (
-          <>
-            <div className="px-3 pb-2">
+          <div className="space-y-2">
+            <div className="rounded-md p-2" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+                  Current project
+                </span>
+                {workspace && (
+                  <button
+                    onClick={() => navigator.clipboard.writeText(workspace).catch(() => {})}
+                    className="text-[10px] transition-opacity hover:opacity-70"
+                    style={{ color: "oklch(68% 0.15 55)" }}
+                  >
+                    Copy path
+                  </button>
+                )}
+              </div>
+              <div className="mb-2 truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                {folderName}
+              </div>
               <div className="flex items-center gap-1">
                 <select
                   value={workspace}
@@ -124,9 +164,9 @@ export function Sidebar({
                     if (val === "__custom__") { setShowCustom(true); }
                     else if (val) { onWorkspaceChange(val); }
                   }}
-                  className="flex-1 w-0 pl-2 pr-5 py-1 rounded-md cursor-pointer appearance-none truncate"
+                  className="flex-1 w-0 pl-2 pr-5 py-1.5 rounded-md cursor-pointer appearance-none truncate"
                   style={{
-                    background: "var(--bg)", color: "var(--text)",
+                    background: "var(--bg-panel)", color: "var(--text)",
                     border: "1px solid var(--border)", fontSize: "var(--text-xs)",
                     fontFamily: "var(--font-mono)",
                   }}
@@ -159,54 +199,90 @@ export function Sidebar({
                 </div>
               )}
             </div>
-            <div className="max-h-64 overflow-y-auto px-1">
-              <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} />
-            </div>
-          </>
+            {workspace ? (
+              <div
+                className="max-h-[34vh] overflow-y-auto rounded-md"
+                style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+              >
+                <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} />
+              </div>
+            ) : (
+              <div
+                className="rounded-md px-3 py-4 text-center text-xs"
+                style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
+              >
+                Choose a project to browse files
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       {/* ── Conversations ─────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between px-3 py-1.5 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button
-            onClick={() => setConvOpen(!convOpen)}
-            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
-            style={{ color: "var(--text-tertiary)" }}
-          >
-            <span className="text-[8px]">{convOpen ? "▼" : "▶"}</span>
-            Conversations
-          </button>
-          <button
-            onClick={onNewConversation}
-            className="px-2 py-0.5 rounded text-[10px] font-medium transition-opacity hover:opacity-80"
-            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}
-          >
-            NEW
-          </button>
+        <div className="px-2 py-2 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => setConvOpen(!convOpen)}
+              className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              <span className="text-[8px]">{convOpen ? "▼" : "▶"}</span>
+              Conversations
+              <span className="rounded px-1 py-px font-normal" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
+                {conversations.length}
+              </span>
+            </button>
+            <button
+              onClick={onNewConversation}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium transition-opacity hover:opacity-80"
+              style={{ color: "#fff", background: "var(--accent)" }}
+            >
+              <span className="text-[12px] leading-none">+</span>
+              New
+            </button>
+          </div>
         </div>
         {convOpen && (
-          <div className="flex-1 overflow-y-auto py-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-2 py-2 min-h-0">
             {conversations.length === 0 ? (
-              <div className="px-3 py-4 text-[10px] text-center" style={{ color: "var(--text-tertiary)" }}>
-                No conversations yet
+              <div
+                className="rounded-md px-3 py-4 text-center"
+                style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
+              >
+                <div className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                  No chats in this project
+                </div>
+                <button
+                  onClick={onNewConversation}
+                  className="mt-3 rounded px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "#fff", background: "var(--accent)" }}
+                >
+                  Start chat
+                </button>
               </div>
             ) : (
               conversations.map((c) => (
-                <div key={c.id} className="group flex items-center gap-0.5 px-1.5 py-0.5">
+                <div key={c.id} className="group flex items-start gap-1 py-0.5">
                   <button
                     onClick={() => onSelectConversation(c.id)}
-                    className="flex-1 text-left px-2 py-1 rounded text-xs truncate transition-colors"
+                    className="flex-1 min-w-0 text-left px-2.5 py-2 rounded-md transition-colors"
                     style={{
-                      color: c.id === activeConvId ? "var(--accent)" : "var(--text)",
+                      color: "var(--text)",
                       background: c.id === activeConvId ? "var(--accent-dim)" : "transparent",
+                      border: c.id === activeConvId ? "1px solid oklch(66% 0.19 252 / 0.25)" : "1px solid transparent",
                     }}
                   >
-                    {c.title}
+                    <span className="block truncate text-xs font-medium">{c.title}</span>
+                    <span className="mt-1 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                      <span className="truncate">{agentNameById.get(c.agentId) ?? c.agentId}</span>
+                      <span>·</span>
+                      <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
+                    </span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
-                    className="shrink-0 px-1 py-0.5 rounded text-[14px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="mt-1 shrink-0 px-1.5 py-1 rounded text-[13px] font-bold opacity-0 group-hover:opacity-100 transition-opacity"
                     style={{ color: "var(--error)" }}
                     title="Delete"
                   >

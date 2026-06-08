@@ -35,13 +35,13 @@ interface SimpleMessage {
 
 function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
   const out: { name: string; path: string }[] = [];
-  const walk = (list: typeof nodes, prefix: string) => {
+  const walk = (list: typeof nodes) => {
     for (const n of list) {
       out.push({ name: n.name, path: n.path });
-      if (n.type === "directory" && n.children) walk(n.children as typeof nodes, prefix);
+      if (n.type === "directory" && n.children) walk(n.children as typeof nodes);
     }
   };
-  walk(nodes, "");
+  walk(nodes);
   return out;
 }
 
@@ -508,302 +508,322 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
   const canSend = (input.trim() || attachments.length > 0) && !streaming;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {messages.length === 0 && !streaming && (
-          <WelcomeScreen
-            agentName={displayName}
-            agentDescription={agentDescription}
-            onStarterClick={(prompt) => {
-              setInput(prompt);
-            }}
-          />
-        )}
-
-        {messages.map((msg) => (
-          <div key={msg.id} className="fade-in">
-            {/* Attachments in user message */}
-            {msg.attachments && msg.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-1.5">
-                {msg.attachments.map((a) => (
-                  <span
-                    key={a.name}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                    style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
-                  >
-                    {a.type === "image" ? "🖼️" : "📎"} {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            <div
-              className="text-sm leading-relaxed break-words rounded-lg px-3 py-2"
-              style={{
-                color: msg.role === "error" ? "var(--error)" : "var(--text)",
-                background: msg.role === "user" ? "var(--user-bg)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.06)" : "transparent",
-                border: msg.role === "user" ? "1px solid var(--user-border)" : msg.role === "error" ? "1px solid oklch(55% 0.22 20 / 0.15)" : "none",
+      <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
+          {messages.length === 0 && !streaming && (
+            <WelcomeScreen
+              agentName={displayName}
+              agentDescription={agentDescription}
+              onStarterClick={(prompt) => {
+                setInput(prompt);
               }}
+            />
+          )}
+
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`fade-in flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              {msg.role === "error" ? (
-                `⚠️ ${msg.content}`
-              ) : msg.role === "assistant" && msg.blocks ? (
-                msg.blocks.map((block, i) => {
-                  switch (block.type) {
-                    case "thinking":
-                      return (
-                        <ThinkingBlock
-                          key={i}
-                          content={block.content}
-                          duration={block.duration}
-                          defaultOpen={false}
-                        />
-                      );
-                    case "tool_use":
-                      return (
-                        <ToolCallBlock
-                          key={i}
-                          toolName={block.toolName}
-                          toolInput={block.toolInput}
-                          status={block.status}
-                        />
-                      );
-                    case "tool_result":
-                      return (
-                        <ToolResultBlock
-                          key={i}
-                          toolOutput={block.toolOutput}
-                        />
-                      );
-                    case "text":
-                      return <MarkdownBody key={i} content={block.content} />;
-                    default:
-                      return null;
-                  }
-                })
-              ) : (
-                <MarkdownBody content={msg.content} />
-              )}
+              <div className={msg.role === "user" ? "max-w-[78%]" : "w-full max-w-[820px]"}>
+                {/* Attachments in user message */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="mb-1.5 flex flex-wrap justify-end gap-1">
+                    {msg.attachments.map((a) => (
+                      <span
+                        key={a.name}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+                        style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+                      >
+                        {a.type === "image" ? "🖼️" : "📎"} {a.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className="text-sm leading-relaxed break-words rounded-lg px-3 py-2"
+                  style={{
+                    color: msg.role === "error" ? "var(--error)" : "var(--text)",
+                    background: msg.role === "user"
+                      ? "var(--user-bg)"
+                      : msg.role === "error"
+                      ? "oklch(55% 0.22 20 / 0.06)"
+                      : "transparent",
+                    border: msg.role === "user"
+                      ? "1px solid var(--user-border)"
+                      : msg.role === "error"
+                      ? "1px solid oklch(55% 0.22 20 / 0.15)"
+                      : "1px solid transparent",
+                  }}
+                >
+                  {msg.role === "error" ? (
+                    `⚠️ ${msg.content}`
+                  ) : msg.role === "assistant" && msg.blocks ? (
+                    msg.blocks.map((block, i) => {
+                      switch (block.type) {
+                        case "thinking":
+                          return (
+                            <ThinkingBlock
+                              key={i}
+                              content={block.content}
+                              duration={block.duration}
+                              defaultOpen={false}
+                            />
+                          );
+                        case "tool_use":
+                          return (
+                            <ToolCallBlock
+                              key={i}
+                              toolName={block.toolName}
+                              toolInput={block.toolInput}
+                              status={block.status}
+                            />
+                          );
+                        case "tool_result":
+                          return (
+                            <ToolResultBlock
+                              key={i}
+                              toolOutput={block.toolOutput}
+                            />
+                          );
+                        case "text":
+                          return <MarkdownBody key={i} content={block.content} />;
+                        default:
+                          return null;
+                      }
+                    })
+                  ) : (
+                    <MarkdownBody content={msg.content} />
+                  )}
+                </div>
+                {/* Per-message usage + copy + time for assistant messages */}
+                {msg.role === "assistant" && (
+                  <div className="flex items-center justify-between mt-1 gap-2 px-3">
+                    <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(65% 0.015 252)" }}>
+                      <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
+                      <span>·</span>
+                      <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
+                      {msg.cacheTokens != null && msg.cacheTokens > 0 && (
+                        <>
+                          <span>·</span>
+                          <span>{formatTokens(msg.cacheTokens)} cache</span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span>${estimateCost(msg.inputTokens ?? Math.round(msg.content.length / 2), msg.outputTokens ?? Math.round(msg.content.length / 4))}</span>
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
+                        className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
+                        style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                      >
+                        Copy
+                      </button>
+                      <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
+                        {formatTime(msg.createdAt)}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            {/* Per-message usage + copy + time for assistant messages */}
-            {msg.role === "assistant" && (
-              <div className="flex items-center justify-between mt-1 gap-2">
-                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(65% 0.015 252)" }}>
-                  <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
-                  <span>·</span>
-                  <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
-                  {msg.cacheTokens != null && msg.cacheTokens > 0 && (
+          ))}
+
+          {/* Streaming */}
+          {streaming && (
+            <div className="fade-in flex justify-start">
+              <div className="w-full max-w-[820px] px-3 py-2">
+                <div
+                  className="text-sm leading-relaxed break-words mb-1"
+                  style={{ color: "var(--color-text)" }}
+                >
+                  {streamContentRef.current ? (
+                    <MarkdownBody content={streamContentRef.current} />
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
+                  <span>Generating…</span>
+                  <span>(</span>
+                  <span className="tabular-nums">{elapsed}s</span>
+                  {displayTokens > 0 ? (
                     <>
                       <span>·</span>
-                      <span>{formatTokens(msg.cacheTokens)} cache</span>
+                      <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
+                        ↓<span className="tabular-nums">{displayTokens}</span> tokens
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>·</span>
+                      <span className="animate-pulse">thinking</span>
                     </>
                   )}
-                  <span>·</span>
-                  <span>${estimateCost(msg.inputTokens ?? Math.round(msg.content.length / 2), msg.outputTokens ?? Math.round(msg.content.length / 4))}</span>
-                </span>
-                <span className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                    className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
-                  >
-                    Copy
-                  </button>
-                  <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
-                    {formatTime(msg.createdAt)}
-                  </span>
-                </span>
+                  <span>)</span>
+                </div>
               </div>
-            )}
-          </div>
-        ))}
-
-        {/* Streaming */}
-        {streaming && (
-          <div className="fade-in">
-            <div
-              className="text-sm leading-relaxed break-words mb-1"
-              style={{ color: "var(--color-text)" }}
-            >
-              {streamContentRef.current ? (
-                <MarkdownBody content={streamContentRef.current} />
-              ) : null}
             </div>
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
-              <span>Generating…</span>
-              <span>(</span>
-              <span className="tabular-nums">{elapsed}s</span>
-              {displayTokens > 0 ? (
-                <>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
-                    ↓<span className="tabular-nums">{displayTokens}</span> tokens
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>·</span>
-                  <span className="animate-pulse">thinking</span>
-                </>
-              )}
-              <span>)</span>
-            </div>
-          </div>
-        )}
+          )}
 
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Input area */}
       <div
-        className="p-4 border-t shrink-0"
-        style={{ borderColor: "var(--color-border)" }}
+        className="shrink-0 border-t px-5 py-4"
+        style={{ borderColor: "var(--color-border)", background: "var(--bg-panel)" }}
         onDragOver={handleInputDragOver}
         onDragLeave={handleInputDragLeave}
         onDrop={handleInputDrop}
       >
-        {/* Attachment bar */}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {attachments.map((a) => (
-              <span
-                key={a.name}
-                className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
-                style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
-              >
-                {a.type === "image" ? "🖼️" : "📎"} {a.name}
-                <button
-                  onClick={() => removeAttachment(a.name)}
-                  className="px-1 hover:opacity-70"
-                  style={{ color: "var(--color-text-secondary)" }}
+        <div className="mx-auto w-full max-w-[880px]">
+          {/* Attachment bar */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {attachments.map((a) => (
+                <span
+                  key={a.name}
+                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
+                  style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
                 >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+                  {a.type === "image" ? "🖼️" : "📎"} {a.name}
+                  <button
+                    onClick={() => removeAttachment(a.name)}
+                    className="px-1 hover:opacity-70"
+                    style={{ color: "var(--color-text-secondary)" }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
-        {/* @mention dropdown */}
-        {mentionOpen && mentionResults.length > 0 && (
-          <div className="mb-1 rounded-md border overflow-hidden"
-            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", boxShadow: "var(--shadow-overlay)" }}>
-            {mentionResults.map((f, i) => (
+          {/* @mention dropdown */}
+          {mentionOpen && mentionResults.length > 0 && (
+            <div className="mb-1 rounded-md border overflow-hidden"
+              style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", boxShadow: "var(--shadow-overlay)" }}>
+              {mentionResults.map((f, i) => (
+                <button
+                  key={f.path}
+                  onClick={() => { setMentionSelected(i); insertMention(); }}
+                  onMouseEnter={() => setMentionSelected(i)}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors"
+                  style={{
+                    color: "var(--text)",
+                    background: i === mentionSelected ? "var(--bg-selected)" : "transparent",
+                  }}
+                >
+                  <span className="shrink-0 opacity-50">{f.name.includes(".") ? "📄" : "📁"}</span>
+                  <span className="truncate" style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{f.path}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Textarea */}
+          <textarea
+            value={input}
+            ref={textareaRef}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // @mention detection
+              const ta = e.target;
+              const cursor = ta.selectionStart;
+              const textBefore = e.target.value.slice(0, cursor);
+              const atMatch = textBefore.match(/@(\S*)$/);
+              if (atMatch) {
+                const q = atMatch[1].toLowerCase();
+                setMentionSelected(0);
+                // Fetch files lazily
+                if (workspace) {
+                  fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
+                    .then(r => r.json()).then(d => {
+                      const files = (d.files ?? []) as { name: string; path: string; type: string }[];
+                      const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
+                      setMentionResults(flat.slice(0, 8));
+                      setMentionOpen(flat.length > 0);
+                    }).catch(() => {});
+                }
+              } else {
+                setMentionOpen(false);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (mentionOpen) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
+                if (e.key === "Escape") { setMentionOpen(false); return; }
+              }
+              handleKeyDown(e);
+            }}
+            placeholder={`Ask ${displayName}...`}
+            rows={3}
+            className="w-full resize-none p-3 text-sm rounded-md outline-none transition-colors"
+            style={{
+              background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
+              color: "var(--color-text)",
+              border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
+              boxShadow: "var(--shadow-panel)",
+            }}
+            disabled={streaming}
+          />
+
+          {/* Bottom bar: attach button + hint + send */}
+          <div className="flex justify-between items-center mt-2">
+            <div className="flex items-center gap-2">
+              {/* Attach button */}
               <button
-                key={f.path}
-                onClick={() => { setMentionSelected(i); insertMention(); }}
-                onMouseEnter={() => setMentionSelected(i)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors"
                 style={{
-                  color: "var(--text)",
-                  background: i === mentionSelected ? "var(--bg-selected)" : "transparent",
+                  color: "var(--color-text-secondary)",
+                  border: "1px solid var(--color-border)",
+                }}
+                disabled={streaming}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                </svg>
+                Attach
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileSelect}
+                accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
+              />
+            </div>
+            {streaming ? (
+              <button
+                onClick={handleStop}
+                className="px-3 py-1 text-xs rounded-md transition-colors hover:opacity-80"
+                style={{ background: "oklch(0.55 0.2 30)", color: "#fff" }}
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className="px-3 py-1 text-xs rounded-md transition-colors"
+                style={{
+                  background: canSend ? "var(--color-accent)" : "var(--color-border)",
+                  color: canSend ? "#fff" : "var(--color-text-secondary)",
+                  opacity: canSend ? 1 : 0.5,
                 }}
               >
-                <span className="shrink-0 opacity-50">{f.name.includes(".") ? "📄" : "📁"}</span>
-                <span className="truncate" style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{f.path}</span>
+                Send
               </button>
-            ))}
+            )}
           </div>
-        )}
-
-        {/* Textarea */}
-        <textarea
-          value={input}
-          ref={textareaRef}
-          onChange={(e) => {
-            setInput(e.target.value);
-            // @mention detection
-            const ta = e.target;
-            const cursor = ta.selectionStart;
-            const textBefore = e.target.value.slice(0, cursor);
-            const atMatch = textBefore.match(/@(\S*)$/);
-            if (atMatch) {
-              const q = atMatch[1].toLowerCase();
-              setMentionSelected(0);
-              // Fetch files lazily
-              if (workspace) {
-                fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
-                  .then(r => r.json()).then(d => {
-                    const files = (d.files ?? []) as { name: string; path: string; type: string }[];
-                    const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
-                    setMentionResults(flat.slice(0, 8));
-                    setMentionOpen(flat.length > 0);
-                  }).catch(() => {});
-              }
-            } else {
-              setMentionOpen(false);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (mentionOpen) {
-              if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
-              if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
-              if (e.key === "Escape") { setMentionOpen(false); return; }
-            }
-            handleKeyDown(e);
-          }}
-          placeholder={`Ask ${displayName}...`}
-          rows={3}
-          className="w-full resize-none p-2 text-sm rounded-md outline-none transition-colors"
-          style={{
-            background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
-            color: "var(--color-text)",
-            border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
-          }}
-          disabled={streaming}
-        />
-
-        {/* Bottom bar: attach button + hint + send */}
-        <div className="flex justify-between items-center mt-2">
-          <div className="flex items-center gap-2">
-            {/* Attach button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors"
-              style={{
-                color: "var(--color-text-secondary)",
-                border: "1px solid var(--color-border)",
-              }}
-              disabled={streaming}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
-              Attach
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-              accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
-            />
-          </div>
-          {streaming ? (
-            <button
-              onClick={handleStop}
-              className="px-3 py-1 text-xs rounded-md transition-colors hover:opacity-80"
-              style={{ background: "oklch(0.55 0.2 30)", color: "#fff" }}
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className="px-3 py-1 text-xs rounded-md transition-colors"
-              style={{
-                background: canSend ? "var(--color-accent)" : "var(--color-border)",
-                color: canSend ? "#fff" : "var(--color-text-secondary)",
-                opacity: canSend ? 1 : 0.5,
-              }}
-            >
-              Send
-            </button>
-          )}
         </div>
       </div>
     </div>

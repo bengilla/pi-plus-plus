@@ -18,8 +18,6 @@ interface Props {
 export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [expandedPath, setExpandedPath] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [newFileName, setNewFileName] = useState("");
@@ -40,12 +38,6 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
 
   useEffect(() => { loadTree(); }, [loadTree]);
 
-  const segments = workspace.split("/").filter(Boolean);
-  const goUp = () => {
-    const parent = workspace.split("/").slice(0, -1).join("/") || "/";
-    onNavigate(parent);
-  };
-
   const startNewItem = (type: "file" | "folder") => {
     setNewItemType(type);
     setNewFileName("");
@@ -63,7 +55,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
           body: JSON.stringify({ workspace, name }),
         });
       } else {
-        await fetch("/api/files", {
+        await fetch(`/api/files?workspace=${encodeURIComponent(workspace)}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ path: name, content: "" }),
@@ -85,7 +77,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
       setRenaming(null); return;
     }
     try {
-      await fetch("/api/files/rename", {
+      await fetch(`/api/files/rename?workspace=${encodeURIComponent(workspace)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: oldPath, name: renameValue.trim() }),
@@ -109,24 +101,6 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
 
   return (
     <div>
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b text-[11px]"
-        style={{ borderColor: "var(--color-border)", overflowX: expandedPath ? "auto" : "hidden" }}>
-        <button onClick={goUp} className="shrink-0 px-1 rounded hover:opacity-70"
-          style={{ color: "var(--color-text-secondary)" }}>←</button>
-        <button onClick={() => setExpandedPath(!expandedPath)} className="text-xs text-left min-w-0 select-all"
-          style={{ color: "var(--color-text)", cursor: "pointer", whiteSpace: expandedPath ? "nowrap" : "normal", flex: expandedPath ? "1 0 auto" : "0 1 auto", overflow: "hidden" }}>
-          {expandedPath ? workspace : `${segments.length > 2 ? ".../" : ""}${segments[segments.length - 1] || workspace}`}
-        </button>
-        {!expandedPath && (
-          <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(workspace); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] transition-all ml-auto"
-            style={{ color: copied ? "#fff" : "oklch(68% 0.15 55)", background: copied ? "oklch(0.55 0.15 160)" : "transparent", border: copied ? "none" : "1px solid oklch(68% 0.15 55 / 0.3)" }}>
-            {copied ? "COPIED!" : "COPY"}
-          </button>
-        )}
-      </div>
-
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
         <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"

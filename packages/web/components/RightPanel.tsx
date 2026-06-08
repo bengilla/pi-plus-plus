@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 
 interface AgentInfo {
   id: string;
@@ -15,6 +16,25 @@ interface Props {
   agent?: AgentInfo;
   workspace: string;
   onClose: () => void;
+}
+
+function InspectorCard({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="rounded-md p-3"
+      style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+      {children}
+    </span>
+  );
 }
 
 export function RightPanel({ view, filePath, agent, workspace, onClose }: Props) {
@@ -39,18 +59,28 @@ export function RightPanel({ view, filePath, agent, workspace, onClose }: Props)
       .finally(() => setLoading(false));
   }, [view, filePath, workspace]);
 
+  const fileName = filePath?.split("/").pop() ?? "";
+  const relativeFilePath = filePath && workspace
+    ? filePath.replace(workspace.replace(/\/$/, "") + "/", "")
+    : filePath;
+
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0" style={{ background: "var(--bg-elevated)" }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-[42px] border-b shrink-0"
-        style={{ borderColor: "var(--border)" }}>
-        <span className="text-xs font-medium truncate" style={{ color: "var(--text)" }}>
-          {view === "file" && filePath
-            ? `📄 ${filePath.split("/").pop()}`
-            : view === "agent" && agent
-            ? `🤖 ${agent.name}`
-            : "Details"}
-        </span>
+      <div className="flex items-center justify-between px-4 h-[54px] border-b shrink-0"
+        style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
+            Inspector
+          </div>
+          <div className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+            {view === "file" && filePath
+              ? fileName
+              : view === "agent" && agent
+              ? agent.name
+              : "Details"}
+          </div>
+        </div>
         <button
           onClick={onClose}
           className="p-1 rounded hover:opacity-70 transition-opacity"
@@ -65,14 +95,16 @@ export function RightPanel({ view, filePath, agent, workspace, onClose }: Props)
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0 p-3">
         {/* Empty state */}
         {!view && (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center px-4">
-              <div className="text-3xl mb-3">📋</div>
-              <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                Select a file or agent for details
+            <div
+              className="w-full rounded-md px-4 py-8 text-center"
+              style={{ background: "var(--bg)", border: "1px dashed var(--border)" }}
+            >
+              <div className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
+                No selection
               </div>
             </div>
           </div>
@@ -80,7 +112,7 @@ export function RightPanel({ view, filePath, agent, workspace, onClose }: Props)
 
         {/* File Preview */}
         {view === "file" && (
-          <div className="p-3">
+          <div className="space-y-3">
             {loading && (
               <div className="text-xs" style={{ color: "var(--text-secondary)" }}>Loading...</div>
             )}
@@ -89,10 +121,19 @@ export function RightPanel({ view, filePath, agent, workspace, onClose }: Props)
             )}
             {!loading && !error && content !== null && (
               <>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                    Preview
-                  </span>
+                <InspectorCard>
+                  <SectionLabel>File</SectionLabel>
+                  <div className="mt-1 truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                    {fileName}
+                  </div>
+                  {relativeFilePath && (
+                    <div className="mt-1 break-all text-[11px]" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                      {relativeFilePath}
+                    </div>
+                  )}
+                </InspectorCard>
+                <div className="flex items-center justify-between">
+                  <SectionLabel>Contents</SectionLabel>
                   <button
                     onClick={() => navigator.clipboard.writeText(content).catch(() => {})}
                     className="text-[10px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
@@ -121,30 +162,24 @@ export function RightPanel({ view, filePath, agent, workspace, onClose }: Props)
 
         {/* Agent Info */}
         {view === "agent" && agent && (
-          <div className="p-3 space-y-4">
-            <div>
-              <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                Agent
-              </span>
+          <div className="space-y-3">
+            <InspectorCard>
+              <SectionLabel>Agent</SectionLabel>
               <p className="text-sm font-medium mt-1" style={{ color: "var(--text)" }}>{agent.name}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{agent.description}</p>
-            </div>
+            </InspectorCard>
 
             {agent.version && (
-              <div>
-                <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                  Version
-                </span>
+              <InspectorCard>
+                <SectionLabel>Version</SectionLabel>
                 <p className="text-xs mt-1" style={{ fontFamily: "var(--font-mono)", color: "var(--text)" }}>{agent.version}</p>
-              </div>
+              </InspectorCard>
             )}
 
-            <div>
-              <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-                ID
-              </span>
+            <InspectorCard>
+              <SectionLabel>ID</SectionLabel>
               <p className="text-xs mt-1" style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{agent.id}</p>
-            </div>
+            </InspectorCard>
           </div>
         )}
       </div>
