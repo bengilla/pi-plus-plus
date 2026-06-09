@@ -8,7 +8,9 @@ interface Props {
   defaultOpen?: boolean;
 }
 
-export function ThinkingBlock({ content, duration, defaultOpen = true }: Props) {
+const MUTED_TEXT = "oklch(75% 0 0)";
+
+export function ThinkingBlock({ content, duration, defaultOpen = false }: Props) {
   const [open, setOpen] = useState(defaultOpen);
 
   // Auto-collapse after streaming completes
@@ -31,10 +33,10 @@ export function ThinkingBlock({ content, duration, defaultOpen = true }: Props) 
         className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-opacity hover:opacity-85"
         style={{
           background: "var(--color-surface-secondary)",
-          color: "var(--color-text)",
+          color: MUTED_TEXT,
         }}
       >
-        <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>{open ? "▾" : "▸"}</span>
+        <span className="text-[10px]" style={{ color: MUTED_TEXT }}>{open ? "▾" : "▸"}</span>
         <span
           className="h-2 w-2 shrink-0 rounded-full"
           style={{
@@ -57,7 +59,7 @@ export function ThinkingBlock({ content, duration, defaultOpen = true }: Props) 
           className="px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap break-words"
           style={{
             fontFamily: "var(--font-mono)",
-            color: "var(--color-text-secondary)",
+            color: MUTED_TEXT,
             maxHeight: "16rem",
             overflowY: "auto",
           }}

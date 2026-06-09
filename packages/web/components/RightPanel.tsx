@@ -2,7 +2,37 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
+import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
+import go from "react-syntax-highlighter/dist/esm/languages/prism/go";
+import html from "react-syntax-highlighter/dist/esm/languages/prism/markup";
+import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
+import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
+import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
+import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
+import rust from "react-syntax-highlighter/dist/esm/languages/prism/rust";
+import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
+import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
+import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
+import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import type { AgentDefinition } from "@/lib/agents/types";
+import { AgentIcon } from "./AgentIcon";
+
+SyntaxHighlighter.registerLanguage("bash", bash);
+SyntaxHighlighter.registerLanguage("css", css);
+SyntaxHighlighter.registerLanguage("go", go);
+SyntaxHighlighter.registerLanguage("html", html);
+SyntaxHighlighter.registerLanguage("javascript", javascript);
+SyntaxHighlighter.registerLanguage("json", json);
+SyntaxHighlighter.registerLanguage("markdown", markdown);
+SyntaxHighlighter.registerLanguage("python", python);
+SyntaxHighlighter.registerLanguage("rust", rust);
+SyntaxHighlighter.registerLanguage("sql", sql);
+SyntaxHighlighter.registerLanguage("tsx", tsx);
+SyntaxHighlighter.registerLanguage("typescript", typescript);
+SyntaxHighlighter.registerLanguage("yaml", yaml);
 
 interface AgentInfo {
   id: string;
@@ -25,27 +55,29 @@ interface Props {
   agentDefinition?: AgentDefinition;
   workspace: string;
   onClose: () => void;
+  language?: "en" | "zh";
 }
 
 // ── Helpers ──────────────────────────────────────────────────
 
-const LANG_MAP: Record<string, { label: string; color: string }> = {
-  ".ts":   { label: "TypeScript", color: "oklch(62% 0.19 252)" },
-  ".tsx":  { label: "TSX",        color: "oklch(62% 0.19 252)" },
-  ".js":   { label: "JavaScript", color: "oklch(70% 0.17 85)" },
-  ".jsx":  { label: "JSX",        color: "oklch(70% 0.17 85)" },
-  ".json": { label: "JSON",       color: "oklch(65% 0.12 110)" },
-  ".py":   { label: "Python",     color: "oklch(62% 0.15 230)" },
-  ".css":  { label: "CSS",        color: "oklch(60% 0.15 290)" },
-  ".html": { label: "HTML",       color: "oklch(55% 0.18 25)" },
-  ".md":   { label: "Markdown",   color: "oklch(60% 0.08 260)" },
-  ".yaml": { label: "YAML",       color: "oklch(58% 0.16 190)" },
-  ".yml":  { label: "YAML",       color: "oklch(58% 0.16 190)" },
-  ".sh":   { label: "Shell",      color: "oklch(60% 0.12 140)" },
-  ".bash": { label: "Shell",      color: "oklch(60% 0.12 140)" },
-  ".zsh":  { label: "Shell",      color: "oklch(60% 0.12 140)" },
-  ".rs":   { label: "Rust",       color: "oklch(58% 0.16 30)" },
-  ".go":   { label: "Go",         color: "oklch(60% 0.16 200)" },
+const LANG_MAP: Record<string, { label: string; color: string; syntax?: string }> = {
+  ".ts":   { label: "TypeScript", color: "oklch(62% 0.19 252)", syntax: "typescript" },
+  ".tsx":  { label: "TSX",        color: "oklch(62% 0.19 252)", syntax: "tsx" },
+  ".js":   { label: "JavaScript", color: "oklch(70% 0.17 85)", syntax: "javascript" },
+  ".jsx":  { label: "JSX",        color: "oklch(70% 0.17 85)", syntax: "javascript" },
+  ".json": { label: "JSON",       color: "oklch(65% 0.12 110)", syntax: "json" },
+  ".py":   { label: "Python",     color: "oklch(62% 0.15 230)", syntax: "python" },
+  ".css":  { label: "CSS",        color: "oklch(60% 0.15 290)", syntax: "css" },
+  ".html": { label: "HTML",       color: "oklch(55% 0.18 25)", syntax: "html" },
+  ".md":   { label: "Markdown",   color: "oklch(60% 0.08 260)", syntax: "markdown" },
+  ".yaml": { label: "YAML",       color: "oklch(58% 0.16 190)", syntax: "yaml" },
+  ".yml":  { label: "YAML",       color: "oklch(58% 0.16 190)", syntax: "yaml" },
+  ".sh":   { label: "Shell",      color: "oklch(60% 0.12 140)", syntax: "bash" },
+  ".bash": { label: "Shell",      color: "oklch(60% 0.12 140)", syntax: "bash" },
+  ".zsh":  { label: "Shell",      color: "oklch(60% 0.12 140)", syntax: "bash" },
+  ".rs":   { label: "Rust",       color: "oklch(58% 0.16 30)", syntax: "rust" },
+  ".go":   { label: "Go",         color: "oklch(60% 0.16 200)", syntax: "go" },
+  ".sql":  { label: "SQL",        color: "oklch(58% 0.14 190)", syntax: "sql" },
   ".java": { label: "Java",       color: "oklch(55% 0.18 15)" },
   ".kt":   { label: "Kotlin",     color: "oklch(58% 0.18 280)" },
   ".swift":{ label: "Swift",      color: "oklch(58% 0.18 30)" },
@@ -54,18 +86,17 @@ const LANG_MAP: Record<string, { label: string; color: string }> = {
   ".h":    { label: "C Header",   color: "oklch(55% 0.14 210)" },
   ".rb":   { label: "Ruby",       color: "oklch(55% 0.18 10)" },
   ".php":  { label: "PHP",        color: "oklch(58% 0.18 270)" },
-  ".sql":  { label: "SQL",        color: "oklch(58% 0.14 190)" },
   ".graphql":{ label: "GraphQL",  color: "oklch(60% 0.18 310)" },
   ".dockerfile":{ label: "Dockerfile", color: "oklch(58% 0.16 240)" },
-  ".xml":  { label: "XML",        color: "oklch(55% 0.16 50)" },
-  ".svg":  { label: "SVG",        color: "oklch(60% 0.18 45)" },
+  ".xml":  { label: "XML",        color: "oklch(55% 0.16 50)", syntax: "html" },
+  ".svg":  { label: "SVG",        color: "oklch(60% 0.18 45)", syntax: "html" },
   ".env":  { label: "Env",        color: "oklch(55% 0.12 140)" },
   ".gitignore":{ label: "Gitignore", color: "oklch(55% 0.08 260)" },
   ".lock": { label: "Lockfile",   color: "oklch(55% 0.08 260)" },
   ".toml": { label: "TOML",       color: "oklch(55% 0.12 170)" },
 };
 
-function detectLanguage(filename: string): { label: string; color: string } | null {
+function detectLanguage(filename: string): { label: string; color: string; syntax?: string } | null {
   const ext = filename.includes(".")
     ? filename.slice(filename.lastIndexOf(".")).toLowerCase()
     : "";
@@ -105,24 +136,19 @@ function formatContext(n: number): string {
 
 // ── Sub-components ───────────────────────────────────────────
 
-function PanelHeader({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose: () => void }) {
+function PanelHeader({ title, onClose }: { title: string; onClose: () => void }) {
   return (
     <div
-      className="flex items-center justify-between px-4 h-[50px] border-b shrink-0"
+      className="flex h-[42px] shrink-0 items-center justify-between border-b px-3"
       style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
     >
       <div className="min-w-0">
         <div
-          className="text-[10px] font-semibold uppercase tracking-widest"
-          style={{ color: "var(--text-tertiary)" }}
+          className="font-semibold uppercase tracking-widest"
+          style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}
         >
           {title}
         </div>
-        {subtitle && (
-          <div className="truncate text-[13px] font-medium mt-0.5" style={{ color: "var(--text)" }}>
-            {subtitle}
-          </div>
-        )}
       </div>
       <button
         onClick={onClose}
@@ -139,11 +165,11 @@ function PanelHeader({ title, subtitle, onClose }: { title: string; subtitle?: s
   );
 }
 
-function MetaCard({ children }: { children: ReactNode }) {
+function MetaCard({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   return (
     <div
-      className="rounded-lg p-3.5"
-      style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+      className={`${compact ? "p-2.5" : "p-3"}`}
+      style={{ background: "transparent", borderBottom: "1px solid var(--border-light)" }}
     >
       {children}
     </div>
@@ -153,25 +179,26 @@ function MetaCard({ children }: { children: ReactNode }) {
 function MetaLabel({ children }: { children: ReactNode }) {
   return (
     <span
-      className="text-[10px] font-semibold uppercase tracking-wider"
-      style={{ color: "var(--text-tertiary)" }}
+      className="font-semibold uppercase tracking-wider"
+      style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}
     >
       {children}
     </span>
   );
 }
 
-function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaRow({ label, value, mono, compact = false }: { label: string; value: string; mono?: boolean; compact?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1.5 gap-3">
-      <span className="text-[11px] shrink-0" style={{ color: "var(--text-tertiary)" }}>
+    <div className={`flex items-center justify-between gap-3 ${compact ? "py-0.5" : "py-1.5"}`}>
+      <span className="shrink-0" style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}>
         {label}
       </span>
       <span
-        className="text-[12px] truncate text-right font-medium"
+        className="truncate text-right font-medium"
         style={{
           color: "var(--text)",
           fontFamily: mono ? "var(--font-mono)" : undefined,
+          fontSize: "var(--text-sm)",
         }}
       >
         {value}
@@ -183,11 +210,12 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
 function CapabilityBadge({ active, label }: { active: boolean; label: string }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium transition-colors"
       style={{
         color: active ? "var(--success)" : "var(--text-tertiary)",
         background: active ? "oklch(62% 0.19 160 / 0.1)" : "var(--bg-panel)",
         border: `1px solid ${active ? "oklch(62% 0.19 160 / 0.2)" : "var(--border)"}`,
+        fontSize: "var(--text-xs)",
       }}
     >
       <span className="text-[10px]">{active ? "●" : "○"}</span>
@@ -198,7 +226,8 @@ function CapabilityBadge({ active, label }: { active: boolean; label: string }) 
 
 // ── Main component ───────────────────────────────────────────
 
-export function RightPanel({ view, filePath, agent, agentDefinition, workspace, onClose }: Props) {
+export function RightPanel({ view, filePath, agent, agentDefinition, workspace, onClose, language = "en" }: Props) {
+  const zh = language === "zh";
   const [content, setContent] = useState<string | null>(null);
   const [meta, setMeta] = useState<FileMeta | null>(null);
   const [loading, setLoading] = useState(false);
@@ -233,31 +262,25 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
   const relativeFilePath = filePath && workspace
     ? filePath.replace(workspace.replace(/\/$/, "") + "/", "")
     : filePath;
+  const showRelativePath = relativeFilePath && relativeFilePath !== fileName;
   const lang = detectLanguage(fileName);
-
-  // ── Panel title ──────────────────────────────────────────
-  const panelSubtitle = view === "file" && filePath
-    ? fileName
-    : view === "agent" && agent
-    ? agent.name
-    : undefined;
 
   return (
     <div className="flex flex-col h-full min-h-0" style={{ background: "var(--bg-elevated)" }}>
-      <PanelHeader title="Inspector" subtitle={panelSubtitle} onClose={onClose} />
+      <PanelHeader title={zh ? "检查器" : "Inspector"} onClose={onClose} />
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-3">
+      <div className="flex-1 min-h-0 overflow-hidden p-2.5">
         {/* ── Empty state ─────────────────────────────────── */}
         {!view && (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center px-4 w-full max-w-[220px]">
-              <div className="text-[40px] mb-4 opacity-40">🔍</div>
-              <div className="text-[13px] font-medium mb-1" style={{ color: "var(--text)" }}>
-                Inspector
+            <div className="px-4 w-full max-w-[240px]">
+              <div className="mb-3 h-px w-10" style={{ background: "var(--border)" }} />
+              <div className="font-medium mb-1" style={{ color: "var(--text)", fontSize: "var(--text-base)" }}>
+                {zh ? "检查器" : "Inspector"}
               </div>
-              <div className="text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>
-                Click a file in the explorer or an agent to see details here.
+              <div className="leading-relaxed text-left" style={{ color: "var(--text-tertiary)", fontSize: "var(--text-xs)" }}>
+                {zh ? "点击文件或智能体查看详情。" : "Click a file in the explorer or an agent to see details here."}
               </div>
             </div>
           </div>
@@ -265,123 +288,142 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
 
         {/* ── File Preview ────────────────────────────────── */}
         {view === "file" && (
-          <>
+          <div className="flex h-full min-h-0 flex-col">
             {loading && (
               <div className="flex items-center gap-2 py-6 justify-center">
-                <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>Loading…</span>
+                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)" }}>{zh ? "加载中..." : "Loading..."}</span>
               </div>
             )}
             {error && (
               <MetaCard>
-                <div className="flex items-center gap-2 text-[12px]" style={{ color: "var(--error)" }}>
+                <div className="flex items-center gap-2" style={{ color: "var(--error)", fontSize: "var(--text-sm)" }}>
                   <span>⚠️</span> {error}
                 </div>
               </MetaCard>
             )}
 
             {!loading && !error && content !== null && (
-              <>
-                {/* File identity card */}
-                <MetaCard>
-                  <div className="flex items-start gap-3">
-                    <span className="text-[22px] shrink-0 leading-none mt-0.5 select-none">
-                      {lang ? "📄" : "📝"}
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* File identity + properties */}
+                <MetaCard compact>
+                  <div className="flex items-start gap-2.5">
+                    <span
+                      className="mt-0.5 h-7 w-7 shrink-0 rounded-md"
+                      style={{ background: lang?.color ?? "var(--text-tertiary)", opacity: 0.85 }}
+                      aria-hidden="true"
+                    >
                     </span>
-                    <div className="min-w-0">
-                      <div
-                        className="text-[13px] font-semibold truncate"
-                        style={{ color: "var(--text)" }}
-                      >
-                        {fileName}
-                      </div>
-                      {relativeFilePath && (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
                         <div
-                          className="mt-0.5 text-[11px] break-all leading-snug"
-                          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}
+                          className="min-w-0 flex-1 truncate font-semibold"
+                          style={{ color: "var(--text)", fontSize: "var(--text-base)" }}
+                        >
+                          {fileName}
+                        </div>
+                        {lang && (
+                          <span
+                            className="shrink-0 rounded-full px-2 py-px font-medium"
+                            style={{ color: lang.color, background: "var(--bg-hover)", fontSize: "var(--text-xs)" }}
+                          >
+                            {lang.label}
+                          </span>
+                        )}
+                      </div>
+                      {showRelativePath && (
+                        <div
+                          className="mt-0.5 truncate"
+                          title={relativeFilePath}
+                          style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}
                         >
                           {relativeFilePath}
                         </div>
                       )}
-                      {lang && (
-                        <span
-                          className="inline-block mt-1.5 px-2 py-px rounded-full text-[10px] font-medium"
-                          style={{ color: lang.color, background: `${lang.color} / 0.12` }}
+                      {meta && (
+                        <div
+                          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1"
+                          style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}
                         >
-                          {lang.label}
-                        </span>
+                          <span style={{ color: "oklch(72% 0.13 252)" }}>{meta.lines} lines</span>
+                          <span style={{ color: "oklch(74% 0.12 145)" }}>{formatBytes(meta.size)}</span>
+                          <span style={{ color: "oklch(76% 0.11 65)" }}>{formatModified(meta.modified)}</span>
+                        </div>
                       )}
                     </div>
                   </div>
                 </MetaCard>
 
-                {/* File properties */}
-                {meta && (
-                  <MetaCard>
-                    <MetaLabel>Properties</MetaLabel>
-                    <div className="mt-1.5 divide-y" style={{ borderColor: "var(--border-light)" }}>
-                      <MetaRow label="Lines" value={String(meta.lines)} mono />
-                      <MetaRow label="Size" value={formatBytes(meta.size)} mono />
-                      <MetaRow label="Modified" value={formatModified(meta.modified)} />
-                      {lang && <MetaRow label="Language" value={lang.label} />}
-                    </div>
-                  </MetaCard>
-                )}
-
                 {/* Content preview */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <MetaLabel>Content</MetaLabel>
-                    <div className="flex items-center gap-1.5">
-                      {meta && (
-                        <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                          {meta.lines} lines
-                        </span>
-                      )}
+                <div className="flex min-h-0 flex-1 flex-col pt-2">
+                  <div className="mb-2 flex items-center justify-between">
+                    <MetaLabel>{zh ? "内容" : "Content"}</MetaLabel>
                       <button
                         onClick={() => navigator.clipboard.writeText(content).catch(() => {})}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded transition-opacity hover:opacity-70"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--bg-hover)]"
                         style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.25)" }}
+                        title={zh ? "复制" : "Copy"}
+                        aria-label={zh ? "复制" : "Copy"}
                       >
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
-                        Copy
                       </button>
-                    </div>
                   </div>
-                  <pre
-                    className="p-3.5 rounded-lg overflow-x-auto text-xs leading-relaxed"
+                  <div
+                    className="min-h-0 flex-1 overflow-hidden rounded-md"
                     style={{
                       background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--text)",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      maxHeight: "60vh",
+                      border: "1px solid var(--border-light)",
                     }}
                   >
-                    {content}
-                  </pre>
+                    <SyntaxHighlighter
+                      language={lang?.syntax ?? "text"}
+                      style={oneDark}
+                      PreTag="div"
+                      wrapLongLines
+                      customStyle={{
+                        height: "100%",
+                        margin: 0,
+                        padding: "14px",
+                        overflow: "auto",
+                        background: "transparent",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: "var(--text-sm)",
+                        lineHeight: 1.65,
+                      }}
+                      codeTagProps={{
+                        style: {
+                          fontFamily: "var(--font-mono)",
+                        },
+                      }}
+                    >
+                      {content || " "}
+                    </SyntaxHighlighter>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
-          </>
+          </div>
         )}
 
         {/* ── Agent Info ───────────────────────────────────── */}
         {view === "agent" && agent && (
-          <>
+          <div className="h-full min-h-0 overflow-y-auto">
             {/* Identity card */}
             <MetaCard>
               <div className="flex items-start gap-3">
-                <span className="text-[22px] shrink-0 leading-none mt-0.5 select-none">🤖</span>
+                <span
+                  className="mt-0.5 inline-flex shrink-0 items-center justify-center rounded-md"
+                  style={{ width: 28, height: 28, background: "var(--bg-panel)", border: "1px solid var(--border)" }}
+                >
+                  <AgentIcon agentId={agent.id} size={22} />
+                </span>
                 <div className="min-w-0">
-                  <div className="text-[13px] font-semibold" style={{ color: "var(--text)" }}>
+                  <div className="font-semibold" style={{ color: "var(--text)", fontSize: "var(--text-base)" }}>
                     {agent.name}
                   </div>
-                  <div className="mt-1 text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <div className="mt-1 leading-relaxed" style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
                     {agent.description}
                   </div>
                 </div>
@@ -391,15 +433,15 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
             {/* Capabilities */}
             {agentDefinition?.capabilities && (
               <MetaCard>
-                <MetaLabel>Capabilities</MetaLabel>
+                <MetaLabel>{zh ? "能力" : "Capabilities"}</MetaLabel>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <CapabilityBadge active={agentDefinition.capabilities.skills} label="Skills" />
-                  <CapabilityBadge active={agentDefinition.capabilities.fileOps} label="File Ops" />
-                  <CapabilityBadge active={agentDefinition.capabilities.imageGen} label="Image Gen" />
+                  <CapabilityBadge active={agentDefinition.capabilities.skills} label={zh ? "技能" : "Skills"} />
+                  <CapabilityBadge active={agentDefinition.capabilities.fileOps} label={zh ? "文件操作" : "File Ops"} />
+                  <CapabilityBadge active={agentDefinition.capabilities.imageGen} label={zh ? "图像生成" : "Image Gen"} />
                 </div>
                 <div className="mt-3 pt-2 border-t" style={{ borderColor: "var(--border-light)" }}>
                   <MetaRow
-                    label="Max Context"
+                    label={zh ? "最大上下文" : "Max Context"}
                     value={formatContext(agentDefinition.capabilities.maxContext)}
                     mono
                   />
@@ -410,16 +452,17 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
             {/* Thinking levels */}
             {agentDefinition && agentDefinition.thinkingLevels.length > 0 && (
               <MetaCard>
-                <MetaLabel>Thinking Levels</MetaLabel>
+                <MetaLabel>{zh ? "思考级别" : "Thinking Levels"}</MetaLabel>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {agentDefinition.thinkingLevels.map((tl) => (
                     <span
                       key={tl.value}
-                      className="px-2 py-0.5 rounded text-[11px] font-medium"
+                      className="px-2 py-0.5 rounded font-medium"
                       style={{
                         color: "var(--text-secondary)",
                         background: "var(--bg-hover)",
                         border: "1px solid var(--border-light)",
+                        fontSize: "var(--text-xs)",
                       }}
                     >
                       {tl.label}
@@ -445,7 +488,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                 <MetaRow label="ID" value={agent.id} mono />
               </div>
             </MetaCard>
-          </>
+          </div>
         )}
       </div>
     </div>

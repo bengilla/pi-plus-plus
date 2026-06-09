@@ -12,7 +12,7 @@ export type {
 } from "./types";
 
 export { KNOWN_AGENTS, getDefinition, getAllDefinitions } from "./registry";
-export { discoverAgents, clearDiscoveryCache } from "./discovery";
+export { discoverAgents, detectInstalledAgents, clearDiscoveryCache } from "./discovery";
 export { createAdapter } from "./adapters/factory";
 
 import { discoverAgents, clearDiscoveryCache } from "./discovery";

@@ -6,12 +6,9 @@ import type { AgentDefinition } from "./types";
 
 const CLAUDE_THINKING_LEVELS = [
   { value: "auto", label: "Auto" },
-  { value: "off", label: "Off" },
-  { value: "minimal", label: "Minimal" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "X-High" },
+  { value: "disabled", label: "Off" },
+  { value: "adaptive", label: "Adaptive" },
+  { value: "enabled", label: "On" },
 ];
 
 const CODEX_REASONING_LEVELS = [
@@ -23,7 +20,15 @@ const CODEX_REASONING_LEVELS = [
   { value: "xhigh", label: "X-High" },
 ];
 
-const PI_THINKING_LEVELS = CLAUDE_THINKING_LEVELS;
+const PI_THINKING_LEVELS = [
+  { value: "auto", label: "Auto" },
+  { value: "off", label: "Off" },
+  { value: "minimal", label: "Minimal" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "X-High" },
+];
 
 export const KNOWN_AGENTS: AgentDefinition[] = [
   {
@@ -32,6 +37,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "Anthropic Claude — multi-agent coding CLI",
     binary: "claude",
     fallbackPaths: ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"],
+    packageName: "@anthropic-ai/claude-code",
     spawnArgs: (workspace, prompt, thinkingLevel) => {
       const args = [
         "-p", prompt,
@@ -40,15 +46,10 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
         "--no-session-persistence",
         "--add-dir", workspace,
       ];
-      // Map thinking level → --thinking flag
-      if (thinkingLevel === "off") args.push("--thinking", "off");
-      else if (thinkingLevel && thinkingLevel !== "auto") {
-        const budgets: Record<string, string> = {
-          minimal: "500", low: "1000", medium: "4000",
-          high: "16000", xhigh: "32000",
-        };
-        const budget = budgets[thinkingLevel];
-        if (budget) args.push("--thinking", budget);
+      // Claude rejects `--thinking disabled` when a saved reasoning_effort is set,
+      // so Off means "do not override the user's Claude effort setting".
+      if (thinkingLevel && thinkingLevel !== "auto" && thinkingLevel !== "disabled") {
+        args.push("--thinking", thinkingLevel);
       }
       return args;
     },
@@ -61,6 +62,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "OpenAI Codex CLI — gpt-image2, sandboxed execution",
     binary: "codex",
     fallbackPaths: ["/opt/homebrew/bin/codex", "/usr/local/bin/codex"],
+    packageName: "@openai/codex",
     spawnArgs: (workspace, prompt, thinkingLevel) => {
       const args = [
         "exec",
@@ -84,6 +86,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
     description: "Earendil Pi coding agent — multi-provider, RPC mode",
     binary: "pi",
     fallbackPaths: ["/opt/homebrew/bin/pi", "/usr/local/bin/pi"],
+    packageName: "@earendil-works/pi-coding-agent",
     spawnArgs: (_workspace, prompt, thinkingLevel) => {
       const args = [
         "--mode", "json",
@@ -112,10 +115,7 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       "--local",
     ],
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 128_000 },
-    thinkingLevels: [
-      { value: "auto", label: "Auto" },
-      { value: "off", label: "Off" },
-    ],
+    thinkingLevels: [],
   },
   {
     id: "hermes",
@@ -130,10 +130,24 @@ export const KNOWN_AGENTS: AgentDefinition[] = [
       "--yolo",
     ],
     capabilities: { skills: true, imageGen: false, fileOps: true, maxContext: 128_000 },
-    thinkingLevels: [
-      { value: "auto", label: "Auto" },
-      { value: "off", label: "Off" },
+    thinkingLevels: [],
+  },
+  {
+    id: "opencode",
+    name: "OpenCode",
+    description: "OpenCode CLI agent — terminal-native coding assistant",
+    binary: "opencode",
+    fallbackPaths: ["/opt/homebrew/bin/opencode", "/usr/local/bin/opencode", "~/.local/bin/opencode"],
+    packageName: "opencode-ai",
+    spawnArgs: (workspace, prompt) => [
+      "run",
+      "--format", "json",
+      "--dir", workspace,
+      "--dangerously-skip-permissions",
+      prompt,
     ],
+    capabilities: { skills: false, imageGen: false, fileOps: true, maxContext: 200_000 },
+    thinkingLevels: [],
   },
 ];
 

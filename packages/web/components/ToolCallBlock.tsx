@@ -36,6 +36,8 @@ const TOOL_META: Record<string, { label: string; accent: string }> = {
   task: { label: "Task", accent: "oklch(70% 0.1 80)" },
 };
 
+const MUTED_TEXT = "oklch(75% 0 0)";
+
 function toolKey(toolName: string): string {
   return toolName.replace(/[^a-z0-9]/gi, "").toLowerCase();
 }
@@ -61,7 +63,7 @@ function actionSummary(toolName: string, input: Record<string, unknown>): string
 }
 
 export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
-  const [expanded, setExpanded] = useState(status === "running");
+  const [expanded, setExpanded] = useState(false);
   const key = toolKey(toolName);
   const meta = TOOL_META[key] ?? { label: toolName || "Action", accent: "var(--color-accent)" };
   const summary = actionSummary(toolName, toolInput);
@@ -79,10 +81,10 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
         className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-opacity hover:opacity-85"
         style={{
           background: "var(--color-surface-secondary)",
-          color: "var(--color-text)",
+          color: MUTED_TEXT,
         }}
       >
-        <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>{expanded ? "▾" : "▸"}</span>
+        <span className="text-[10px]" style={{ color: MUTED_TEXT }}>{expanded ? "▾" : "▸"}</span>
         <span
           className="h-2 w-2 shrink-0 rounded-full"
           style={{
@@ -94,7 +96,7 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
         <span className="shrink-0 text-[11px] font-semibold">{meta.label}</span>
         <span
           className="min-w-0 flex-1 truncate text-[11px]"
-          style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)" }}
+          style={{ color: MUTED_TEXT, fontFamily: "var(--font-mono)" }}
         >
           {summary}
         </span>
@@ -109,10 +111,10 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
                   : "oklch(0.55 0.15 155 / 0.15)",
             color:
               status === "running"
-                ? "var(--color-accent)"
+                ? MUTED_TEXT
               : status === "error"
                   ? "oklch(0.55 0.2 30)"
-                  : "oklch(0.55 0.15 155)",
+                  : MUTED_TEXT,
           }}
         >
           {status === "running" ? "running" : status === "error" ? "error" : "done"}
@@ -123,7 +125,7 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
           className="overflow-auto px-3 py-2 text-[12px]"
           style={{
             fontFamily: "var(--font-mono)",
-            color: "var(--color-text-secondary)",
+            color: MUTED_TEXT,
             maxHeight: "12rem",
             background: "var(--color-surface)",
           }}

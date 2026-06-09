@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentAdapter, AgentEvent } from "../types";
-import { spawnAgent, parseClaudeLine, parseCodexLine, parsePiLine, parseGenericLine } from "../spawn";
+import { spawnAgent, parseClaudeLine, parseCodexLine, parsePiLine, parseOpenCodeLine, parseGenericLine } from "../spawn";
 
 // ── Adapter factory ───────────────────────────────────────
 // Each agent adapter follows the same pattern:
@@ -14,6 +14,7 @@ const PARSERS: Record<string, LineParser> = {
   "claude-code": parseClaudeLine,
   codex: parseCodexLine,
   pi: parsePiLine,
+  opencode: parseOpenCodeLine,
 };
 
 export function createAdapter(definition: AgentDefinition, binaryPath: string): AgentAdapter {

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { discoverAgents } from "@/lib/agents";
+import { detectInstalledAgents, discoverAgents } from "@/lib/agents";
 
 // GET /api/agents — return agents installed on this device
 export async function GET() {
-  const agents = discoverAgents();
+  const agents = discoverAgents({ refresh: true });
+  const detectedAgents = detectInstalledAgents({ refresh: true });
 
   return NextResponse.json({
     agents: agents.map((a) => ({
@@ -14,5 +15,6 @@ export async function GET() {
       path: a.path,
       capabilities: a.capabilities,
     })),
+    detectedAgents,
   });
 }

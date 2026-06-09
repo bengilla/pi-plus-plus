@@ -13,9 +13,11 @@ interface Props {
   workspace: string;
   onNavigate: (newWorkspace: string) => void;
   onFileClick?: (filePath: string) => void;
+  language?: "en" | "zh";
 }
 
-export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
+export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }: Props) {
+  const zh = language === "zh";
   const [tree, setTree] = useState<FileNode[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
         });
       }
       loadTree();
-    } catch { alert("Create failed"); }
+    } catch { alert(zh ? "创建失败" : "Create failed"); }
     setNewFileName("");
     setShowNewFile(false);
   };
@@ -83,16 +85,16 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
         body: JSON.stringify({ path: oldPath, name: renameValue.trim() }),
       });
       loadTree();
-    } catch { alert("Rename failed"); }
+    } catch { alert(zh ? "重命名失败" : "Rename failed"); }
     setRenaming(null);
   };
 
   const handleDelete = async (node: FileNode) => {
-    if (!confirm(`Delete "${node.name}"?`)) return;
+    if (!confirm(zh ? `删除 "${node.name}"？` : `Delete "${node.name}"?`)) return;
     try {
       await fetch(`/api/files?path=${encodeURIComponent(node.path)}&workspace=${encodeURIComponent(workspace)}`, { method: "DELETE" });
       loadTree();
-    } catch { alert("Delete failed"); }
+    } catch { alert(zh ? "删除失败" : "Delete failed"); }
   };
 
   if (error) {
@@ -104,9 +106,9 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
         <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📄 New File</button>
+          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📄 {zh ? "新建文件" : "New File"}</button>
         <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📁 New Folder</button>
+          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📁 {zh ? "新建文件夹" : "New Folder"}</button>
       </div>
 
       {/* New item input */}
@@ -120,7 +122,7 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
             style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
             autoFocus spellCheck={false} />
           <button onClick={handleCreate} className="px-2 py-0.5 rounded text-[10px]"
-            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>Create</button>
+            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>{zh ? "创建" : "Create"}</button>
         </div>
       )}
 
@@ -148,15 +150,15 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
               </button>
               <button onClick={() => handleRenameStart(node)}
                 className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "var(--color-text-secondary)" }} title="Rename">✏️</button>
+                style={{ color: "var(--color-text-secondary)" }} title={zh ? "重命名" : "Rename"}>✏️</button>
               <button onClick={() => handleDelete(node)}
                 className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "oklch(0.55 0.2 30)" }} title="Delete">🗑</button>
+                style={{ color: "oklch(0.55 0.2 30)" }} title={zh ? "删除" : "Delete"}>🗑</button>
             </div>
           )
         ))}
         {tree.length === 0 && !showNewFile && (
-          <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--color-text-secondary)" }}>Empty folder</div>
+          <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--color-text-secondary)" }}>{zh ? "空文件夹" : "Empty folder"}</div>
         )}
       </div>
     </div>

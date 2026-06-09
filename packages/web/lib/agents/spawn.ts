@@ -444,6 +444,86 @@ export function parsePiLine(line: string): AgentEvent | null {
   }
 }
 
+/** Parse OpenCode JSON output (opencode run --format json) */
+export function parseOpenCodeLine(line: string): AgentEvent | null {
+  if (!line.trim()) return null;
+  try {
+    const evt = JSON.parse(line);
+
+    if (evt.type === "error" || evt.error) {
+      const error = evt.error?.message ?? evt.error ?? evt.message ?? "OpenCode error";
+      return { type: "error", error: String(error) };
+    }
+
+    const type = String(evt.type ?? evt.event ?? "");
+    const part = evt.part ?? evt.data?.part;
+    const message = evt.message ?? evt.data?.message;
+
+    if (type.includes("tool") || part?.type === "tool") {
+      const toolName = evt.tool ?? evt.toolName ?? part?.tool ?? part?.name ?? "tool";
+      const toolId = evt.id ?? evt.toolId ?? part?.id ?? part?.toolID;
+      if (type.includes("result") || type.includes("end") || part?.state === "completed") {
+        return {
+          type: "tool_result",
+          toolId,
+          toolOutput: stringifyOpenCodeValue(evt.output ?? evt.result ?? part?.output ?? part?.result ?? ""),
+        };
+      }
+      return {
+        type: "tool_use",
+        toolId,
+        toolName,
+        toolInput: toRecord(evt.input ?? evt.args ?? part?.input ?? part?.args ?? {}),
+      };
+    }
+
+    if (part?.type === "text" || part?.type === "text-delta") {
+      const text = part.text ?? part.delta ?? part.content;
+      return typeof text === "string" && text ? { type: "text", text } : null;
+    }
+
+    if (part?.type === "reasoning" || part?.type === "thinking") {
+      const thinkingText = part.text ?? part.delta ?? part.content;
+      return typeof thinkingText === "string" && thinkingText ? { type: "thinking", thinkingText } : null;
+    }
+
+    if (type.includes("done") || type.includes("finish") || type.includes("complete")) {
+      const usage = evt.usage ?? message?.usage ?? evt.data?.usage;
+      return {
+        type: "done",
+        inputTokens: usage?.inputTokens ?? usage?.input_tokens ?? usage?.promptTokens,
+        outputTokens: usage?.outputTokens ?? usage?.output_tokens ?? usage?.completionTokens,
+        cacheTokens: usage?.cacheTokens ?? usage?.cache_tokens,
+      };
+    }
+
+    if (type.includes("message") || type.includes("text") || type.includes("delta")) {
+      const text = evt.text ?? evt.delta ?? evt.content ?? message?.content ?? message?.text;
+      if (typeof text === "string" && text) return { type: "text", text };
+    }
+
+    return null;
+  } catch {
+    return { type: "text", text: line };
+  }
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringifyOpenCodeValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 /** Generic passthrough — treats each line as plain text */
 export function parseGenericLine(line: string): AgentEvent | null {
   if (!line.trim()) return null;

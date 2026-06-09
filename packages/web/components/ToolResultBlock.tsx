@@ -6,12 +6,11 @@ interface Props {
   toolOutput: string;
 }
 
+const MUTED_TEXT = "oklch(75% 0 0)";
+
 export function ToolResultBlock({ toolOutput }: Props) {
   const [expanded, setExpanded] = useState(false);
   const output = toolOutput.trim();
-  const truncated = output.length > 500 && !expanded
-    ? toolOutput.slice(0, 500) + "…"
-    : toolOutput;
 
   if (!output) return null;
 
@@ -23,35 +22,32 @@ export function ToolResultBlock({ toolOutput }: Props) {
         background: "var(--color-surface)",
       }}
     >
-      <div
+      <button
+        onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-medium"
         style={{
-          color: "var(--color-text-secondary)",
+          color: MUTED_TEXT,
           background: "var(--color-surface-secondary)",
         }}
       >
-        <span>Output</span>
+        <span className="inline-flex items-center gap-2">
+          <span>{expanded ? "▾" : "▸"}</span>
+          <span>Output</span>
+        </span>
         <span className="tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
-      </div>
-      <div
-        className="whitespace-pre-wrap break-words px-3 py-2 text-[11px]"
-        style={{
-          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
-          color: "var(--color-text-secondary)",
-          maxHeight: expanded ? "none" : "6rem",
-          overflowY: expanded ? "visible" : "auto",
-        }}
-      >
-        {truncated}
-      </div>
-      {output.length > 500 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="px-3 pb-2 text-[10px] hover:opacity-70"
-          style={{ color: "var(--color-accent)" }}
+      </button>
+      {expanded && (
+        <div
+          className="whitespace-pre-wrap break-words px-3 py-2 text-[11px]"
+          style={{
+            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+            color: MUTED_TEXT,
+            maxHeight: "12rem",
+            overflowY: "auto",
+          }}
         >
-          {expanded ? "Show less" : "Show more"}
-        </button>
+          {toolOutput}
+        </div>
       )}
     </div>
   );

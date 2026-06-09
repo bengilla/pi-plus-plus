@@ -45,6 +45,8 @@ export interface AgentDefinition {
   binary: string;
   /** Extra PATH directories to check */
   fallbackPaths: string[];
+  /** npm package name when the CLI is distributed as a global npm package */
+  packageName?: string;
   /** How to spawn: build args array from workspace + prompt + thinking level */
   spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string) => string[];
   /** Capabilities */
@@ -61,6 +63,18 @@ export interface DiscoveredAgent {
   path: string;
   version?: string;
   capabilities: AgentCapabilities;
+}
+
+export interface DetectedAgent {
+  id: string;
+  name: string;
+  binary: string;
+  description: string;
+  path: string;
+  version?: string;
+  installSource?: string;
+  status: "available" | "needs-adapter";
+  upgradeSupported?: boolean;
 }
 
 // ── Adapter: spawns a CLI and yields events ───────────────

@@ -37,6 +37,13 @@ function AgentIconInner({ agentId, size = 18 }: Props) {
     case "hermes":
       icon = <NousResearchMono size={innerSize} />;
       break;
+    case "opencode":
+      icon = (
+        <span style={{ fontSize: innerSize * 0.58, lineHeight: 1, fontWeight: 800, color: "oklch(78% 0.12 135)", letterSpacing: 0 }}>
+          OC
+        </span>
+      );
+      break;
     default:
       icon = <span style={{ fontSize: innerSize * 0.72, lineHeight: 1 }}>🤖</span>;
   }

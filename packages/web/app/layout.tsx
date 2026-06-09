@@ -25,6 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             }
             var fs = localStorage.getItem('fontScale');
             if (fs) document.documentElement.style.setProperty('--font-scale', fs);
+            var lang = localStorage.getItem('language');
+            if (lang === 'zh') document.documentElement.lang = 'zh-CN';
+            else document.documentElement.lang = 'en';
           })()`}
         </Script>
       </head>

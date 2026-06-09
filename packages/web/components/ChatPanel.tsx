@@ -25,6 +25,7 @@ interface Message {
   inputTokens?: number;
   outputTokens?: number;
   cacheTokens?: number;
+  durationSeconds?: number;
 }
 
 export interface ChatMessageSnapshot {
@@ -37,6 +38,7 @@ export interface ChatMessageSnapshot {
   inputTokens?: number;
   outputTokens?: number;
   cacheTokens?: number;
+  durationSeconds?: number;
 }
 
 function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
@@ -65,12 +67,18 @@ function formatTime(ts: number): string {
   return `${month}月${day}日 ${hours}:${mins}`;
 }
 
-// Approximate cost based on typical API pricing ($3/M in, $15/M out)
-function estimateCost(inputTokens: number, outputTokens: number): string {
-  const cost = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
-  if (cost < 0.0001) return "$0.0001";
-  if (cost < 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(2)}`;
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60).toString().padStart(2, "0");
+  return `${mins}m ${secs}s`;
+}
+
+interface BriefDraft {
+  goal: string;
+  plan: string;
+  references: string;
+  acceptance: string;
 }
 
 interface Props {
@@ -84,6 +92,7 @@ interface Props {
   thinkingLevel?: string;
   thinkingLevels?: { value: string; label: string }[];
   onThinkingLevelChange?: (level: string) => void;
+  language?: "en" | "zh";
 }
 
 function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
@@ -97,6 +106,7 @@ function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
     inputTokens: m.inputTokens,
     outputTokens: m.outputTokens,
     cacheTokens: m.cacheTokens,
+    durationSeconds: m.durationSeconds,
   }));
 }
 
@@ -111,11 +121,15 @@ export function ChatPanel({
   thinkingLevel = "auto",
   thinkingLevels = [],
   onThinkingLevelChange,
+  language = "en",
 }: Props) {
   const displayName = agentName ?? activeAgent;
+  const zh = language === "zh";
 
   const [messages, setMessages] = useState<Message[]>(() => toMessages(initialMessages));
   const [input, setInput] = useState("");
+  const [briefMode, setBriefMode] = useState(false);
+  const [briefDraft, setBriefDraft] = useState<BriefDraft>({ goal: "", plan: "", references: "", acceptance: "" });
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionResults, setMentionResults] = useState<{ name: string; path: string }[]>([]);
   const [mentionSelected, setMentionSelected] = useState(0);
@@ -130,8 +144,6 @@ export function ChatPanel({
   const streamCacheTokensRef = useRef(0);
   const streamTickRef = useRef(0);
   const [streamTick, setStreamTick] = useState(0);
-  // Smooth animated token count — chases the real value each frame
-  const [displayTokens, setDisplayTokens] = useState(0);
   // Rich content blocks accumulated during streaming
   const streamBlocksRef = useRef<ContentBlock[]>([]);
   const streamThinkRef = useRef("");
@@ -160,6 +172,7 @@ export function ChatPanel({
       inputTokens: m.inputTokens,
       outputTokens: m.outputTokens,
       cacheTokens: m.cacheTokens,
+      durationSeconds: m.durationSeconds,
     })));
   }, [messages]);
 
@@ -173,10 +186,9 @@ export function ChatPanel({
     return () => clearInterval(timer);
   }, [streaming]);
 
-  // rAF sync: poll refs each frame, trigger re-render when content changes,
-  // and smoothly animate the token counter toward the real value.
+  // rAF sync: poll refs each frame and trigger re-render when content changes.
   useEffect(() => {
-    if (!streaming) { setDisplayTokens(0); return; }
+    if (!streaming) return;
     let running = true;
     const tick = () => {
       if (!running) return;
@@ -184,15 +196,6 @@ export function ChatPanel({
       if (streamTickRef.current !== streamTick) {
         setStreamTick(streamTickRef.current);
       }
-      // Smooth token count — chase target with easing
-      const target = streamOutputTokensRef.current > 0
-        ? streamOutputTokensRef.current
-        : Math.round(streamContentRef.current.length / 4);
-      setDisplayTokens(prev => {
-        if (prev >= target) return target;
-        const step = Math.max(1, Math.ceil((target - prev) / 3));
-        return prev + step > target ? target : prev + step;
-      });
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -254,6 +257,54 @@ export function ChatPanel({
     setAttachments((prev) => prev.filter((a) => a.name !== name));
   }, []);
 
+  const briefText = useCallback(() => {
+    const lines = briefDraft.plan
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const refs = briefDraft.references
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const checks = briefDraft.acceptance
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const sections = [
+      "# Task Brief",
+      "",
+      "## Goal",
+      briefDraft.goal.trim() || "(No goal provided)",
+      "",
+      "## Plan",
+      lines.length > 0 ? lines.map((line, i) => `${i + 1}. ${line}`).join("\n") : "(No plan steps provided)",
+    ];
+
+    if (refs.length > 0) {
+      sections.push("", "## References", refs.map((line) => `- ${line}`).join("\n"));
+    }
+    if (checks.length > 0) {
+      sections.push("", "## Acceptance Criteria", checks.map((line) => `- ${line}`).join("\n"));
+    }
+    if (attachments.length > 0) {
+      sections.push("", "## Attached Assets", attachments.map((a) => `- ${a.type === "image" ? "Image" : "File"}: ${a.name}`).join("\n"));
+    }
+
+    sections.push(
+      "",
+      "Please execute this brief step by step. If anything is ambiguous, make a reasonable product-minded assumption and continue. Keep the implementation aligned with the references and acceptance criteria.",
+    );
+
+    return sections.join("\n");
+  }, [attachments, briefDraft]);
+
+  const briefHasContent =
+    briefDraft.goal.trim() ||
+    briefDraft.plan.trim() ||
+    briefDraft.references.trim() ||
+    briefDraft.acceptance.trim();
+
   const handleStop = useCallback(() => {
     // Abort the fetch — stops reading the SSE stream
     abortRef.current?.abort();
@@ -276,7 +327,7 @@ export function ChatPanel({
   }, [activeAgent]);
 
   const handleSend = async () => {
-    const text = input.trim();
+    const text = briefMode ? briefText().trim() : input.trim();
     if ((!text && attachments.length === 0) || streaming) return;
 
     const attList = [...attachments];
@@ -289,6 +340,9 @@ export function ChatPanel({
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    if (briefMode) {
+      setBriefDraft({ goal: "", plan: "", references: "", acceptance: "" });
+    }
     setAttachments([]);
     setStreaming(true);
     streamContentRef.current = "";
@@ -308,6 +362,7 @@ export function ChatPanel({
     }
 
     try {
+      const responseStartedAt = Date.now();
       // Create fresh AbortController so handleStop can cancel the SSE stream
       const controller = new AbortController();
       abortRef.current = controller;
@@ -533,6 +588,7 @@ export function ChatPanel({
           inputTokens: streamInputTokensRef.current || undefined,
           outputTokens: streamOutputTokensRef.current || undefined,
           cacheTokens: streamCacheTokensRef.current || undefined,
+          durationSeconds: (Date.now() - responseStartedAt) / 1000,
         },
       ]);
     } catch (e: unknown) {
@@ -583,29 +639,37 @@ export function ChatPanel({
     }, 0);
   };
 
-  const canSend = (input.trim() || attachments.length > 0) && !streaming;
+  const canSend = ((briefMode ? briefHasContent : input.trim()) || attachments.length > 0) && !streaming;
 
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-5">
-        <div className="mx-auto flex w-full max-w-[880px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[880px] flex-col gap-5">
           {messages.length === 0 && !streaming && (
             <WelcomeScreen
               agentName={displayName}
               agentDescription={agentDescription}
+              language={language}
               onStarterClick={(prompt) => {
                 setInput(prompt);
               }}
             />
           )}
 
-          {messages.map((msg) => (
+          {messages.map((msg, index) => {
+            const startsTurn = msg.role === "user" && index > 0;
+            return (
             <div
               key={msg.id}
-              className={`fade-in flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`fade-in flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              style={{
+                borderTop: startsTurn ? "1px solid oklch(75% 0 0 / 0.14)" : undefined,
+                marginTop: startsTurn ? "10px" : undefined,
+                paddingTop: startsTurn ? "22px" : undefined,
+              }}
             >
-              <div className={msg.role === "user" ? "max-w-[78%]" : "w-full max-w-[820px]"}>
+              <div className={msg.role === "user" ? "group max-w-[76%]" : "w-full max-w-[820px]"}>
                 {/* Attachments in user message */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="mb-1.5 flex flex-wrap justify-end gap-1">
@@ -621,7 +685,7 @@ export function ChatPanel({
                   </div>
                 )}
                 <div
-                  className="text-sm leading-relaxed break-words rounded-lg px-3 py-2"
+                  className="text-sm leading-relaxed break-words rounded-md px-3 py-2"
                   style={{
                     color: msg.role === "error" ? "var(--error)" : "var(--text)",
                     background: msg.role === "user"
@@ -676,31 +740,81 @@ export function ChatPanel({
                     <MarkdownBody content={msg.content} />
                   )}
                 </div>
+                {/* Hover actions for user messages */}
+                {msg.role === "user" && (
+                  <div className="mt-1 flex items-center justify-end gap-2 px-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    {msg.createdAt > 0 && (
+                      <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                        {formatTime(msg.createdAt)}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
+                      style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                      title="Copy"
+                      aria-label="Copy message"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInput(msg.content);
+                        window.setTimeout(() => {
+                          textareaRef.current?.focus();
+                          const len = msg.content.length;
+                          textareaRef.current?.setSelectionRange(len, len);
+                        }, 0);
+                      }}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
+                      style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                      title="Edit"
+                      aria-label="Edit message"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
                 {/* Per-message usage + copy + time for assistant messages */}
                 {msg.role === "assistant" && (
                   <div className="flex items-center justify-between mt-1 gap-2 px-3">
-                    <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(65% 0.015 252)" }}>
+                    <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--text-secondary)" }}>
                       <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                       <span>·</span>
                       <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
+                      {msg.durationSeconds != null && (
+                        <>
+                          <span>·</span>
+                          <span>{formatDuration(msg.durationSeconds)}</span>
+                        </>
+                      )}
                       {msg.cacheTokens != null && msg.cacheTokens > 0 && (
                         <>
                           <span>·</span>
                           <span>{formatTokens(msg.cacheTokens)} cache</span>
                         </>
                       )}
-                      <span>·</span>
-                      <span>${estimateCost(msg.inputTokens ?? Math.round(msg.content.length / 2), msg.outputTokens ?? Math.round(msg.content.length / 4))}</span>
                     </span>
                     <span className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                        className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
                         style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                        title="Copy"
+                        aria-label="Copy message"
                       >
-                        Copy
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
                       </button>
-                      <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
+                      <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
                         {formatTime(msg.createdAt)}
                       </span>
                     </span>
@@ -708,7 +822,8 @@ export function ChatPanel({
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Streaming */}
           {streaming && (
@@ -723,7 +838,7 @@ export function ChatPanel({
                         ? (Date.now() - streamThinkStartRef.current) / 1000
                         : undefined
                     }
-                    defaultOpen={true}
+                    defaultOpen={false}
                   />
                 )}
                 {/* Real-time thinking / tool call / tool result blocks */}
@@ -768,24 +883,21 @@ export function ChatPanel({
                   </div>
                 )}
                 {/* Status bar */}
-                <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
-                  <span>Generating…</span>
-                  <span>(</span>
+                <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>
+                  <svg
+                    className="animate-spin"
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                  </svg>
                   <span className="tabular-nums">{elapsed}s</span>
-                  {displayTokens > 0 ? (
-                    <>
-                      <span>·</span>
-                      <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
-                        ↓<span className="tabular-nums">{displayTokens}</span> tokens
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span>·</span>
-                      <span className="animate-pulse">thinking</span>
-                    </>
-                  )}
-                  <span>)</span>
                 </div>
               </div>
             </div>
@@ -797,8 +909,8 @@ export function ChatPanel({
 
       {/* Input area */}
       <div
-        className="shrink-0 border-t px-5 py-4"
-        style={{ borderColor: "var(--color-border)", background: "var(--bg-panel)" }}
+        className="shrink-0 border-t px-5 py-3"
+        style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
         onDragOver={handleInputDragOver}
         onDragLeave={handleInputDragLeave}
         onDrop={handleInputDrop}
@@ -848,54 +960,125 @@ export function ChatPanel({
             </div>
           )}
 
-          {/* Textarea */}
-          <textarea
-            value={input}
-            ref={textareaRef}
-            onChange={(e) => {
-              setInput(e.target.value);
-              // @mention detection
-              const ta = e.target;
-              const cursor = ta.selectionStart;
-              const textBefore = e.target.value.slice(0, cursor);
-              const atMatch = textBefore.match(/@(\S*)$/);
-              if (atMatch) {
-                const q = atMatch[1].toLowerCase();
-                setMentionSelected(0);
-                // Fetch files lazily
-                if (workspace) {
-                  fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
-                    .then(r => r.json()).then(d => {
-                      const files = (d.files ?? []) as { name: string; path: string; type: string }[];
-                      const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
-                      setMentionResults(flat.slice(0, 8));
-                      setMentionOpen(flat.length > 0);
-                    }).catch(() => {});
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="inline-flex overflow-hidden rounded-md p-0.5 text-xs" style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}>
+              {[
+                { value: false, label: zh ? "对话" : "Chat" },
+                { value: true, label: zh ? "计划" : "Brief" },
+              ].map((mode) => (
+                <button
+                  key={String(mode.value)}
+                  onClick={() => setBriefMode(mode.value)}
+                  className="rounded px-2.5 py-1 transition-colors"
+                  style={{
+                    background: briefMode === mode.value ? "var(--bg-selected)" : "transparent",
+                    color: briefMode === mode.value ? "var(--text)" : "var(--text-secondary)",
+                  }}
+                  disabled={streaming}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            {briefMode && (
+              <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                {zh ? "把想法、步骤、链接和素材整理后交给 agent 执行" : "Organize goals, steps, links, and assets before the agent starts"}
+              </span>
+            )}
+          </div>
+
+          {briefMode ? (
+            <div
+              className="grid gap-2 rounded-lg p-2.5"
+              style={{
+                background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
+                border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
+              }}
+            >
+              <input
+                value={briefDraft.goal}
+                onChange={(e) => setBriefDraft((prev) => ({ ...prev, goal: e.target.value }))}
+                placeholder={zh ? "目标：你希望 agent 完成什么？" : "Goal: what should the agent accomplish?"}
+                className="rounded-md px-2 py-1.5 text-sm outline-none"
+                style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
+                disabled={streaming}
+              />
+              <textarea
+                value={briefDraft.plan}
+                onChange={(e) => setBriefDraft((prev) => ({ ...prev, plan: e.target.value }))}
+                placeholder={zh ? "计划步骤：一行一项，比如\n1. 调整页面布局\n2. 加入参考 logo\n3. 完成后构建验证" : "Plan steps: one item per line, for example\nAdjust the layout\nUse the attached logo reference\nBuild and verify"}
+                rows={4}
+                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
+                disabled={streaming}
+              />
+              <textarea
+                value={briefDraft.references}
+                onChange={(e) => setBriefDraft((prev) => ({ ...prev, references: e.target.value }))}
+                placeholder={zh ? "参考链接 / LOGO / 图片说明：一行一个，可以贴网址或描述附件" : "References / logos / image notes: one per line, paste URLs or describe attachments"}
+                rows={2}
+                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
+                disabled={streaming}
+              />
+              <textarea
+                value={briefDraft.acceptance}
+                onChange={(e) => setBriefDraft((prev) => ({ ...prev, acceptance: e.target.value }))}
+                placeholder={zh ? "验收标准：你希望最后满足哪些条件？一行一项" : "Acceptance criteria: what must be true at the end? One per line"}
+                rows={2}
+                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
+                disabled={streaming}
+              />
+            </div>
+          ) : (
+            <textarea
+              value={input}
+              ref={textareaRef}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // @mention detection
+                const ta = e.target;
+                const cursor = ta.selectionStart;
+                const textBefore = e.target.value.slice(0, cursor);
+                const atMatch = textBefore.match(/@(\S*)$/);
+                if (atMatch) {
+                  const q = atMatch[1].toLowerCase();
+                  setMentionSelected(0);
+                  // Fetch files lazily
+                  if (workspace) {
+                    fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
+                      .then(r => r.json()).then(d => {
+                        const files = (d.files ?? []) as { name: string; path: string; type: string }[];
+                        const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
+                        setMentionResults(flat.slice(0, 8));
+                        setMentionOpen(flat.length > 0);
+                      }).catch(() => {});
+                  }
+                } else {
+                  setMentionOpen(false);
                 }
-              } else {
-                setMentionOpen(false);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (mentionOpen) {
-                if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
-                if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
-                if (e.key === "Escape") { setMentionOpen(false); return; }
-              }
-              handleKeyDown(e);
-            }}
-            placeholder={`Ask ${displayName}...`}
-            rows={3}
-            className="w-full resize-none p-3 text-sm rounded-md outline-none transition-colors"
-            style={{
-              background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
-              color: "var(--color-text)",
-              border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
-              boxShadow: "var(--shadow-panel)",
-            }}
-            disabled={streaming}
-          />
+              }}
+              onKeyDown={(e) => {
+                if (mentionOpen) {
+                  if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
+                  if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
+                  if (e.key === "Escape") { setMentionOpen(false); return; }
+                }
+                handleKeyDown(e);
+              }}
+              placeholder={zh ? `问 ${displayName}...` : `Ask ${displayName}...`}
+              rows={3}
+              className="w-full resize-none rounded-lg p-3 text-sm outline-none transition-colors"
+              style={{
+                background: inputDragOver ? "var(--color-accent-dim)" : "var(--bg-input)",
+                color: "var(--color-text)",
+                border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--border-light)"}`,
+              }}
+              disabled={streaming}
+            />
+          )}
 
           {/* Bottom bar: attach button + hint + send */}
           <div className="flex justify-between items-center gap-3 mt-2">
@@ -903,18 +1086,19 @@ export function ChatPanel({
               {/* Attach button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors"
+                className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
                 style={{
                   color: "var(--color-text-secondary)",
-                  border: "1px solid var(--color-border)",
+                  border: "1px solid var(--border-light)",
                 }}
                 disabled={streaming}
+                title={zh ? "添加附件" : "Attach"}
+                aria-label={zh ? "添加附件" : "Attach"}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                 </svg>
-                Attach
               </button>
               <input
                 ref={fileInputRef}
@@ -926,18 +1110,18 @@ export function ChatPanel({
               />
               {thinkingLevels.length > 1 && onThinkingLevelChange && (
                 <label className="flex min-w-0 items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                  <span className="shrink-0">Thinking</span>
+                  <span className="shrink-0">{zh ? "思考" : "Thinking"}</span>
                   <select
                     value={thinkingLevel}
                     onChange={(e) => onThinkingLevelChange(e.target.value)}
-                    className="max-w-[112px] rounded px-2 py-1 text-[11px] outline-none"
+                    className="max-w-[112px] rounded-md px-2 py-1 text-[11px] outline-none"
                     style={{
                       background: "var(--bg)",
                       color: "var(--text)",
                       border: "1px solid var(--border)",
                     }}
                     disabled={streaming}
-                    title="Thinking level"
+                    title={zh ? "思考级别" : "Thinking level"}
                   >
                     {thinkingLevels.map((level) => (
                       <option key={level.value} value={level.value}>
@@ -951,23 +1135,32 @@ export function ChatPanel({
             {streaming ? (
               <button
                 onClick={handleStop}
-                className="px-3 py-1 text-xs rounded-md transition-colors hover:opacity-80"
-                style={{ background: "oklch(0.55 0.2 30)", color: "#fff" }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-80"
+                style={{ background: "var(--text)", color: "var(--bg)" }}
+                title={zh ? "停止" : "Stop"}
+                aria-label={zh ? "停止" : "Stop"}
               >
-                Stop
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="7" y="7" width="10" height="10" rx="1.5" />
+                </svg>
               </button>
             ) : (
               <button
                 onClick={handleSend}
                 disabled={!canSend}
-                className="px-3 py-1 text-xs rounded-md transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors"
                 style={{
-                  background: canSend ? "var(--color-accent)" : "var(--color-border)",
-                  color: canSend ? "#fff" : "var(--color-text-secondary)",
+                  background: canSend ? "var(--text)" : "var(--border)",
+                  color: canSend ? "var(--bg)" : "var(--color-text-secondary)",
                   opacity: canSend ? 1 : 0.5,
                 }}
+                title={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}
+                aria-label={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}
               >
-                Send
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 19V5" />
+                  <path d="m5 12 7-7 7 7" />
+                </svg>
               </button>
             )}
           </div>
