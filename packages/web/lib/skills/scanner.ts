@@ -6,10 +6,7 @@ import type { SkillInfo, SkillsResult } from "./types";
 // ── Agent skill directory mapping ─────────────────────────
 // Each agent stores skills in a different location.
 const SKILL_DIRS: Record<string, string> = {
-  "claude-code": join(homedir(), ".claude", "skills"),
   pi: join(homedir(), ".pi", "agent", "skills"),
-  openclaw: join(homedir(), ".openclaw", "skills"),
-  hermes: join(homedir(), ".hermes", "skills"),
 };
 
 let cached: Record<string, SkillInfo[]> = {};

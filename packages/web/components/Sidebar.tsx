@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { FileTree } from "./FileTree";
-import { AgentIcon } from "./AgentIcon";
 
 export interface ConvInfo {
   id: string;
   title: string;
   agentId: string;
   createdAt: number;
+  totalTokens?: number;
 }
 
 interface AgentInfo {
@@ -29,8 +29,6 @@ interface Props {
   onDeleteConversation: (id: string) => void;
   onRenameConversation: (id: string, title: string) => void;
   agents: AgentInfo[];
-  activeAgent: string;
-  onAgentChange: (id: string) => void;
   onFileClick: (path: string) => void;
   onAgentInfoClick: () => void;
   language?: "en" | "zh";
@@ -61,7 +59,7 @@ function formatRelativeTime(ts: number): string {
 export function Sidebar({
   workspace, onWorkspaceChange, onOpenSettings,
   conversations, activeConvId, onNewConversation, onSelectConversation, onDeleteConversation, onRenameConversation,
-  agents, activeAgent, onAgentChange, onFileClick, onAgentInfoClick,
+  agents, onFileClick, onAgentInfoClick,
   language = "en",
 }: Props) {
   const [customPath, setCustomPath] = useState("");
@@ -81,33 +79,7 @@ export function Sidebar({
       : defaultWorkspaces,
     [defaultWorkspaces, folderName, isDefault, workspace],
   );
-  const agentNameById = useMemo(() => new Map(agents.map((a) => [a.id, a.name])), [agents]);
   const zh = language === "zh";
-
-  const agentColor = (agentId: string): string => {
-    switch (agentId) {
-      case "claude-code":
-        return "oklch(70% 0.17 55)";
-      case "codex":
-        return "oklch(68% 0.16 250)";
-      case "pi":
-        return "oklch(72% 0.12 175)";
-      case "hermes":
-        return "var(--agent-hermes-text)";
-      case "openclaw":
-        return "oklch(70% 0.16 135)";
-      case "opencode":
-        return "oklch(78% 0.12 135)";
-      default:
-        return "var(--text-tertiary)";
-    }
-  };
-
-  const agentNameStyle = (agentId: string): CSSProperties => (
-    agentId === "hermes"
-      ? { color: agentColor(agentId) }
-      : { color: agentColor(agentId) }
-  );
 
   const startConversationEdit = (conversation: ConvInfo) => {
     setEditingConvId(conversation.id);
@@ -124,41 +96,19 @@ export function Sidebar({
 
   return (
     <>
-      {/* ── Agent Switcher ────────────────────────────────── */}
-      <div className="px-2 py-2 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center justify-between mb-1.5 px-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
-            {zh ? "智能体" : "Agents"}
-          </span>
-          <button
-            onClick={onAgentInfoClick}
-            className="text-[10px] px-1.5 py-0.5 rounded transition-colors hover:bg-[var(--bg-hover)]"
-            style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
-          >
-            {zh ? "信息" : "Info"}
-          </button>
+      {/* ── Pi header ───────────────────────────────────── */}
+      <div className="flex items-center px-2 h-[42px] border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-1.5">
+          <span className="text-lg leading-none -mt-0.5">π</span>
+          <span className="text-xs font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi</span>
         </div>
-        <div className="space-y-0.5">
-          {agents.map((a) => {
-            const isActive = a.id === activeAgent;
-            return (
-              <button
-                key={a.id}
-                onClick={() => onAgentChange(a.id)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors hover:bg-[var(--bg-hover)]"
-                style={{
-                  background: isActive ? "var(--bg-selected)" : "transparent",
-                  color: isActive ? "var(--text)" : "var(--text-secondary)",
-                  border: isActive ? "1px solid var(--border-light)" : "1px solid transparent",
-                  fontSize: "var(--text-sm)",
-                }}
-              >
-                <AgentIcon agentId={a.id} size={18} />
-                <span className="flex-1 truncate font-medium">{a.name.toLowerCase()}</span>
-              </button>
-            );
-          })}
-        </div>
+        <button
+          onClick={onAgentInfoClick}
+          className="ml-auto text-[10px] px-1.5 py-0.5 transition-colors hover:bg-[var(--accent-dim)]"
+          style={{ color: "var(--accent)", background: "transparent" }}
+        >
+          {zh ? "信息" : "Info"}
+        </button>
       </div>
 
       {/* ── Explorer ──────────────────────────────────────── */}
@@ -169,7 +119,7 @@ export function Sidebar({
             className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
             style={{ color: "var(--text-tertiary)" }}
           >
-            <span className="text-[8px]">{explorerOpen ? "▼" : "▶"}</span>
+            <span className="text-[8px]" style={{ color: "var(--accent)" }}>{explorerOpen ? "▼" : "▶"}</span>
             {zh ? "文件" : "Explorer"}
           </button>
           {workspace && (
@@ -180,23 +130,11 @@ export function Sidebar({
         </div>
         {explorerOpen && (
           <div className="space-y-2">
-            <div className="rounded-md p-2" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+            <div className="p-2" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
                   {zh ? "当前项目" : "Current project"}
                 </span>
-                {workspace && (
-                  <button
-                    onClick={() => navigator.clipboard.writeText(workspace).catch(() => {})}
-                    className="text-[10px] transition-opacity hover:opacity-70"
-                    style={{ color: "oklch(68% 0.15 55)" }}
-                  >
-                    {zh ? "复制路径" : "Copy path"}
-                  </button>
-                )}
-              </div>
-              <div className="mb-2 truncate text-sm font-medium" style={{ color: "var(--text)" }}>
-                {folderName}
               </div>
               <div className="flex items-center gap-1">
                 <select
@@ -206,7 +144,7 @@ export function Sidebar({
                     if (val === "__custom__") { setShowCustom(true); }
                     else if (val) { onWorkspaceChange(val); }
                   }}
-                  className="flex-1 w-0 pl-2 pr-5 py-1.5 rounded-md cursor-pointer appearance-none truncate"
+                  className="flex-1 w-0 pl-2 pr-5 py-1.5 cursor-pointer appearance-none truncate"
                   style={{
                     background: "var(--bg-panel)", color: "var(--text)",
                     border: "1px solid var(--border)", fontSize: "var(--text-xs)",
@@ -228,7 +166,7 @@ export function Sidebar({
                       if (e.key === "Escape") { setShowCustom(false); setCustomPath(""); }
                     }}
                     placeholder="/path/to/folder"
-                    className="flex-1 px-2 py-1 rounded-sm outline-none"
+                    className="flex-1 px-2 py-1 outline-none"
                     style={{
                       background: "var(--bg)", color: "var(--text)",
                       border: "1px solid var(--border)", fontSize: "var(--text-xs)",
@@ -243,14 +181,14 @@ export function Sidebar({
             </div>
             {workspace ? (
               <div
-                className="max-h-[34vh] overflow-y-auto rounded-md"
+                className="max-h-[34vh] overflow-y-auto"
                 style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
               >
                 <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} language={language} />
               </div>
             ) : (
               <div
-                className="rounded-md px-3 py-4 text-center text-xs"
+                className="px-3 py-4 text-center text-xs"
                 style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
               >
                 {zh ? "选择一个项目来浏览文件" : "Choose a project to browse files"}
@@ -269,15 +207,15 @@ export function Sidebar({
               className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
               style={{ color: "var(--text-tertiary)" }}
             >
-              <span className="text-[8px]">{convOpen ? "▼" : "▶"}</span>
+              <span className="text-[8px]" style={{ color: "var(--accent)" }}>{convOpen ? "▼" : "▶"}</span>
               {zh ? "对话" : "Conversations"}
-              <span className="rounded px-1 py-px font-normal" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
+              <span className="px-1 py-px font-normal" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
                 {conversations.length}
               </span>
             </button>
             <button
               onClick={onNewConversation}
-              className="inline-flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors hover:bg-[var(--bg-hover)]"
+              className="inline-flex h-6 items-center gap-1 px-2 text-[10px] font-medium transition-colors hover:bg-[var(--bg-hover)]"
               style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)", background: "transparent" }}
             >
               <span className="text-[12px] leading-none">+</span>
@@ -289,7 +227,7 @@ export function Sidebar({
           <div className="flex-1 overflow-y-auto px-2 py-2 min-h-0">
             {conversations.length === 0 ? (
               <div
-                className="rounded-md px-3 py-4 text-center"
+                className="px-3 py-4 text-center"
                 style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
               >
                 <div className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
@@ -297,8 +235,8 @@ export function Sidebar({
                 </div>
                 <button
                   onClick={onNewConversation}
-                  className="mt-3 rounded px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
-                  style={{ color: "#fff", background: "var(--accent)" }}
+                  className="mt-3 px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
                 >
                   {zh ? "开始对话" : "Start chat"}
                 </button>
@@ -307,7 +245,7 @@ export function Sidebar({
               conversations.map((c) => (
                 <div
                   key={c.id}
-                  className="group flex items-center gap-2 rounded-md px-2.5 py-2 transition-colors hover:bg-[var(--bg-hover)]"
+                  className="group flex items-center gap-2 px-2.5 py-2 transition-colors hover:bg-[var(--bg-hover)]"
                   style={{
                     color: "var(--text)",
                     background: c.id === activeConvId ? "var(--bg-selected)" : "transparent",
@@ -328,8 +266,8 @@ export function Sidebar({
                           }
                         }}
                         onBlur={finishConversationEdit}
-                        className="block w-full rounded px-1 py-0.5 text-xs font-medium outline-none"
-                        style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--accent)" }}
+                        className="block w-full px-1 py-0.5 text-xs font-medium outline-none"
+                        style={{ background: "var(--bg)", color: "var(--accent)", border: "1px solid var(--accent)" }}
                         autoFocus
                         spellCheck={false}
                       />
@@ -342,17 +280,19 @@ export function Sidebar({
                       </button>
                     )}
                     <span className="mt-1 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                      <span className="truncate font-medium" style={agentNameStyle(c.agentId)}>
-                        {agentNameById.get(c.agentId) ?? c.agentId}
-                      </span>
-                      <span>·</span>
+                      {c.totalTokens != null && c.totalTokens > 0 ? (
+                        <>
+                          <span style={{ fontFamily: "var(--font-mono)" }}>{c.totalTokens >= 1000 ? `${(c.totalTokens / 1000).toFixed(1)}k` : c.totalTokens} tok</span>
+                          <span>·</span>
+                        </>
+                      ) : null}
                       <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
+                      className="px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
                       style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
                       title={zh ? "编辑" : "Edit"}
                     >
@@ -360,7 +300,7 @@ export function Sidebar({
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
+                      className="px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
                       style={{ color: "var(--error)", border: "1px solid oklch(55% 0.22 20 / 0.25)" }}
                       title={zh ? "删除" : "Delete"}
                     >
@@ -377,7 +317,7 @@ export function Sidebar({
       {/* ── Footer ────────────────────────────────────────── */}
       <div className="p-2 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
         <button onClick={onOpenSettings}
-          className="flex w-full items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-colors hover:opacity-70"
+          className="flex w-full items-center gap-2 px-2 py-1.5 text-xs transition-colors hover:opacity-70"
           style={{ color: "var(--text-secondary)" }} title="Settings">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -396,7 +336,7 @@ export function Sidebar({
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="rounded-lg p-6 shadow-xl max-w-sm mx-4 text-center slide-in-left"
+            className="p-6 shadow-xl max-w-sm mx-4 text-center slide-in-left"
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -409,14 +349,14 @@ export function Sidebar({
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => setDeleteTarget(null)}
-                className="px-4 py-1.5 text-xs rounded-md transition-opacity hover:opacity-80"
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
                 style={{ color: "var(--text)", border: "1px solid var(--border)" }}
               >
                 Cancel
               </button>
               <button
                 onClick={() => { onDeleteConversation(deleteTarget.id); setDeleteTarget(null); }}
-                className="px-4 py-1.5 text-xs rounded-md transition-opacity hover:opacity-80"
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
                 style={{ background: "var(--error)", color: "#fff" }}
               >
                 Delete

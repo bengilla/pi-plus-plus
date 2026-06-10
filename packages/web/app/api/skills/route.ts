@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         for (const s of r.skills) installed.add(s.id);
       }
     }
-    const results = searchMarketplace(q, agent).filter((s) => !installed.has(s.id));
+    const results = searchMarketplace(q).filter((s) => !installed.has(s.id));
     return NextResponse.json({ marketplace: results });
   }
 
@@ -130,27 +130,8 @@ async function handleInstall(body: {
 
 // ── Helpers ─────────────────────────────────────────────────
 function findSourceDir(skillId: string): string | null {
-  // Check superpowers plugin cache
-  const superSkills = join(
-    homedir(),
-    ".claude",
-    "plugins",
-    "cache",
-    "claude-plugins-official",
-    "superpowers",
-  );
-
-  // Find the latest version
-  try {
-    const { readdirSync } = require("node:fs");
-    const versions = readdirSync(superSkills).filter((v: string) => /^\d/.test(v));
-    for (const ver of versions) {
-      const skillPath = join(superSkills, ver, "skills", skillId);
-      if (existsSync(skillPath)) return skillPath;
-    }
-  } catch {
-    // Not found
-  }
-
+  // Check Pi skills directory for already-installed skills
+  const piSkills = join(homedir(), ".pi", "agent", "skills", skillId);
+  if (existsSync(piSkills)) return piSkills;
   return null;
 }

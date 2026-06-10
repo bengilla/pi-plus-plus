@@ -152,7 +152,7 @@ function PanelHeader({ title, onClose }: { title: string; onClose: () => void })
       </div>
       <button
         onClick={onClose}
-        className="p-1.5 rounded-md hover:opacity-70 transition-opacity"
+        className="p-1.5 hover:opacity-70 transition-opacity"
         style={{ color: "var(--text-secondary)" }}
         title="Close panel"
       >
@@ -210,7 +210,7 @@ function MetaRow({ label, value, mono, compact = false }: { label: string; value
 function CapabilityBadge({ active, label }: { active: boolean; label: string }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium transition-colors"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 font-medium transition-colors"
       style={{
         color: active ? "var(--success)" : "var(--text-tertiary)",
         background: active ? "oklch(62% 0.19 160 / 0.1)" : "var(--bg-panel)",
@@ -308,7 +308,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                 <MetaCard compact>
                   <div className="flex items-start gap-2.5">
                     <span
-                      className="mt-0.5 h-7 w-7 shrink-0 rounded-md"
+                      className="mt-0.5 h-7 w-7 shrink-0"
                       style={{ background: lang?.color ?? "var(--text-tertiary)", opacity: 0.85 }}
                       aria-hidden="true"
                     >
@@ -323,7 +323,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                         </div>
                         {lang && (
                           <span
-                            className="shrink-0 rounded-full px-2 py-px font-medium"
+                            className="shrink-0 px-2 py-px font-medium"
                             style={{ color: lang.color, background: "var(--bg-hover)", fontSize: "var(--text-xs)" }}
                           >
                             {lang.label}
@@ -359,7 +359,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                     <MetaLabel>{zh ? "内容" : "Content"}</MetaLabel>
                       <button
                         onClick={() => navigator.clipboard.writeText(content).catch(() => {})}
-                        className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-[var(--bg-hover)]"
+                        className="inline-flex h-6 w-6 items-center justify-center transition-colors hover:bg-[var(--bg-hover)]"
                         style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.25)" }}
                         title={zh ? "复制" : "Copy"}
                         aria-label={zh ? "复制" : "Copy"}
@@ -371,7 +371,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                       </button>
                   </div>
                   <div
-                    className="min-h-0 flex-1 overflow-hidden rounded-md"
+                    className="min-h-0 flex-1 overflow-hidden"
                     style={{
                       background: "var(--bg)",
                       border: "1px solid var(--border-light)",
@@ -414,7 +414,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
             <MetaCard>
               <div className="flex items-start gap-3">
                 <span
-                  className="mt-0.5 inline-flex shrink-0 items-center justify-center rounded-md"
+                  className="mt-0.5 inline-flex shrink-0 items-center justify-center"
                   style={{ width: 28, height: 28, background: "var(--bg-panel)", border: "1px solid var(--border)" }}
                 >
                   <AgentIcon agentId={agent.id} size={22} />
@@ -457,7 +457,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                   {agentDefinition.thinkingLevels.map((tl) => (
                     <span
                       key={tl.value}
-                      className="px-2 py-0.5 rounded font-medium"
+                      className="px-2 py-0.5 font-medium"
                       style={{
                         color: "var(--text-secondary)",
                         background: "var(--bg-hover)",

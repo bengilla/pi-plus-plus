@@ -6,12 +6,27 @@ interface Props {
   content: string;
   duration?: number;
   defaultOpen?: boolean;
+  /** Current thinking level for color coding (auto = default) */
+  level?: string;
 }
 
 const MUTED_TEXT = "oklch(75% 0 0)";
 
-export function ThinkingBlock({ content, duration, defaultOpen = false }: Props) {
+function levelColor(level?: string): string {
+  switch (level) {
+    case "off": return "oklch(55% 0.03 255)";
+    case "minimal": return "oklch(68% 0.09 220)";
+    case "low": return "oklch(68% 0.12 195)";
+    case "medium": return "oklch(67% 0.13 175)";
+    case "high": return "oklch(65% 0.15 155)";
+    case "xhigh": return "oklch(62% 0.16 135)";
+    default: return "var(--accent)";
+  }
+}
+
+export function ThinkingBlock({ content, duration, defaultOpen = false, level }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const accent = levelColor(level);
 
   // Auto-collapse after streaming completes
   useEffect(() => {
@@ -22,7 +37,7 @@ export function ThinkingBlock({ content, duration, defaultOpen = false }: Props)
 
   return (
     <div
-      className="my-2 overflow-hidden rounded-md"
+      className="my-2 overflow-hidden"
       style={{
         border: "1px solid var(--color-border)",
         background: "var(--color-surface)",
@@ -38,11 +53,11 @@ export function ThinkingBlock({ content, duration, defaultOpen = false }: Props)
       >
         <span className="text-[10px]" style={{ color: MUTED_TEXT }}>{open ? "▾" : "▸"}</span>
         <span
-          className="h-2 w-2 shrink-0 rounded-full"
+          className="h-2 w-2 shrink-0"
           style={{
-            background: open ? "var(--color-accent)" : "transparent",
-            border: "1px solid var(--color-accent)",
-            boxShadow: open ? "0 0 0 3px color-mix(in oklch, var(--color-accent) 18%, transparent)" : "none",
+            background: open ? accent : "transparent",
+            border: `1px solid ${accent}`,
+            boxShadow: open ? `0 0 0 3px color-mix(in oklch, ${accent} 18%, transparent)` : "none",
           }}
         />
         <span className="text-[11px] font-semibold">Thinking</span>

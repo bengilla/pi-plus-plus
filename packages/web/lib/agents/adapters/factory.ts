@@ -1,32 +1,25 @@
 import type { AgentDefinition, AgentAdapter, AgentEvent } from "../types";
-import { spawnAgent, parseClaudeLine, parseCodexLine, parsePiLine, parseOpenCodeLine, parseGenericLine } from "../spawn";
+import { spawnAgent, parsePiLine } from "../spawn";
 
 // ── Adapter factory ───────────────────────────────────────
-// Each agent adapter follows the same pattern:
-// 1. Spawn the CLI binary with spawnArgs(workspace, prompt)
-// 2. Read stdout line by line
-// 3. Parse each line into AgentEvent via the agent-specific parser
-// 4. Yield events; on process exit, yield { type: "done" }
+// Spawns pi CLI, reads stdout line by line, parses into AgentEvent.
 
 type LineParser = (line: string) => AgentEvent | null;
 
 const PARSERS: Record<string, LineParser> = {
-  "claude-code": parseClaudeLine,
-  codex: parseCodexLine,
   pi: parsePiLine,
-  opencode: parseOpenCodeLine,
 };
 
 export function createAdapter(definition: AgentDefinition, binaryPath: string): AgentAdapter {
-  const parse = PARSERS[definition.id] ?? parseGenericLine;
+  const parse = PARSERS[definition.id] ?? parsePiLine;
   let child: ReturnType<typeof spawnAgent> | null = null;
 
   return {
     definition,
     path: binaryPath,
 
-    async *chat(workspace: string, prompt: string, thinkingLevel?: string): AsyncIterable<AgentEvent> {
-      const args = definition.spawnArgs(workspace, prompt, thinkingLevel);
+    async *chat(workspace: string, prompt: string, thinkingLevel?: string, model?: string, sessionId?: string): AsyncIterable<AgentEvent> {
+      const args = definition.spawnArgs(workspace, prompt, thinkingLevel, model, sessionId);
       child = spawnAgent({ binary: binaryPath, args, cwd: workspace });
 
       try {

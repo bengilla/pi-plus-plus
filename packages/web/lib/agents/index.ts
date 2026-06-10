@@ -61,6 +61,8 @@ export async function* chat(
   workspace: string,
   prompt: string,
   thinkingLevel?: string,
+  model?: string,
+  sessionId?: string,
 ): AsyncIterable<AgentEvent> {
   const adapter = adapters.get(agent);
   if (!adapter) {
@@ -68,7 +70,7 @@ export async function* chat(
     yield { type: "done" };
     return;
   }
-  yield* adapter.chat(workspace, prompt, thinkingLevel);
+  yield* adapter.chat(workspace, prompt, thinkingLevel, model, sessionId);
 }
 
 /** Interrupt a running agent session */

@@ -16,7 +16,6 @@ interface MarketplaceSkill {
   name: string;
   description: string;
   source: string;
-  agents: string[];
 }
 
 interface AgentInfo {
@@ -46,20 +45,18 @@ interface Props {
   open: boolean;
   onClose: () => void;
   agents: AgentInfo[];
-  detectedAgents?: DetectedAgentInfo[];
   onAgentsRefresh?: () => Promise<AgentsResponse>;
-  disabledAgentIds?: string[];
-  onAgentEnabledChange?: (agentId: string, enabled: boolean) => void;
   fontScale?: number;
   onFontScaleChange?: (scale: number) => void;
   language?: "en" | "zh";
   onLanguageChange?: (language: "en" | "zh") => void;
+  workspace?: string;
 }
 
-type Tab = "skills" | "general";
+type Tab = "models" | "sessions" | "skills" | "general";
 
-export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAgentsRefresh, disabledAgentIds = [], onAgentEnabledChange, fontScale, onFontScaleChange, language = "en", onLanguageChange }: Props) {
-  const [tab, setTab] = useState<Tab>("skills");
+export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFontScaleChange, language = "en", onLanguageChange, workspace = "" }: Props) {
+  const [tab, setTab] = useState<Tab>("models");
   const zh = language === "zh";
 
   useEffect(() => {
@@ -80,7 +77,7 @@ export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAg
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl max-h-[80vh] rounded-xl flex flex-col overflow-hidden fade-in"
+        className="w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden fade-in"
         style={{
           background: "var(--bg-elevated)",
           border: "1px solid var(--border)",
@@ -104,7 +101,7 @@ export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAg
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:opacity-70 transition-opacity"
+            className="p-1 hover:opacity-70 transition-opacity"
             style={{ color: "var(--text-secondary)" }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -118,7 +115,7 @@ export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAg
           className="flex gap-0 px-5 border-b shrink-0"
           style={{ borderColor: "var(--color-border)" }}
         >
-          {(["skills", "general"] as Tab[]).map((t) => (
+          {(["models", "sessions", "skills", "general"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -129,21 +126,18 @@ export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAg
                 marginBottom: -1,
               }}
             >
-              {zh ? (t === "skills" ? "技能" : "通用") : t}
+              {zh ? (t === "models" ? "模型" : t === "sessions" ? "会话" : t === "skills" ? "技能" : "通用") : t}
             </button>
           ))}
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          {tab === "skills" && <SkillsTab agents={agents} language={language} />}
+          {tab === "models" && <ModelsTab language={language} />}
+          {tab === "sessions" && <SessionsTab language={language} workspace={workspace} />}
+          {tab === "skills" && <SkillsTab language={language} />}
           {tab === "general" && (
             <GeneralTab
-              agents={agents}
-              detectedAgents={detectedAgents}
-              onAgentsRefresh={onAgentsRefresh}
-              disabledAgentIds={disabledAgentIds}
-              onAgentEnabledChange={onAgentEnabledChange}
               fontScale={fontScale}
               onFontScaleChange={onFontScaleChange}
               language={language}
@@ -156,12 +150,237 @@ export function SettingsModal({ open, onClose, agents, detectedAgents = [], onAg
   );
 }
 
+// ── Models Tab ─────────────────────────────────────────────
+
+interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  enabled: boolean;
+  capabilities: { key: string; label: string }[];
+}
+
+function ModelsTab({ language }: { language: "en" | "zh" }) {
+  const zh = language === "zh";
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/pi/models")
+      .then((r) => r.json())
+      .then((data: { models: ModelInfo[]; defaultModel: string | null }) => {
+        setModels(data.models);
+        setDefaultModel(data.defaultModel || null);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleModel = async (modelId: string, enabled: boolean) => {
+    setToggling(modelId);
+    try {
+      await fetch("/api/pi/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelId, enabled }),
+      });
+      setModels((prev) => prev.map((m) => m.id === modelId ? { ...m, enabled } : m));
+    } catch { /* ignore */ }
+    setToggling(null);
+  };
+
+  const selectDefaultModel = async (modelId: string) => {
+    setDefaultModel(modelId);
+    try {
+      await fetch("/api/pi/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelId }),
+      });
+    } catch { /* ignore */ }
+  };
+
+  const grouped = new Map<string, ModelInfo[]>();
+  for (const m of models) {
+    const list = grouped.get(m.provider) || [];
+    list.push(m);
+    grouped.set(m.provider, list);
+  }
+
+  const capColor = (key: string) => {
+    switch (key) {
+      case "thinking": return { color: "oklch(65% 0.15 155)", bg: "oklch(65% 0.15 155 / 0.1)" };
+      case "vision": return { color: "oklch(68% 0.13 250)", bg: "oklch(68% 0.13 250 / 0.1)" };
+      default: return { color: "var(--text-tertiary)", bg: "var(--bg-hover)" };
+    }
+  };
+
+  if (loading) {
+    return <div className="p-5 text-xs text-center" style={{ color: "var(--text-secondary)" }}>{zh ? "加载中..." : "Loading..."}</div>;
+  }
+
+  return (
+    <div className="p-5">
+      <div className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+        {zh ? "开启开关的模型会出现在对话框的模型选择中。" : "Toggle models on to make them available in the chat model selector."}
+      </div>
+      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+        {[...grouped.entries()].map(([provider, providerModels]) => (
+          <div key={provider}>
+            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 px-1" style={{ color: "var(--accent)" }}>
+              {provider}
+            </div>
+            <div className="space-y-0.5">
+              {providerModels.map((m) => {
+                const isDefault = defaultModel === m.id;
+                const isBusy = toggling === m.id;
+                return (
+                  <div
+                    key={m.id}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs"
+                    style={{
+                      background: isDefault ? "var(--accent-dim)" : "var(--bg)",
+                      border: isDefault ? "1px solid var(--accent)" : "1px solid var(--border-light)",
+                    }}
+                  >
+                    <button
+                      onClick={() => toggleModel(m.id, !m.enabled)}
+                      disabled={isBusy}
+                      className="relative h-4 w-8 shrink-0 transition-colors disabled:opacity-50"
+                      style={{
+                        background: m.enabled ? "var(--accent)" : "var(--bg-hover)",
+                        border: `1px solid ${m.enabled ? "var(--accent)" : "var(--border-light)"}`,
+                      }}
+                    >
+                      <span
+                        className="absolute top-1/2 h-3 w-3 -translate-y-1/2 transition-all"
+                        style={{
+                          left: m.enabled ? "16px" : "2px",
+                          background: m.enabled ? "#fff" : "var(--text-tertiary)",
+                        }}
+                      />
+                    </button>
+                    <span
+                      className="flex-1 truncate font-medium cursor-pointer hover:opacity-70"
+                      onClick={() => { if (!isDefault) selectDefaultModel(m.id); }}
+                      style={{ color: "var(--text)" }}
+                    >
+                      {m.name}
+                      {isDefault && <span className="ml-1 text-[9px]" style={{ color: "var(--accent)" }}>default</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {m.capabilities.filter((c) => c.key !== "text").map((c) => (
+                        <span
+                          key={c.key}
+                          className="text-[8px] px-1 py-0.5"
+                          style={{ color: capColor(c.key).color, background: capColor(c.key).bg }}
+                        >
+                          {c.label}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Sessions Tab ───────────────────────────────────────────
+
+function SessionsTab({ language, workspace }: { language: "en" | "zh"; workspace: string }) {
+  const zh = language === "zh";
+  const [sessions, setSessions] = useState<{ id: string; timestamp: string; model?: string; provider?: string; messageCount: number; firstMessage?: string; size: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/pi/sessions?workspace=${encodeURIComponent(workspace)}`)
+      .then((r) => r.json())
+      .then((data: { sessions: typeof sessions }) => setSessions(data.sessions))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [workspace]);
+
+  const formatDate = (ts: string) => {
+    const d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " +
+      d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
+  if (loading) {
+    return <div className="p-5 text-xs text-center" style={{ color: "var(--text-secondary)" }}>{zh ? "加载中..." : "Loading..."}</div>;
+  }
+
+  return (
+    <div className="p-5">
+      <div className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
+        {zh ? `当前项目的 Pi CLI 会话 (${sessions.length})` : `Pi CLI sessions for this project (${sessions.length})`}
+      </div>
+      {sessions.length === 0 ? (
+        <div className="px-3 py-4 text-center text-xs" style={{ color: "var(--text-secondary)", border: "1px dashed var(--border)" }}>
+          {zh ? "还没有 Pi 会话。运行 pi CLI 后这里会显示。" : "No Pi sessions yet. Run pi CLI to create sessions."}
+        </div>
+      ) : (
+        <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              className="px-3 py-2 text-xs"
+              style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px]" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                  {formatDate(s.timestamp)}
+                </span>
+                <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  {s.messageCount} msgs · {formatSize(s.size)}
+                </span>
+              </div>
+              {s.firstMessage && (
+                <div className="mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
+                  {s.firstMessage}
+                </div>
+              )}
+              {(s.model || s.provider) && (
+                <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  {s.provider && <span style={{ color: "var(--accent)" }}>{s.provider}</span>}
+                  {s.provider && s.model && <span> / </span>}
+                  {s.model && <span style={{ fontFamily: "var(--font-mono)" }}>{s.model}</span>}
+                </div>
+              )}
+              <div className="mt-1 flex gap-1">
+                <button
+                  className="px-2 py-0.5 text-[10px] transition-colors hover:opacity-70"
+                  style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+                >
+                  {zh ? "查看" : "View"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Skills Tab ─────────────────────────────────────────────
 
-function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" | "zh" }) {
+function SkillsTab({ language }: { language: "en" | "zh" }) {
   const zh = language === "zh";
-  const skillAgents = agents.filter((a) => a.id === "claude-code" || a.id === "pi");
-  const [agentId, setAgentId] = useState(skillAgents[0]?.id ?? "");
+  const agentId = "pi"; // Pi-only mode
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"installed" | "marketplace">("installed");
@@ -251,22 +470,9 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
     <div className="p-5">
       {/* Agent selector + filter */}
       <div className="flex items-center gap-3 mb-4">
-        <select
-          value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
-          className="px-2 py-1 text-xs rounded-md"
-          style={{
-            background: "var(--color-surface-secondary)",
-            color: "var(--color-text)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          {skillAgents.map((a) => (
-            <option key={a.id} value={a.id}>{a.name}</option>
-          ))}
-        </select>
+        <span className="px-2 py-1 text-xs font-medium" style={{ background: "transparent", color: "var(--accent)", border: "1px solid var(--accent)" }}>Pi</span>
 
-        <div className="flex rounded-md overflow-hidden text-xs"
+        <div className="flex overflow-hidden text-xs"
           style={{ border: "1px solid var(--color-border)" }}>
           {(["installed", "marketplace"] as const).map((f) => (
             <button
@@ -274,8 +480,9 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
               onClick={() => setFilter(f)}
               className="px-2.5 py-1 transition-colors"
               style={{
-                background: filter === f ? "var(--color-accent)" : "var(--color-surface-secondary)",
-                color: filter === f ? "#fff" : "var(--color-text-secondary)",
+                background: "transparent",
+                color: filter === f ? "var(--accent)" : "var(--text-secondary)",
+                border: filter === f ? "1px solid var(--accent)" : "1px solid transparent",
               }}
             >
               {zh ? (f === "installed" ? "已安装" : "市场") : f}
@@ -291,7 +498,7 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
           value={marketSearch}
           onChange={(e) => setMarketSearch(e.target.value)}
           placeholder={zh ? "搜索市场..." : "Search marketplace..."}
-          className="w-full px-3 py-1.5 text-xs rounded-md mb-3 outline-none"
+          className="w-full px-3 py-1.5 text-xs mb-3 outline-none"
           style={{
             background: "var(--color-surface-secondary)",
             color: "var(--color-text)",
@@ -318,7 +525,7 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
         {filter === "installed" && skills.map((s) => (
           <div
             key={s.id}
-            className="flex items-start gap-3 px-3 py-2 rounded-md"
+            className="flex items-start gap-3 px-3 py-2"
             style={{ background: "var(--color-surface-secondary)" }}
           >
             <div className="flex-1 min-w-0">
@@ -329,13 +536,13 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
             </div>
             <button
               onClick={() => toggleSkill(s.id, !s.enabled)}
-              className="shrink-0 w-8 h-5 rounded-full relative transition-colors"
+              className="shrink-0 w-8 h-5 relative transition-colors"
               style={{
                 background: s.enabled ? "var(--color-accent)" : "var(--color-border)",
               }}
             >
               <span
-                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm"
+                className="absolute top-0.5 w-4 h-4 bg-white transition-transform shadow-sm"
                 style={{
                   left: s.enabled ? "calc(100% - 18px)" : "2px",
                 }}
@@ -347,7 +554,7 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
         {filter === "marketplace" && marketResults.map((s) => (
           <div
             key={s.id}
-            className="flex items-start gap-3 px-3 py-2 rounded-md"
+            className="flex items-start gap-3 px-3 py-2"
             style={{ background: "var(--color-surface-secondary)" }}
           >
             <div className="flex-1 min-w-0">
@@ -361,10 +568,11 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
             </div>
             <button
               onClick={() => installSkill(s)}
-              className="shrink-0 px-2 py-0.5 rounded text-[10px] transition-colors hover:opacity-80"
+              className="shrink-0 px-2 py-0.5 text-[10px] transition-colors hover:opacity-80"
               style={{
-                background: "var(--color-accent)",
-                color: "#fff",
+                background: "transparent",
+                color: "var(--accent)",
+                border: "1px solid var(--accent)",
               }}
             >
               {zh ? "安装" : "Install"}
@@ -385,139 +593,16 @@ function SkillsTab({ agents, language }: { agents: AgentInfo[]; language: "en" |
 // ── General Tab ─────────────────────────────────────────────
 
 function GeneralTab({
-  agents,
-  detectedAgents,
-  onAgentsRefresh,
-  disabledAgentIds,
-  onAgentEnabledChange,
   fontScale,
   onFontScaleChange,
   language,
   onLanguageChange,
 }: {
-  agents: AgentInfo[];
-  detectedAgents: DetectedAgentInfo[];
-  onAgentsRefresh?: () => Promise<AgentsResponse>;
-  disabledAgentIds: string[];
-  onAgentEnabledChange?: (agentId: string, enabled: boolean) => void;
   fontScale?: number;
   onFontScaleChange?: (s: number) => void;
   language: "en" | "zh";
   onLanguageChange?: (language: "en" | "zh") => void;
 }) {
-  const [upgradeState, setUpgradeState] = useState<Record<string, {
-    checking?: boolean;
-    upgrading?: boolean;
-    latestVersion?: string;
-    updateAvailable?: boolean;
-    error?: string;
-    settled?: boolean;
-  }>>({});
-  const [refreshingAgents, setRefreshingAgents] = useState(false);
-  const [refreshMessage, setRefreshMessage] = useState("");
-  const [newAgentPrompt, setNewAgentPrompt] = useState<DetectedAgentInfo[] | null>(null);
-
-  const handleRefresh = async () => {
-    const before = new Set(detectedAgents.map((agent) => agent.id));
-    setRefreshingAgents(true);
-    setRefreshMessage("");
-    setNewAgentPrompt(null);
-    try {
-      const data: AgentsResponse = onAgentsRefresh ? await onAgentsRefresh() : await fetch("/api/agents").then((r) => r.json());
-      const nextDetected = data.detectedAgents ?? [];
-      const added = nextDetected.filter((agent) => !before.has(agent.id));
-      if (added.length > 0) {
-        setNewAgentPrompt(added);
-        setRefreshMessage("");
-      } else {
-        setRefreshMessage(language === "zh" ? "没有新的智能体" : "No new agents");
-      }
-    } catch {
-      setRefreshMessage(language === "zh" ? "刷新失败" : "Refresh failed");
-    } finally {
-      setRefreshingAgents(false);
-    }
-  };
-
-  const checkUpgrade = async (agentId: string) => {
-    setUpgradeState((prev) => ({ ...prev, [agentId]: { ...prev[agentId], checking: true, error: undefined } }));
-    try {
-      const r = await fetch("/api/agents/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, action: "check" }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? "Check failed");
-      setUpgradeState((prev) => ({
-        ...prev,
-        [agentId]: {
-          checking: false,
-          latestVersion: data.latestVersion,
-          updateAvailable: data.updateAvailable,
-          settled: !data.updateAvailable,
-        },
-      }));
-      if (!data.updateAvailable) {
-        window.setTimeout(() => {
-          setUpgradeState((prev) => {
-            const current = prev[agentId];
-            if (!current?.settled) return prev;
-            return {
-              ...prev,
-              [agentId]: {
-                latestVersion: current.latestVersion,
-                updateAvailable: false,
-                settled: false,
-              },
-            };
-          });
-        }, 5000);
-      }
-    } catch (e) {
-      setUpgradeState((prev) => ({
-        ...prev,
-        [agentId]: {
-          ...prev[agentId],
-          checking: false,
-          error: e instanceof Error ? e.message : "Check failed",
-        },
-      }));
-    }
-  };
-
-  const upgradeAgent = async (agentId: string) => {
-    setUpgradeState((prev) => ({ ...prev, [agentId]: { ...prev[agentId], upgrading: true, error: undefined } }));
-    try {
-      const r = await fetch("/api/agents/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, action: "upgrade" }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? "Upgrade failed");
-      setUpgradeState((prev) => ({
-        ...prev,
-        [agentId]: {
-          ...prev[agentId],
-          upgrading: false,
-          updateAvailable: false,
-          latestVersion: data.version ?? prev[agentId]?.latestVersion,
-        },
-      }));
-      window.setTimeout(() => window.location.reload(), 400);
-    } catch (e) {
-      setUpgradeState((prev) => ({
-        ...prev,
-        [agentId]: {
-          ...prev[agentId],
-          upgrading: false,
-          error: e instanceof Error ? e.message : "Upgrade failed",
-        },
-      }));
-    }
-  };
-
   const scale = fontScale ?? 1;
 
   return (
@@ -526,7 +611,7 @@ function GeneralTab({
       <div>
         <div className="text-xs font-medium mb-2" style={{ color: "var(--color-text)" }}>{language === "zh" ? "语言" : "Language"}</div>
         <div
-          className="inline-flex rounded-md overflow-hidden text-xs"
+          className="inline-flex overflow-hidden text-xs"
           style={{ border: "1px solid var(--color-border)" }}
         >
           {([
@@ -538,8 +623,9 @@ function GeneralTab({
               onClick={() => onLanguageChange?.(option.value)}
               className="px-3 py-1.5 transition-colors"
               style={{
-                background: language === option.value ? "var(--color-accent)" : "var(--color-surface-secondary)",
-                color: language === option.value ? "#fff" : "var(--color-text-secondary)",
+                background: "transparent",
+                color: language === option.value ? "var(--accent)" : "var(--text-secondary)",
+                border: language === option.value ? "1px solid var(--accent)" : "1px solid transparent",
               }}
             >
               {option.label}
@@ -565,7 +651,7 @@ function GeneralTab({
             step="0.05"
             value={scale}
             onChange={(e) => onFontScaleChange?.(parseFloat(e.target.value))}
-            className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+            className="flex-1 h-1.5 appearance-none cursor-pointer"
             style={{
               background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((scale - 0.8) / 0.6) * 100}%, var(--border) ${((scale - 0.8) / 0.6) * 100}%, var(--border) 100%)`,
             }}
@@ -577,10 +663,11 @@ function GeneralTab({
             <button
               key={v}
               onClick={() => onFontScaleChange?.(v)}
-              className="text-[9px] px-1 py-0.5 rounded transition-colors hover:opacity-70"
+              className="text-[9px] px-1 py-0.5 transition-colors hover:opacity-70"
               style={{
                 color: scale === v ? "var(--accent)" : "var(--text-secondary)",
-                background: scale === v ? "var(--accent-dim)" : "transparent",
+                background: "transparent",
+                border: scale === v ? "1px solid var(--accent)" : "1px solid transparent",
               }}
             >
               {Math.round(v * 100)}%
@@ -589,194 +676,6 @@ function GeneralTab({
         </div>
       </div>
 
-      {/* Agents */}
-      <div>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-xs font-medium" style={{ color: "var(--color-text)" }}>{language === "zh" ? "智能体发现" : "Agent Discovery"}</div>
-          <span className="text-[10px]" style={{ color: "var(--color-text-secondary)" }}>
-            {detectedAgents.length} {language === "zh" ? "个已发现" : "detected"}
-          </span>
-        </div>
-        <div className="space-y-1">
-          {(detectedAgents.length > 0 ? detectedAgents : agents.map((a) => ({
-            ...a,
-            binary: a.id,
-            description: "",
-            path: "",
-            installSource: undefined,
-            status: "available" as const,
-            upgradeSupported: true,
-          }))).map((a) => {
-            const state = upgradeState[a.id];
-            const currentVersion = a.version?.match(/(\d+\.\d+\.\d+)/)?.[1] ?? a.version?.split(" ")[0] ?? "—";
-            const enabled = !disabledAgentIds.includes(a.id);
-            return (
-            <div
-              key={a.id}
-              className="rounded-md px-3 py-2 text-xs"
-              style={{ background: "var(--color-surface-secondary)" }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-medium" style={{ color: "var(--color-text)" }}>{a.name}</span>
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px]" style={{ color: "var(--color-text-secondary)", background: "var(--bg-hover)", fontFamily: "var(--font-mono)" }}>
-                      {currentVersion}
-                    </span>
-                    <span
-                      className="shrink-0 rounded px-1.5 py-0.5 text-[10px]"
-                      style={{
-                        color: a.status === "available" ? "var(--success)" : "var(--warning)",
-                        background: a.status === "available" ? "oklch(62% 0.19 160 / 0.1)" : "oklch(70% 0.17 85 / 0.1)",
-                      }}
-                    >
-                      {a.status === "available"
-                        ? (language === "zh" ? "可使用" : "available")
-                        : (language === "zh" ? "需适配" : "needs adapter")}
-                    </span>
-                  </div>
-                  <div className="mt-1 truncate" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-mono)", fontSize: "var(--text-xs)" }}>
-                    {a.path || a.binary}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                <button
-                  onClick={() => onAgentEnabledChange?.(a.id, !enabled)}
-                  className="relative h-5 w-9 rounded-full transition-colors"
-                  style={{
-                    background: enabled ? "var(--accent)" : "var(--bg-hover)",
-                    border: `1px solid ${enabled ? "var(--accent)" : "var(--border-light)"}`,
-                  }}
-                  title={enabled ? (language === "zh" ? "关闭智能体" : "Disable agent") : (language === "zh" ? "启用智能体" : "Enable agent")}
-                  aria-label={enabled ? (language === "zh" ? "关闭智能体" : "Disable agent") : (language === "zh" ? "启用智能体" : "Enable agent")}
-                >
-                  <span
-                    className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full transition-all"
-                    style={{
-                      left: enabled ? "18px" : "2px",
-                      background: enabled ? "#fff" : "var(--text-tertiary)",
-                    }}
-                  />
-                </button>
-                {a.upgradeSupported && (
-                  <button
-                    onClick={() => state?.updateAvailable ? upgradeAgent(a.id) : checkUpgrade(a.id)}
-                    disabled={state?.checking || state?.upgrading || state?.settled}
-                    className="min-w-[58px] rounded px-2 py-1 text-[10px] font-medium transition-opacity hover:opacity-75 disabled:opacity-60"
-                    style={{
-                      color: state?.updateAvailable ? "#fff" : "var(--color-text-secondary)",
-                      background: state?.updateAvailable ? "var(--accent)" : state?.settled ? "var(--bg-hover)" : "transparent",
-                      border: state?.updateAvailable || !state?.settled ? "1px solid var(--accent)" : "1px solid var(--border-light)",
-                    }}
-                  >
-                    {state?.checking
-                      ? (language === "zh" ? "检测中" : "Checking")
-                      : state?.upgrading
-                        ? (language === "zh" ? "更新中" : "Updating")
-                        : state?.updateAvailable
-                          ? (language === "zh" ? "更新" : "Update")
-                          : state?.settled
-                            ? (language === "zh" ? "已最新" : "Latest")
-                            : (language === "zh" ? "检测" : "Check")}
-                  </button>
-                )}
-                </div>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <div className="min-w-0 truncate text-[10px]" style={{ color: state?.error ? "var(--error)" : "var(--text-tertiary)" }}>
-                  {!a.upgradeSupported
-                    ? (language === "zh" ? "暂不支持网页升级" : "Web upgrade not supported yet")
-                    : state?.error
-                    ? state.error
-                    : state?.latestVersion
-                      ? `${language === "zh" ? "最新版本" : "Latest"} ${state.latestVersion}${state.updateAvailable ? ` · ${language === "zh" ? "可升级" : "update available"}` : ` · ${language === "zh" ? "已是最新" : "up to date"}`}`
-                      : (language === "zh" ? "可检查是否有新版本" : "Check whether a newer version is available")}
-                </div>
-                <div className="shrink-0 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                  {a.installSource ?? "PATH"}
-                </div>
-              </div>
-            </div>
-            );
-          })}
-          {detectedAgents.length === 0 && (
-            <div className="rounded-md px-3 py-4 text-center text-xs" style={{ color: "var(--color-text-secondary)", border: "1px dashed var(--color-border)" }}>
-              {language === "zh" ? "没有发现智能体" : "No agents detected"}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Refresh */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleRefresh}
-          disabled={refreshingAgents}
-          className="px-3 py-1.5 text-xs rounded-md transition-colors disabled:opacity-60"
-          style={{
-            background: "var(--color-accent-dim)",
-            color: "var(--color-accent)",
-          }}
-        >
-          {refreshingAgents
-            ? (language === "zh" ? "刷新中..." : "Refreshing...")
-            : (language === "zh" ? "刷新智能体发现" : "Refresh Agent Discovery")}
-        </button>
-        {refreshMessage && (
-          <span className="text-[11px]" style={{ color: refreshMessage.includes("失败") || refreshMessage.includes("failed") ? "var(--error)" : "var(--color-text-secondary)" }}>
-            {refreshMessage}
-          </span>
-        )}
-      </div>
-
-      {newAgentPrompt && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.32)" }}
-          onClick={() => setNewAgentPrompt(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-lg p-4 shadow-xl"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
-              {language === "zh" ? "发现新的智能体" : "New agents detected"}
-            </div>
-            <div className="mt-2 space-y-1">
-              {newAgentPrompt.map((agent) => (
-                <div key={agent.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 text-xs" style={{ background: "var(--color-surface-secondary)" }}>
-                  <span style={{ color: "var(--color-text)" }}>{agent.name}</span>
-                  <span style={{ color: agent.status === "available" ? "var(--success)" : "var(--warning)" }}>
-                    {agent.status === "available"
-                      ? (language === "zh" ? "可使用" : "available")
-                      : (language === "zh" ? "需适配" : "needs adapter")}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setNewAgentPrompt(null)}
-                className="rounded-md px-3 py-1.5 text-xs"
-                style={{ color: "var(--color-text-secondary)", border: "1px solid var(--border-light)" }}
-              >
-                {language === "zh" ? "不添加" : "Skip"}
-              </button>
-              <button
-                onClick={() => {
-                  setNewAgentPrompt(null);
-                  setRefreshMessage(language === "zh" ? "已添加" : "Added");
-                }}
-                className="rounded-md px-3 py-1.5 text-xs"
-                style={{ color: "#fff", background: "var(--accent)" }}
-              >
-                {language === "zh" ? "添加" : "Add"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

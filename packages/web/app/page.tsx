@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useCallback, useEffect, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { ConvInfo } from "@/components/Sidebar";
 import { Sidebar } from "@/components/Sidebar";
-import { getDefinition } from "@/lib/agents/registry";
+import { getPiDefinition } from "@/lib/agents/registry";
 import { ChatPanel, type ChatMessageSnapshot } from "@/components/ChatPanel";
 import { RightPanel } from "@/components/RightPanel";
 import { SettingsModal } from "@/components/SettingsModal";
@@ -16,17 +16,6 @@ interface AgentInfo {
   path?: string;
 }
 
-interface DetectedAgentInfo {
-  id: string;
-  name: string;
-  binary: string;
-  description: string;
-  path: string;
-  version?: string;
-  installSource?: string;
-  status: "available" | "needs-adapter";
-}
-
 interface ConvData {
   id: string;
   title: string;
@@ -35,6 +24,7 @@ interface ConvData {
   messages: ChatMessageSnapshot[];
   createdAt: number;
   manualTitle?: boolean;
+  piSessionId?: string;
 }
 
 function getDroppedPath(e: DragEvent): string | null {
@@ -59,10 +49,16 @@ const STORAGE_KEY = "agents-web-conversations";
 const WORKSPACE_KEY = "agents-web-workspace";
 const SIDEBAR_WIDTH_KEY = "agents-web-sidebar-width";
 const RIGHT_PANEL_WIDTH_KEY = "agents-web-right-panel-width";
-const DISABLED_AGENTS_KEY = "agents-web-disabled-agents";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
+}
+
+function truncateTitle(text: string, maxLen = 36): string {
+  // Use Array.from for proper CJK character counting
+  const chars = Array.from(text);
+  if (chars.length <= maxLen) return text;
+  return chars.slice(0, maxLen).join("") + "…";
 }
 
 function loadConvs(defaultWorkspace = ""): ConvData[] {
@@ -87,10 +83,8 @@ function latestConversationId(convs: ConvData[], workspace: string, agentId?: st
 
 export default function Home() {
   const [workspace, setWorkspace] = useState("");
-  const [activeAgent, setActiveAgent] = useState("");
+  const activeAgent = "pi"; // Pi-only mode — no agent switching
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [detectedAgents, setDetectedAgents] = useState<DetectedAgentInfo[]>([]);
-  const [disabledAgentIds, setDisabledAgentIds] = useState<string[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -98,6 +92,12 @@ export default function Home() {
   const [fontScale, setFontScale] = useState(1.1);
   const [language, setLanguage] = useState<"en" | "zh">("en");
   const [thinkingLevel, setThinkingLevel] = useState("auto");
+
+  // Version check
+  const [versionCheck, setVersionCheck] = useState<{ currentVersion?: string; latestVersion?: string; updateAvailable?: boolean } | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [modelVersion, setModelVersion] = useState(0);
 
   // Panel state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -128,11 +128,6 @@ export default function Home() {
     if (savedSidebarWidth) setSidebarWidth(clamp(parseInt(savedSidebarWidth, 10), 220, 420));
     const savedRightPanelWidth = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
     if (savedRightPanelWidth) setRightPanelWidth(clamp(parseInt(savedRightPanelWidth, 10), 320, 760));
-    try {
-      setDisabledAgentIds(JSON.parse(localStorage.getItem(DISABLED_AGENTS_KEY) || "[]") as string[]);
-    } catch {
-      setDisabledAgentIds([]);
-    }
   }, []);
 
   // ── Keyboard shortcuts ────────────────────────────────────
@@ -162,35 +157,34 @@ export default function Home() {
     localStorage.setItem("language", next);
   };
 
-  const handleAgentEnabledChange = (agentId: string, enabled: boolean) => {
-    setDisabledAgentIds((prev) => {
-      const next = enabled ? prev.filter((id) => id !== agentId) : Array.from(new Set([...prev, agentId]));
-      localStorage.setItem(DISABLED_AGENTS_KEY, JSON.stringify(next));
-      return next;
-    });
-  };
-
   const refreshAgents = useCallback(async () => {
     const r = await fetch("/api/agents");
     const data = await r.json();
     const list: AgentInfo[] = data.agents ?? [];
-    setDetectedAgents(data.detectedAgents ?? []);
     setAgents(list);
-    if (list.length > 0) setActiveAgent((prev) => list.some((a) => a.id === prev) ? prev : list[0].id);
-    return data as { agents?: AgentInfo[]; detectedAgents?: DetectedAgentInfo[] };
+    return data as { agents?: AgentInfo[] };
   }, []);
 
   useEffect(() => {
     refreshAgents()
-      .catch(() => { setAgents([]); setDetectedAgents([]); })
+      .catch(() => { setAgents([]); })
       .finally(() => setAgentsLoading(false));
+    // Check Pi version for updates
+    fetch("/api/pi/version")
+      .then((r) => r.json())
+      .then((data) => {
+        setVersionCheck(data);
+        if (data.updateAvailable) setShowUpdateModal(true);
+      })
+      .catch(() => {});
   }, [refreshAgents]);
 
   // ── Conversations ──────────────────────────────────────────
   const currentProjectConvs = projectConvs(convs, workspace);
-  const convList: ConvInfo[] = currentProjectConvs.map((c) => ({
-    id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt,
-  }));
+  const convList: ConvInfo[] = currentProjectConvs.map((c) => {
+    const totalTokens = c.messages?.reduce((sum, m) => sum + (m.inputTokens || 0) + (m.outputTokens || 0), 0) || 0;
+    return { id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt, totalTokens };
+  });
 
   const newConversation = () => {
     const id = Date.now().toString();
@@ -228,7 +222,8 @@ export default function Home() {
               ...c,
               workspace,
               messages,
-              title: c.manualTitle ? c.title : (firstUser ? firstUser.content.slice(0, 40) : c.title),
+              piSessionId: firstUser?.piSessionId || c.piSessionId,
+              title: c.manualTitle ? c.title : (firstUser ? truncateTitle(firstUser.content) : c.title),
             };
           });
           saveConvs(updated);
@@ -238,11 +233,12 @@ export default function Home() {
         const newId = Date.now().toString();
         const newConv: ConvData = {
           id: newId,
-          title: firstUser ? firstUser.content.slice(0, 40) : "New conversation",
+          title: firstUser ? truncateTitle(firstUser.content) : "New conversation",
           agentId: activeAgent,
           workspace,
           messages,
           createdAt: Date.now(),
+          piSessionId: firstUser?.piSessionId,
         };
         setConvs((prev) => {
           const updated = [newConv, ...prev];
@@ -332,7 +328,7 @@ export default function Home() {
   }, [navigateTo]);
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
-  const currentAgentDefinition = getDefinition(activeAgent);
+  const currentAgentDefinition = getPiDefinition();
   const activeConv = currentProjectConvs.find((c) => c.id === activeConvId);
 
   useEffect(() => {
@@ -342,41 +338,21 @@ export default function Home() {
     }
   }, [currentAgentDefinition, thinkingLevel]);
 
-  const visibleAgents = useMemo(
-    () => agents.filter((agent) => !disabledAgentIds.includes(agent.id)),
-    [agents, disabledAgentIds],
-  );
-
-  useEffect(() => {
-    if (visibleAgents.length === 0) return;
-    if (!visibleAgents.some((agent) => agent.id === activeAgent)) {
-      setActiveAgent(visibleAgents[0].id);
-      setThinkingLevel("auto");
-      setActiveConvId(latestConversationId(convs, workspace, visibleAgents[0].id));
-    }
-  }, [activeAgent, convs, visibleAgents, workspace]);
-
   // ── No agents state ────────────────────────────────────────
   if (!agentsLoading && agents.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
         <div className="text-center max-w-sm px-6 fade-in">
           <div className="text-5xl mb-4">🤖</div>
-          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>agents-web</h1>
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Pi Workspace</h1>
           <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-            {language === "zh" ? "多智能体网页工作区。安装一个 CLI 智能体即可开始。" : "Multi-agent web workspace. Install a CLI agent to get started."}
+            {language === "zh" ? "安装 Pi 编码智能体即可开始。" : "Install the Pi coding agent to get started."}
           </p>
           <div className="space-y-2 text-left" style={{ fontSize: "var(--text-xs)" }}>
-            {[
-              { cmd: "npm install -g @anthropic-ai/claude-code", name: "Anthropic Claude Code" },
-              { cmd: "npm install -g @openai/codex", name: "OpenAI Codex CLI" },
-              { cmd: "npm install -g @earendil-works/pi-coding-agent", name: "Earendil Pi coding agent" },
-            ].map(({ cmd, name }) => (
-              <div key={name} className="px-3 py-2 rounded-md" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}>
-                <code style={{ fontSize: "var(--text-sm)", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>{cmd}</code>
-                <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{name}</div>
-              </div>
-            ))}
+            <div className="px-3 py-2" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}>
+              <code style={{ fontSize: "var(--text-sm)", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>npm install -g @earendil-works/pi-coding-agent</code>
+              <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>Earendil Pi coding agent</div>
+            </div>
           </div>
         </div>
       </div>
@@ -404,15 +380,7 @@ export default function Home() {
           onSelectConversation={selectConversation}
           onDeleteConversation={deleteConversation}
           onRenameConversation={renameConversation}
-          agents={visibleAgents}
-          activeAgent={activeAgent}
-          onAgentChange={(id) => {
-            setActiveAgent(id);
-            setThinkingLevel("auto");
-            // Switch to the most recent conversation for this agent, or start fresh
-            const agentConvs = currentProjectConvs.filter(c => c.agentId === id);
-            setActiveConvId(agentConvs.length > 0 ? agentConvs[0].id : null);
-          }}
+          agents={agents}
           onFileClick={handleFileClick}
           onAgentInfoClick={handleAgentInfoClick}
           language={language}
@@ -440,7 +408,7 @@ export default function Home() {
             {/* Sidebar toggle */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1 rounded hover:opacity-70 transition-opacity"
+              className="p-1 hover:opacity-70 transition-opacity"
               style={{ color: "var(--text-secondary)" }}
               title={language === "zh" ? (sidebarOpen ? "关闭侧栏" : "打开侧栏") : (sidebarOpen ? "Close sidebar" : "Open sidebar")}
             >
@@ -456,7 +424,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={toggleTheme} className="shrink-0 p-1 rounded hover:opacity-70 transition-opacity"
+            <button onClick={toggleTheme} className="shrink-0 p-1 hover:opacity-70 transition-opacity"
               style={{ color: "var(--text)" }} title={language === "zh" ? (theme === "dark" ? "切换到浅色" : "切换到深色") : (theme === "dark" ? "Switch to light" : "Switch to dark")}>
               {theme === "dark" ? (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -477,7 +445,9 @@ export default function Home() {
             activeAgent={activeAgent}
             agentName={currentAgent ? currentAgent.name : activeAgent}
             agentDescription={currentAgent?.description}
+            agentVersion={currentAgent?.version}
             conversationId={activeConvId}
+            sessionId={activeConv?.piSessionId}
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
@@ -485,6 +455,7 @@ export default function Home() {
             thinkingLevels={currentAgentDefinition?.thinkingLevels ?? []}
             onThinkingLevelChange={setThinkingLevel}
             language={language}
+            modelVersion={modelVersion}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
@@ -530,12 +501,9 @@ export default function Home() {
       {/* Settings modal */}
       <SettingsModal
         open={showSettings}
-        onClose={() => setShowSettings(false)}
+        onClose={() => { setShowSettings(false); setModelVersion((v) => v + 1); }}
         agents={agents}
-        detectedAgents={detectedAgents}
         onAgentsRefresh={refreshAgents}
-        disabledAgentIds={disabledAgentIds}
-        onAgentEnabledChange={handleAgentEnabledChange}
         fontScale={fontScale}
         onFontScaleChange={(s: number) => {
           setFontScale(s);
@@ -543,6 +511,7 @@ export default function Home() {
           localStorage.setItem("fontScale", String(s));
         }}
         language={language}
+        workspace={workspace}
         onLanguageChange={handleLanguageChange}
       />
 
@@ -550,10 +519,63 @@ export default function Home() {
       {dragOver && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none fade-in"
           style={{ background: "oklch(66% 0.19 252 / 0.06)", backdropFilter: "blur(2px)" }}>
-          <div className="px-8 py-6 rounded-xl text-center"
+          <div className="px-8 py-6 text-center"
             style={{ background: "var(--bg-elevated)", border: "2px dashed var(--accent)", boxShadow: "var(--shadow-modal)" }}>
             <div className="text-3xl mb-2">📁</div>
             <div className="text-sm font-medium" style={{ color: "var(--text)" }}>Drop folder here</div>
+          </div>
+        </div>
+      )}
+
+      {/* Update available modal */}
+      {showUpdateModal && versionCheck?.latestVersion && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowUpdateModal(false)}
+        >
+          <div
+            className="w-full max-w-sm p-6 shadow-xl fade-in"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-4">
+              <div className="text-3xl mb-2">π</div>
+              <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                {language === "zh" ? "Pi 有新版本可用" : "Pi Update Available"}
+              </div>
+              <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {versionCheck.currentVersion || "?"} → {versionCheck.latestVersion}
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowUpdateModal(false)}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+              >
+                {language === "zh" ? "稍后" : "Later"}
+              </button>
+              <button
+                onClick={async () => {
+                  setUpdating(true);
+                  try {
+                    await fetch("/api/agents/upgrade", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ agentId: "pi", action: "upgrade" }),
+                    });
+                  } catch { /* ignore */ }
+                  setUpdating(false);
+                  setShowUpdateModal(false);
+                }}
+                disabled={updating}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
+              >
+                {updating ? (language === "zh" ? "更新中..." : "Updating...") : (language === "zh" ? "立即更新" : "Update Now")}
+              </button>
+            </div>
           </div>
         </div>
       )}

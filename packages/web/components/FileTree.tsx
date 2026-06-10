@@ -105,10 +105,10 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
     <div>
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📄 {zh ? "新建文件" : "New File"}</button>
-        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📁 {zh ? "新建文件夹" : "New Folder"}</button>
+        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新建文件" : "New File"}</button>
+        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新建文件夹" : "New Folder"}</button>
       </div>
 
       {/* New item input */}
@@ -118,11 +118,11 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
           <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
             placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
-            className="flex-1 px-1.5 py-0.5 rounded outline-none text-xs"
+            className="flex-1 px-1.5 py-0.5 outline-none text-xs"
             style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
             autoFocus spellCheck={false} />
-          <button onClick={handleCreate} className="px-2 py-0.5 rounded text-[10px]"
-            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>{zh ? "创建" : "Create"}</button>
+          <button onClick={handleCreate} className="px-2 py-0.5 text-[10px]"
+            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "创建" : "Create"}</button>
         </div>
       )}
 
@@ -135,24 +135,24 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
               <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(node.path); if (e.key === "Escape") setRenaming(null); }}
                 onBlur={() => handleRenameSubmit(node.path)}
-                className="flex-1 px-1 py-0 rounded outline-none text-xs"
+                className="flex-1 px-1 py-0 outline-none text-xs"
                 style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
                 autoFocus spellCheck={false} />
             </div>
           ) : (
             <div key={node.path} className="group flex items-center gap-0.5 px-1 py-0.5">
               <button onClick={() => { if (node.type === "directory") onNavigate(workspace.replace(/\/$/, "") + "/" + node.name); else onFileClick?.(workspace.replace(/\/$/, "") + "/" + node.name); }}
-                className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs rounded-sm hover:opacity-80 min-w-0"
+                className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs hover:opacity-80 min-w-0"
                 style={{ color: node.type === "directory" ? "var(--color-text)" : "var(--color-text-secondary)" }}>
                 <span className="shrink-0">{node.type === "directory" ? "📁" : fileIcon(node.name)}</span>
                 <span className="truncate">{node.name}</span>
                 {node.type === "directory" && <span className="ml-auto text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.4 }}>›</span>}
               </button>
               <button onClick={() => handleRenameStart(node)}
-                className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{ color: "var(--color-text-secondary)" }} title={zh ? "重命名" : "Rename"}>✏️</button>
               <button onClick={() => handleDelete(node)}
-                className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{ color: "oklch(0.55 0.2 30)" }} title={zh ? "删除" : "Delete"}>🗑</button>
             </div>
           )

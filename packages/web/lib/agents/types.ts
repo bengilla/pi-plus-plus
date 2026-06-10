@@ -23,6 +23,11 @@ export interface AgentEvent {
   partialOutput?: string;
   /** For tool_execution events: true when tool finishes with an error */
   isError?: boolean;
+  /** Model info from the assistant message */
+  model?: string;
+  provider?: string;
+  /** Pi session ID (for resuming sessions) */
+  sessionId?: string;
 }
 
 // ── Agent capabilities ────────────────────────────────────
@@ -47,8 +52,8 @@ export interface AgentDefinition {
   fallbackPaths: string[];
   /** npm package name when the CLI is distributed as a global npm package */
   packageName?: string;
-  /** How to spawn: build args array from workspace + prompt + thinking level */
-  spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string) => string[];
+  /** How to spawn: build args array from workspace + prompt + thinking level + model */
+  spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string, model?: string, sessionId?: string) => string[];
   /** Capabilities */
   capabilities: AgentCapabilities;
   /** Supported thinking levels (if empty, thinking control is hidden for this agent) */
@@ -81,6 +86,6 @@ export interface DetectedAgent {
 export interface AgentAdapter {
   readonly definition: AgentDefinition;
   readonly path: string;
-  chat(workspace: string, prompt: string, thinkingLevel?: string): AsyncIterable<AgentEvent>;
+  chat(workspace: string, prompt: string, thinkingLevel?: string, model?: string, sessionId?: string): AsyncIterable<AgentEvent>;
   interrupt(): void;
 }

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const { agent, prompt, workspace: reqWorkspace, thinkingLevel } = body as Record<string, string | undefined>;
+  const { agent, prompt, workspace: reqWorkspace, thinkingLevel, model, sessionId } = body as Record<string, string | undefined>;
 
   if (!agent || !prompt) {
     return Response.json({ error: "agent and prompt required" }, { status: 400 });
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      for await (const event of chat(agent, workspace, prompt, thinkingLevel)) {
+      for await (const event of chat(agent, workspace, prompt, thinkingLevel, model, sessionId)) {
         const wrote = await writeEvent(event);
         if (!wrote) break;
         if (event.type === "done" || event.type === "error") {

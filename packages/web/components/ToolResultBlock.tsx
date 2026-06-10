@@ -14,9 +14,11 @@ export function ToolResultBlock({ toolOutput }: Props) {
 
   if (!output) return null;
 
+  const preview = output.split("\n")[0].slice(0, 100);
+
   return (
     <div
-      className="my-1 ml-4 overflow-hidden rounded-md"
+      className="my-1 ml-4 overflow-hidden"
       style={{
         border: "1px solid var(--color-border)",
         background: "var(--color-surface)",
@@ -24,17 +26,22 @@ export function ToolResultBlock({ toolOutput }: Props) {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-medium"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] font-medium text-left"
         style={{
           color: MUTED_TEXT,
           background: "var(--color-surface-secondary)",
         }}
       >
-        <span className="inline-flex items-center gap-2">
-          <span>{expanded ? "▾" : "▸"}</span>
-          <span>Output</span>
+        <span className="inline-flex items-center gap-2 min-w-0 flex-1">
+          <span className="shrink-0">{expanded ? "▾" : "▸"}</span>
+          <span className="shrink-0">Output</span>
+          {!expanded && preview && (
+            <span className="truncate" style={{ opacity: 0.55, fontFamily: "var(--font-mono)", fontSize: "9px" }}>
+              {preview}{preview.length < output.length ? "…" : ""}
+            </span>
+          )}
         </span>
-        <span className="tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
+        <span className="shrink-0 tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
       </button>
       {expanded && (
         <div

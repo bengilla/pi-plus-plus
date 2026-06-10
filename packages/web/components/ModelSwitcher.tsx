@@ -55,7 +55,7 @@ export function ModelSwitcher({ value, onChange }: Props) {
           No agents found
         </span>
         <span
-          className="text-[10px] px-1.5 py-0.5 rounded"
+          className="text-[10px] px-1.5 py-0.5"
           style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
         >
           Install one →
@@ -88,7 +88,7 @@ export function ModelSwitcher({ value, onChange }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none pl-2.5 pr-7 py-1 text-xs rounded-md cursor-pointer transition-colors"
+        className="appearance-none pl-2.5 pr-7 py-1 text-xs cursor-pointer transition-colors"
         style={{
           background: "var(--color-surface)",
           color: "var(--color-text)",

@@ -6,8 +6,7 @@ import type { DetectedAgent, DiscoveredAgent } from "./types";
 import { KNOWN_AGENTS } from "./registry";
 
 // ── Discovery ──────────────────────────────────────────────
-// Scans PATH and fallback locations for known agent binaries.
-// Returns only what's actually installed on this device.
+// Scans PATH and fallback locations for the Pi agent binary.
 
 const COMMON_BIN_DIRS = [
   "~/.local/bin",
@@ -21,12 +20,8 @@ const COMMON_BIN_DIRS = [
   "/bin",
 ];
 
-const DETECTABLE_AGENTS: { id: string; name: string; binary: string; description: string }[] = [
-  { id: "opencode", name: "OpenCode", binary: "opencode", description: "OpenCode CLI agent" },
-  { id: "gemini", name: "Gemini", binary: "gemini", description: "Google Gemini CLI agent" },
-  { id: "aider", name: "Aider", binary: "aider", description: "Aider coding assistant" },
-  { id: "cursor-agent", name: "Cursor Agent", binary: "cursor-agent", description: "Cursor command-line agent" },
-];
+// Only Pi is relevant; other agents have been removed.
+const DETECTABLE_AGENTS: { id: string; name: string; binary: string; description: string }[] = [];
 
 let cached: DiscoveredAgent[] | null = null;
 

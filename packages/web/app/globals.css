@@ -23,10 +23,10 @@
   --text-secondary: oklch(75% 0 0);
   --text-tertiary: oklch(75% 0 0);
 
-  /* Accent — cobalt blue */
-  --accent:        oklch(67% 0.13 245);
-  --accent-hover:  oklch(73% 0.13 245);
-  --accent-dim:    oklch(67% 0.13 245 / 0.13);
+  /* Accent — Pi green */
+  --accent:        oklch(72% 0.12 175);
+  --accent-hover:  oklch(78% 0.12 175);
+  --accent-dim:    oklch(72% 0.12 175 / 0.13);
 
   /* Semantic */
   --user-bg:       oklch(25% 0.018 245);
@@ -36,6 +36,7 @@
   --success:       oklch(62% 0.19 160);
   --warning:       oklch(70% 0.17 85);
   --error:         oklch(55% 0.22 20);
+  /* Kept for backward compat, unused in Pi-only mode */
   --agent-hermes-text: oklch(96% 0 0);
 
   /* Typography */
@@ -103,6 +104,7 @@
   --user-border:   oklch(84% 0.012 245);
   --tool-bg:       oklch(95% 0.004 260);
   --tool-border:   oklch(90% 0.003 260);
+  /* Kept for backward compat, unused in Pi-only mode */
   --agent-hermes-text: oklch(16% 0 0);
 
   --shadow-panel:   0 0.5px 2px rgba(0,0,0,0.06);
@@ -393,4 +395,10 @@ input[type="range"]::-moz-range-thumb {
     width: 280px !important;
     min-width: 280px !important;
   }
+}
+
+/* ── Pi splash animation ──────────────────────────────────── */
+@keyframes pi-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
 }

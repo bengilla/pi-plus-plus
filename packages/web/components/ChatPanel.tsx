@@ -26,6 +26,7 @@ interface Message {
   outputTokens?: number;
   cacheTokens?: number;
   durationSeconds?: number;
+  piSessionId?: string;
 }
 
 export interface ChatMessageSnapshot {
@@ -39,6 +40,7 @@ export interface ChatMessageSnapshot {
   outputTokens?: number;
   cacheTokens?: number;
   durationSeconds?: number;
+  piSessionId?: string;
 }
 
 function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
@@ -85,6 +87,7 @@ interface Props {
   activeAgent: string;
   agentName?: string;
   agentDescription?: string;
+  agentVersion?: string;
   conversationId?: string | null;
   workspace: string;
   initialMessages?: ChatMessageSnapshot[];
@@ -93,6 +96,8 @@ interface Props {
   thinkingLevels?: { value: string; label: string }[];
   onThinkingLevelChange?: (level: string) => void;
   language?: "en" | "zh";
+  modelVersion?: number;
+  sessionId?: string | null;
 }
 
 function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
@@ -114,6 +119,7 @@ export function ChatPanel({
   activeAgent,
   agentName,
   agentDescription,
+  agentVersion,
   conversationId,
   workspace,
   initialMessages,
@@ -122,6 +128,8 @@ export function ChatPanel({
   thinkingLevels = [],
   onThinkingLevelChange,
   language = "en",
+  modelVersion,
+  sessionId,
 }: Props) {
   const displayName = agentName ?? activeAgent;
   const zh = language === "zh";
@@ -148,15 +156,28 @@ export function ChatPanel({
   const streamBlocksRef = useRef<ContentBlock[]>([]);
   const streamThinkRef = useRef("");
   const streamThinkStartRef = useRef(0);
+  const streamModelRef = useRef("");
+  const streamProviderRef = useRef("");
+  const streamSessionRef = useRef("");
+  const [currentModel, setCurrentModel] = useState("");
+  const [currentProvider, setCurrentProvider] = useState("");
+  const [piSessionId, setPiSessionId] = useState<string | null>(sessionId || null);
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string; provider: string; thinking?: boolean }[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [inputDragOver, setInputDragOver] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Input history
+  const inputHistoryRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
 
   useEffect(() => {
     setMessages(toMessages(initialMessages));
-  }, [conversationId]);
+    setPiSessionId(sessionId || null);
+  }, [conversationId, sessionId]);
 
   // Report messages back to parent for conversation persistence
   const onSaveRef = useRef(onMessagesChange);
@@ -173,6 +194,7 @@ export function ChatPanel({
       outputTokens: m.outputTokens,
       cacheTokens: m.cacheTokens,
       durationSeconds: m.durationSeconds,
+      piSessionId: piSessionId || undefined,
     })));
   }, [messages]);
 
@@ -196,15 +218,43 @@ export function ChatPanel({
       if (streamTickRef.current !== streamTick) {
         setStreamTick(streamTickRef.current);
       }
+      // Capture model info when available
+      if (streamModelRef.current && currentModel !== streamModelRef.current) {
+        setCurrentModel(streamModelRef.current);
+      }
+      if (streamProviderRef.current && currentProvider !== streamProviderRef.current) {
+        setCurrentProvider(streamProviderRef.current);
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
     return () => { running = false; };
-  }, [streaming]);
+  }, [streaming, currentModel, currentProvider]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamTick]);
+
+  // Load Pi's default model on mount and when model changes in settings
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/pi/model").then((r) => r.json()),
+      fetch("/api/pi/models").then((r) => r.json()),
+    ])
+      .then(([modelData, modelsData]: [
+        { provider?: string; model?: string },
+        { models: { id: string; name: string; provider: string; enabled: boolean; thinking?: boolean }[]; defaultModel: string | null },
+      ]) => {
+        if (modelData.model) {
+          setCurrentModel(modelData.model);
+          setCurrentProvider(modelData.provider || "");
+          setSelectedModel(modelData.model);
+        }
+        // Only show scoped (enabled) models in the dropdown
+        setAvailableModels(modelsData.models.filter((m) => m.enabled));
+      })
+      .catch(() => {});
+  }, [modelVersion]);
 
   // Handle file selection from button
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,6 +374,9 @@ export function ChatPanel({
     streamBlocksRef.current = [];
     streamThinkRef.current = "";
     streamThinkStartRef.current = 0;
+    streamModelRef.current = "";
+    streamProviderRef.current = "";
+    streamSessionRef.current = "";
   }, [activeAgent]);
 
   const handleSend = async () => {
@@ -339,6 +392,11 @@ export function ChatPanel({
       attachments: attList.length > 0 ? attList : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
+    // Save to input history
+    if (text && text.length > 1) {
+      inputHistoryRef.current = [text, ...inputHistoryRef.current.filter(h => h !== text)].slice(0, 50);
+    }
+    historyIndexRef.current = -1;
     setInput("");
     if (briefMode) {
       setBriefDraft({ goal: "", plan: "", references: "", acceptance: "" });
@@ -353,6 +411,8 @@ export function ChatPanel({
     streamBlocksRef.current = [];
     streamThinkRef.current = "";
     streamThinkStartRef.current = 0;
+    streamModelRef.current = "";
+    streamProviderRef.current = "";
 
     // Build prompt with attachment references
     let prompt = text;
@@ -375,6 +435,8 @@ export function ChatPanel({
           prompt,
           workspace,
           thinkingLevel: thinkingLevel === "auto" ? undefined : thinkingLevel,
+          model: selectedModel || undefined,
+          sessionId: sessionId || undefined,
         }),
         signal: controller.signal,
       });
@@ -440,6 +502,13 @@ export function ChatPanel({
                 return;
               }
               if (parsed.type === "thinking") {
+                // Capture session/model/provider from first events
+                if (parsed.sessionId && !streamSessionRef.current) {
+                  streamSessionRef.current = parsed.sessionId;
+                  setPiSessionId(parsed.sessionId);
+                }
+                if (parsed.model) streamModelRef.current = parsed.model;
+                if (parsed.provider) streamProviderRef.current = parsed.provider;
                 // Accumulate thinking text for display
                 if (parsed.thinkingText) {
                   if (!streamThinkRef.current) {
@@ -610,10 +679,42 @@ export function ChatPanel({
       streamBlocksRef.current = [];
       streamThinkRef.current = "";
       streamThinkStartRef.current = 0;
+      streamModelRef.current = "";
+      streamProviderRef.current = "";
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Input history: up/down when cursor at start or end
+    const ta = textareaRef.current;
+    if (!mentionOpen && !briefMode && !streaming) {
+      if (e.key === "ArrowUp" && ta && ta.selectionStart === 0) {
+        e.preventDefault();
+        if (historyIndexRef.current < 0 && input.trim()) {
+          // Save current draft before navigating
+          inputHistoryRef.current = [input, ...inputHistoryRef.current];
+          historyIndexRef.current = 0;
+        }
+        const idx = historyIndexRef.current + 1;
+        if (idx < inputHistoryRef.current.length) {
+          historyIndexRef.current = idx;
+          setInput(inputHistoryRef.current[idx]);
+        }
+        return;
+      }
+      if (e.key === "ArrowDown" && historyIndexRef.current >= 0) {
+        e.preventDefault();
+        const idx = historyIndexRef.current - 1;
+        if (idx >= 0) {
+          historyIndexRef.current = idx;
+          setInput(inputHistoryRef.current[idx]);
+        } else {
+          historyIndexRef.current = -1;
+          setInput("");
+        }
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -650,6 +751,7 @@ export function ChatPanel({
             <WelcomeScreen
               agentName={displayName}
               agentDescription={agentDescription}
+              agentVersion={agentVersion}
               language={language}
               onStarterClick={(prompt) => {
                 setInput(prompt);
@@ -676,7 +778,7 @@ export function ChatPanel({
                     {msg.attachments.map((a) => (
                       <span
                         key={a.name}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px]"
                         style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
                       >
                         {a.type === "image" ? "🖼️" : "📎"} {a.name}
@@ -685,7 +787,7 @@ export function ChatPanel({
                   </div>
                 )}
                 <div
-                  className="text-sm leading-relaxed break-words rounded-md px-3 py-2"
+                  className="text-sm leading-relaxed break-words px-3 py-2"
                   style={{
                     color: msg.role === "error" ? "var(--error)" : "var(--text)",
                     background: msg.role === "user"
@@ -703,39 +805,71 @@ export function ChatPanel({
                   {msg.role === "error" ? (
                     `⚠️ ${msg.content}`
                   ) : msg.role === "assistant" && msg.blocks ? (
-                    msg.blocks.map((block, i) => {
-                      switch (block.type) {
-                        case "thinking":
-                          return (
-                            <ThinkingBlock
-                              key={i}
-                              content={block.content}
-                              duration={block.duration}
-                              defaultOpen={false}
-                            />
-                          );
-                        case "tool_use":
-                          return (
-                            <ToolCallBlock
-                              key={i}
-                              toolName={block.toolName}
-                              toolInput={block.toolInput}
-                              status={block.status}
-                            />
-                          );
-                        case "tool_result":
-                          return (
-                            <ToolResultBlock
-                              key={i}
-                              toolOutput={block.toolOutput}
-                            />
-                          );
-                        case "text":
-                          return <MarkdownBody key={i} content={block.content} />;
-                        default:
-                          return null;
+                    (() => {
+                      // Group consecutive tool blocks visually
+                      const groups: { type: "tool" | "text" | "think"; items: typeof msg.blocks }[] = [];
+                      for (const block of msg.blocks) {
+                        const isTool = block.type === "tool_use" || block.type === "tool_result";
+                        const category = isTool ? "tool" : block.type === "thinking" ? "think" : "text";
+                        const last = groups[groups.length - 1];
+                        if (last && last.type === category) {
+                          last.items.push(block);
+                        } else {
+                          groups.push({ type: category, items: [block] });
+                        }
                       }
-                    })
+                      return groups.map((group, gi) => {
+                        if (group.type === "tool") {
+                          return (
+                            <div
+                              key={`tool-group-${gi}`}
+                              className="my-1"
+                              style={{
+                                border: "1px solid var(--border-light)",
+                                background: "var(--bg)",
+                              }}
+                            >
+                              {group.items.map((block, i) => {
+                                switch (block.type) {
+                                  case "tool_use":
+                                    return (
+                                      <ToolCallBlock
+                                        key={i}
+                                        toolName={block.toolName}
+                                        toolInput={block.toolInput}
+                                        status={block.status}
+                                      />
+                                    );
+                                  case "tool_result":
+                                    return (
+                                      <ToolResultBlock
+                                        key={i}
+                                        toolOutput={block.toolOutput}
+                                      />
+                                    );
+                                  default:
+                                    return null;
+                                }
+                              })}
+                            </div>
+                          );
+                        }
+                        if (group.type === "think") {
+                          return group.items.map((block, i) => (
+                            <ThinkingBlock
+                              key={`think-${gi}-${i}`}
+                              content={block.type === "thinking" ? block.content : ""}
+                              duration={block.type === "thinking" ? block.duration : undefined}
+                              defaultOpen={false}
+                              level={thinkingLevel}
+                            />
+                          ));
+                        }
+                        return group.items.map((block, i) => (
+                          block.type === "text" ? <MarkdownBody key={`text-${gi}-${i}`} content={block.content} /> : null
+                        ));
+                      });
+                    })()
                   ) : (
                     <MarkdownBody content={msg.content} />
                   )}
@@ -750,8 +884,8 @@ export function ChatPanel({
                     )}
                     <button
                       onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
-                      style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                      style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent", opacity: 0.6 }}
                       title="Copy"
                       aria-label="Copy message"
                     >
@@ -769,8 +903,8 @@ export function ChatPanel({
                           textareaRef.current?.setSelectionRange(len, len);
                         }, 0);
                       }}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
-                      style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                      style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent", opacity: 0.6 }}
                       title="Edit"
                       aria-label="Edit message"
                     >
@@ -804,8 +938,8 @@ export function ChatPanel({
                     <span className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                        className="inline-flex h-5 w-5 items-center justify-center rounded hover:opacity-70 transition-opacity"
-                        style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
+                        className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent", opacity: 0.6 }}
                         title="Copy"
                         aria-label="Copy message"
                       >
@@ -839,40 +973,49 @@ export function ChatPanel({
                         : undefined
                     }
                     defaultOpen={false}
+                    level={thinkingLevel}
                   />
                 )}
-                {/* Real-time thinking / tool call / tool result blocks */}
-                {streamBlocksRef.current.map((block, i) => {
-                  switch (block.type) {
-                    case "thinking":
-                      return (
-                        <ThinkingBlock
-                          key={`think-${i}`}
-                          content={block.content}
-                          duration={block.duration}
-                          defaultOpen={false}
-                        />
-                      );
-                    case "tool_use":
-                      return (
-                        <ToolCallBlock
-                          key={`tool-${i}`}
-                          toolName={block.toolName || "…"}
-                          toolInput={block.toolInput}
-                          status={block.status}
-                        />
-                      );
-                    case "tool_result":
-                      return (
-                        <ToolResultBlock
-                          key={`result-${i}`}
-                          toolOutput={block.toolOutput}
-                        />
-                      );
-                    default:
-                      return null;
+                {/* Real-time tool / thinking blocks */}
+                {(() => {
+                  const blocks = streamBlocksRef.current;
+                  const groups: { type: "tool" | "think"; items: typeof blocks }[] = [];
+                  for (const block of blocks) {
+                    const isTool = block.type === "tool_use" || block.type === "tool_result";
+                    const category = isTool ? "tool" : "think";
+                    const last = groups[groups.length - 1];
+                    if (last && last.type === category) {
+                      last.items.push(block);
+                    } else {
+                      groups.push({ type: category, items: [block] });
+                    }
                   }
-                })}
+                  return groups.map((group, gi) => {
+                    if (group.type === "tool") {
+                      return (
+                        <div
+                          key={`tool-group-${gi}`}
+                          className="my-1"
+                          style={{ border: "1px solid var(--border-light)", background: "var(--bg)" }}
+                        >
+                          {group.items.map((block, i) => {
+                            switch (block.type) {
+                              case "tool_use":
+                                return <ToolCallBlock key={i} toolName={block.toolName || "…"} toolInput={block.toolInput} status={block.status} />;
+                              case "tool_result":
+                                return <ToolResultBlock key={i} toolOutput={block.toolOutput} />;
+                              default:
+                                return null;
+                            }
+                          })}
+                        </div>
+                      );
+                    }
+                    return group.items.map((block, i) => (
+                      block.type === "thinking" ? <ThinkingBlock key={`think-${gi}-${i}`} content={block.content} duration={block.duration} defaultOpen={false} level={thinkingLevel} /> : null
+                    ));
+                  });
+                })()}
                 {/* Streaming text */}
                 {streamContentRef.current && (
                   <div
@@ -922,7 +1065,7 @@ export function ChatPanel({
               {attachments.map((a) => (
                 <span
                   key={a.name}
-                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
+                  className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 text-xs"
                   style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
                 >
                   {a.type === "image" ? "🖼️" : "📎"} {a.name}
@@ -940,7 +1083,7 @@ export function ChatPanel({
 
           {/* @mention dropdown */}
           {mentionOpen && mentionResults.length > 0 && (
-            <div className="mb-1 rounded-md border overflow-hidden"
+            <div className="mb-1 border overflow-hidden"
               style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", boxShadow: "var(--shadow-overlay)" }}>
               {mentionResults.map((f, i) => (
                 <button
@@ -961,7 +1104,7 @@ export function ChatPanel({
           )}
 
           <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="inline-flex overflow-hidden rounded-md p-0.5 text-xs" style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}>
+            <div className="inline-flex overflow-hidden p-0.5 text-xs" style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}>
               {[
                 { value: false, label: zh ? "对话" : "Chat" },
                 { value: true, label: zh ? "计划" : "Brief" },
@@ -969,7 +1112,7 @@ export function ChatPanel({
                 <button
                   key={String(mode.value)}
                   onClick={() => setBriefMode(mode.value)}
-                  className="rounded px-2.5 py-1 transition-colors"
+                  className="px-2.5 py-1 transition-colors"
                   style={{
                     background: briefMode === mode.value ? "var(--bg-selected)" : "transparent",
                     color: briefMode === mode.value ? "var(--text)" : "var(--text-secondary)",
@@ -989,7 +1132,7 @@ export function ChatPanel({
 
           {briefMode ? (
             <div
-              className="grid gap-2 rounded-lg p-2.5"
+              className="grid gap-2 p-2.5"
               style={{
                 background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
                 border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
@@ -999,7 +1142,7 @@ export function ChatPanel({
                 value={briefDraft.goal}
                 onChange={(e) => setBriefDraft((prev) => ({ ...prev, goal: e.target.value }))}
                 placeholder={zh ? "目标：你希望 agent 完成什么？" : "Goal: what should the agent accomplish?"}
-                className="rounded-md px-2 py-1.5 text-sm outline-none"
+                className="px-2 py-1.5 text-sm outline-none"
                 style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
                 disabled={streaming}
               />
@@ -1008,7 +1151,7 @@ export function ChatPanel({
                 onChange={(e) => setBriefDraft((prev) => ({ ...prev, plan: e.target.value }))}
                 placeholder={zh ? "计划步骤：一行一项，比如\n1. 调整页面布局\n2. 加入参考 logo\n3. 完成后构建验证" : "Plan steps: one item per line, for example\nAdjust the layout\nUse the attached logo reference\nBuild and verify"}
                 rows={4}
-                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                className="resize-none px-2 py-1.5 text-sm outline-none"
                 style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
                 disabled={streaming}
               />
@@ -1017,7 +1160,7 @@ export function ChatPanel({
                 onChange={(e) => setBriefDraft((prev) => ({ ...prev, references: e.target.value }))}
                 placeholder={zh ? "参考链接 / LOGO / 图片说明：一行一个，可以贴网址或描述附件" : "References / logos / image notes: one per line, paste URLs or describe attachments"}
                 rows={2}
-                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                className="resize-none px-2 py-1.5 text-sm outline-none"
                 style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
                 disabled={streaming}
               />
@@ -1026,7 +1169,7 @@ export function ChatPanel({
                 onChange={(e) => setBriefDraft((prev) => ({ ...prev, acceptance: e.target.value }))}
                 placeholder={zh ? "验收标准：你希望最后满足哪些条件？一行一项" : "Acceptance criteria: what must be true at the end? One per line"}
                 rows={2}
-                className="resize-none rounded-md px-2 py-1.5 text-sm outline-none"
+                className="resize-none px-2 py-1.5 text-sm outline-none"
                 style={{ background: "var(--bg-input)", color: "var(--text)", border: "1px solid var(--border-light)" }}
                 disabled={streaming}
               />
@@ -1037,6 +1180,8 @@ export function ChatPanel({
               ref={textareaRef}
               onChange={(e) => {
                 setInput(e.target.value);
+                // Reset history index when user types manually
+                historyIndexRef.current = -1;
                 // @mention detection
                 const ta = e.target;
                 const cursor = ta.selectionStart;
@@ -1059,6 +1204,29 @@ export function ChatPanel({
                   setMentionOpen(false);
                 }
               }}
+              onPaste={(e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                let handled = false;
+                for (let i = 0; i < items.length; i++) {
+                  const item = items[i];
+                  if (item.type.startsWith("image/")) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) {
+                      setAttachments((prev) => {
+                        if (prev.some((a) => a.name === file.name)) return prev;
+                        return [...prev, { name: file.name, path: file.name, type: "image" }];
+                      });
+                    }
+                    handled = true;
+                  }
+                }
+                if (handled) return;
+                // For text paste with images, let default behavior insert text
+                // reset history when pasting
+                setTimeout(() => { historyIndexRef.current = -1; }, 0);
+              }}
               onKeyDown={(e) => {
                 if (mentionOpen) {
                   if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
@@ -1070,7 +1238,7 @@ export function ChatPanel({
               }}
               placeholder={zh ? `问 ${displayName}...` : `Ask ${displayName}...`}
               rows={3}
-              className="w-full resize-none rounded-lg p-3 text-sm outline-none transition-colors"
+              className="w-full resize-none p-3 text-sm outline-none transition-colors"
               style={{
                 background: inputDragOver ? "var(--color-accent-dim)" : "var(--bg-input)",
                 color: "var(--color-text)",
@@ -1086,10 +1254,10 @@ export function ChatPanel({
               {/* Attach button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)]"
+                className="flex h-7 w-7 items-center justify-center transition-colors hover:bg-[var(--accent-dim)]"
                 style={{
-                  color: "var(--color-text-secondary)",
-                  border: "1px solid var(--border-light)",
+                  color: "var(--accent)",
+                  background: "transparent",
                 }}
                 disabled={streaming}
                 title={zh ? "添加附件" : "Attach"}
@@ -1108,35 +1276,113 @@ export function ChatPanel({
                 onChange={handleFileSelect}
                 accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
               />
+              <span className="shrink-0 w-px h-4 mx-1.5" style={{ background: "var(--accent)" }} />
               {thinkingLevels.length > 1 && onThinkingLevelChange && (
-                <label className="flex min-w-0 items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                  <span className="shrink-0">{zh ? "思考" : "Thinking"}</span>
-                  <select
-                    value={thinkingLevel}
-                    onChange={(e) => onThinkingLevelChange(e.target.value)}
-                    className="max-w-[112px] rounded-md px-2 py-1 text-[11px] outline-none"
-                    style={{
-                      background: "var(--bg)",
-                      color: "var(--text)",
-                      border: "1px solid var(--border)",
-                    }}
-                    disabled={streaming}
-                    title={zh ? "思考级别" : "Thinking level"}
-                  >
-                    {thinkingLevels.map((level) => (
-                      <option key={level.value} value={level.value}>
-                        {level.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="flex items-center gap-1.5">
+                  <span className="pr-1 text-[10px] shrink-0" style={{ color: "var(--accent)", borderBottom: "1px solid var(--accent)" }}>
+                    {zh ? "思考" : "Think"}
+                  </span>
+                  {thinkingLevels.map((level) => {
+                    const isActive = thinkingLevel === level.value;
+                    const abbr = level.label.length > 4 ? level.label.slice(0, 4) : level.label;
+                    return (
+                      <button
+                        key={level.value}
+                        onClick={() => onThinkingLevelChange(level.value)}
+                        disabled={streaming}
+                        className="px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50"
+                        style={{
+                          background: isActive ? "transparent" : "transparent",
+                          color: isActive ? "var(--accent)" : "var(--text-tertiary)",
+                          border: isActive ? "1px solid var(--accent)" : "1px solid transparent",
+                        }}
+                        title={level.label}
+                      >
+                        {abbr}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Model selector */}
+              {currentModel && (
+                <>
+                  <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
+                  <div className="relative">
+                    <button
+                      onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                      disabled={streaming}
+                      className="shrink-0 text-[10px] max-w-[140px] px-1 py-0.5 transition-colors hover:opacity-70 disabled:opacity-50 flex items-center"
+                      style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}
+                      title={`${currentProvider}/${currentModel}`}
+                    >
+                      <span className="truncate">
+                        {(selectedModel || currentModel).includes("/")
+                        ? (selectedModel || currentModel).split("/").pop()
+                        : (selectedModel || currentModel)}
+                      </span>
+                      <span className="ml-1.5 text-[8px] shrink-0" style={{ color: "var(--accent)" }}>▼</span>
+                    </button>
+                    {modelDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
+                        <div
+                          className="absolute bottom-full left-0 mb-1 z-40 min-w-[200px] max-h-[280px] overflow-y-auto p-1"
+                          style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
+                        >
+                          {(() => {
+                            const grouped = new Map<string, typeof availableModels>();
+                            for (const m of availableModels) {
+                              const list = grouped.get(m.provider) || [];
+                              list.push(m);
+                              grouped.set(m.provider, list);
+                            }
+                            return [...grouped.entries()].map(([provider, providerModels]) => (
+                              <div key={provider}>
+                                <div className="text-[9px] px-2 py-1 font-semibold uppercase" style={{ color: "var(--accent)" }}>
+                                  {provider}
+                                </div>
+                                {providerModels.map((m) => {
+                                  const isActive = (selectedModel || currentModel) === m.id;
+                                  return (
+                                    <button
+                                      key={m.id}
+                                      onClick={() => {
+                                        setSelectedModel(m.id);
+                                        setCurrentModel(m.id);
+                                        setCurrentProvider(m.provider);
+                                        setModelDropdownOpen(false);
+                                        // Persist to settings
+                                        fetch("/api/pi/models", {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ model: m.id }),
+                                        }).catch(() => {});
+                                      }}
+                                      className="w-full text-left px-2 py-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
+                                      style={{ color: isActive ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-mono)" }}
+                                    >
+                                      {m.name}
+                                      {m.thinking && <span className="ml-1 text-[8px]" style={{ color: "var(--text-tertiary)" }}>🧠</span>}
+                                      {isActive && <span className="ml-1">✓</span>}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
             </div>
             {streaming ? (
               <button
                 onClick={handleStop}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:opacity-80"
-                style={{ background: "var(--text)", color: "var(--bg)" }}
+                className="inline-flex h-8 w-8 items-center justify-center transition-colors hover:opacity-80"
+                style={{ background: "transparent", color: "var(--accent)", border: "1px solid var(--accent)" }}
                 title={zh ? "停止" : "Stop"}
                 aria-label={zh ? "停止" : "Stop"}
               >
@@ -1148,11 +1394,12 @@ export function ChatPanel({
               <button
                 onClick={handleSend}
                 disabled={!canSend}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center transition-colors"
                 style={{
-                  background: canSend ? "var(--text)" : "var(--border)",
-                  color: canSend ? "var(--bg)" : "var(--color-text-secondary)",
-                  opacity: canSend ? 1 : 0.5,
+                  background: "transparent",
+                  color: canSend ? "var(--accent)" : "var(--text-tertiary)",
+                  border: canSend ? "1px solid var(--accent)" : "1px solid var(--border-light)",
+                  opacity: canSend ? 1 : 0.4,
                 }}
                 title={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}
                 aria-label={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}

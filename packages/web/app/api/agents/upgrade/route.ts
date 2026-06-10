@@ -21,35 +21,8 @@ export async function POST(request: Request) {
 
   const detected = detectInstalledAgents({ refresh: true }).find((agent) => agent.id === agentId);
   const definition = getDefinition(agentId);
-  if (!detected || (!definition?.packageName && agentId !== "hermes")) {
+  if (!detected || !definition?.packageName) {
     return NextResponse.json({ error: "Agent does not support upgrade checks yet" }, { status: 400 });
-  }
-
-  if (agentId === "hermes") {
-    const args = action === "check" ? ["update", "--check"] : ["update", "--yes"];
-    try {
-      const { stdout, stderr } = await execFileAsync(detected.path, args, {
-        timeout: action === "check" ? 60_000 : 240_000,
-        maxBuffer: 1024 * 1024,
-      });
-      const output = `${stdout}\n${stderr}`.trim();
-      const refreshed = detectInstalledAgents({ refresh: true }).find((agent) => agent.id === agentId);
-      return NextResponse.json({
-        agentId,
-        currentVersion: detected.version,
-        latestVersion: action === "upgrade" ? refreshed?.version : undefined,
-        updateAvailable: /update available|can update|behind|new version/i.test(output),
-        upgraded: action === "upgrade",
-        manager: "hermes",
-        command: `${detected.path} ${args.join(" ")}`,
-        output: output.slice(-4000),
-      });
-    } catch (e) {
-      const err = e as { stdout?: string; stderr?: string; message?: string };
-      return NextResponse.json({
-        error: `${err.stdout ?? ""}\n${err.stderr ?? err.message ?? "Hermes update failed"}`.trim(),
-      }, { status: 500 });
-    }
   }
 
   const packageName = definition?.packageName;
