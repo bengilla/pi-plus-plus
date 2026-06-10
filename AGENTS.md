@@ -77,11 +77,14 @@ npm run start         # Production server
 
 Pi CLI has features that agents-web doesn't implement yet. Listed by priority:
 
-### 1. Session Tree / Branching
-Pi's `/tree`, `/fork`, `/clone` let you navigate a tree of conversation branches, fork from any point, and switch between branches — all in a single `.jsonl` file. agents-web only lists sessions flat, can't visualize or navigate the tree.
+### 1. ✅ Session Tree / Branching
+Pi's `/tree`, `/fork`, `/clone` let you navigate a tree of conversation branches, fork from any point, and switch between branches — all in a single `.jsonl` file.
 
-**Pi events:** `turn_start`/`turn_end` structure the conversation turns; `/tree` is an interactive TUI.
-**What's needed:** Parse `parentId` from session files, render a tree view, support branching.
+**Implemented:**
+- `GET /api/pi/session/tree?id=X&workspace=Y` — parses `.jsonl` file by `id`/`parentId`, returns hierarchical tree with summaries
+- `POST /api/pi/sessions` (action: `branch`) — calls `pi --fork` to create branched session
+- `SessionTreeView` component: collapsible tree with role-colored dots, leaf highlight, Branch button on hover
+- Integrated into Settings → 会话 → View button
 
 ### 2. Compaction (Context Compression)
 `/compact` summarizes older messages when the context window fills up. Pi also does auto-compaction on overflow. agents-web has no compaction — long conversations hit token limits.
@@ -116,6 +119,30 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 `pi --export <id> [out]` exports a session to HTML. agents-web has no export feature.
 
 **What's needed:** Export button that calls `pi --export` and serves the HTML file.
+
+## Changelog
+
+### 2026-06-10 — Package Mgmt + Session Tree + Major Refactor
+
+**New features:**
+- Package management UI (Settings → 包) — install/remove/update Pi packages
+- Session tree viewer — hierarchical view of Pi session branches
+
+**Refactoring:**
+- `ChatPanel` 1418→875 lines — extracted `ChatInput` component (textarea, attachments, brief mode, @mentions, input history)
+- Extracted `useConversations` and `useSettings` hooks from `page.tsx` (584→444 lines)
+- Shared Prism config (`lib/utils/prism.ts`) — Editor now has syntax highlight preview
+
+**Bug fixes:**
+- Tool execution events were silently dropped: `done` event in `factory.ts` + `route.ts` both cut the stream before `tool_execution_*` events arrived
+- Tool call blocks duplicated: `toolcall_end` and `tool_execution_start` used different IDs
+- Token count double-counted: every message counted as both input AND output
+
+**Other:**
+- E2E tests rewritten for Pi-only
+- Removed `@lobehub/icons`, `simple-git` deps; cleaned dead code
+- Agent description i18n (EN/ZH)
+- React.memo on ThinkingBlock/ToolCallBlock/ToolResultBlock
 
 ## Environment
 
