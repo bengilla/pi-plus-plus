@@ -127,8 +127,11 @@ export function ChatPanel({
   const [availableModels, setAvailableModels] = useState<{ id: string; name: string; provider: string; thinking?: boolean }[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const isNearBottomRef = useRef(true);
+  const scrollThreshold = 150; // px from bottom to consider "near bottom"
 
   useEffect(() => {
     setMessages(toMessages(initialMessages));
@@ -185,9 +188,23 @@ export function ChatPanel({
     return () => { running = false; };
   }, [streaming, currentModel, currentProvider]);
 
+  // Track scroll position — user can scroll up freely during streaming
+  const updateNearBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < scrollThreshold;
+  }, []);
+
+  // Only auto-scroll if user is already near bottom; always scroll when streaming ends
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamTick]);
+    if (!streaming && isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamTick, streaming]);
 
   // Load Pi's default model on mount and when model changes in settings
   useEffect(() => {
@@ -217,7 +234,35 @@ export function ChatPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agent: activeAgent }),
     }).catch(() => {});
+
+    // Capture partial content before clearing refs
+    const partialContent = streamContentRef.current;
+    const partialBlocks = [...streamBlocksRef.current];
+    const partialInputTokens = streamInputTokensRef.current;
+    const partialOutputTokens = streamOutputTokensRef.current;
+    const partialCacheTokens = streamCacheTokensRef.current;
+
     setStreaming(false);
+    if (partialContent.trim() || partialBlocks.length > 0) {
+      const blocks: ContentBlock[] = [...partialBlocks];
+      if (partialContent.trim()) {
+        blocks.push({ type: "text", content: partialContent });
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: partialContent,
+          id: Date.now().toString(),
+          createdAt: Date.now(),
+          blocks: blocks.length > 0 ? blocks : undefined,
+          inputTokens: partialInputTokens || undefined,
+          outputTokens: partialOutputTokens || undefined,
+          cacheTokens: partialCacheTokens || undefined,
+        },
+      ]);
+    }
+
     streamContentRef.current = "";
     streamOutputTokensRef.current = 0;
     streamInputTokensRef.current = 0;
@@ -229,7 +274,7 @@ export function ChatPanel({
     streamModelRef.current = "";
     streamProviderRef.current = "";
     streamSessionRef.current = "";
-  }, [activeAgent]);
+  }, [activeAgent, setMessages]);
 
   const handleSend = useCallback(async (text: string, attachments: Attachment[]) => {
     // Build prompt with attachment references
@@ -505,9 +550,9 @@ export function ChatPanel({
           id: Date.now().toString(),
           createdAt: Date.now(),
           blocks: blocks.length > 0 ? blocks : undefined,
-          inputTokens: streamInputTokensRef.current || undefined,
-          outputTokens: streamOutputTokensRef.current || undefined,
-          cacheTokens: streamCacheTokensRef.current || undefined,
+          inputTokens: streamInputTokensRef.current != null ? streamInputTokensRef.current : undefined,
+          outputTokens: streamOutputTokensRef.current != null ? streamOutputTokensRef.current : undefined,
+          cacheTokens: streamCacheTokensRef.current != null ? streamCacheTokensRef.current : undefined,
           durationSeconds: (Date.now() - responseStartedAt) / 1000,
         },
       ]);
@@ -644,7 +689,7 @@ export function ChatPanel({
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5" onScroll={updateNearBottom}>
         <div className="mx-auto flex w-full max-w-[880px] flex-col gap-5">
           {messages.length === 0 && !streaming && (
             <WelcomeScreen
@@ -668,7 +713,7 @@ export function ChatPanel({
                 paddingTop: startsTurn ? "22px" : undefined,
               }}
             >
-              <div className={msg.role === "user" ? "group max-w-[76%]" : "w-full max-w-[820px]"}>
+              <div className={msg.role === "user" ? "group max-w-[76%]" : "w-full"}>
                 {/* Attachments in user message */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="mb-1.5 flex flex-wrap justify-end gap-1">
@@ -765,8 +810,8 @@ export function ChatPanel({
                     )}
                     <button
                       onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
-                      style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent", opacity: 0.6 }}
+                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
+                      style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
                       title="Copy"
                       aria-label="Copy message"
                     >
@@ -800,8 +845,8 @@ export function ChatPanel({
                     <span className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                        className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent", opacity: 0.6 }}
+                        className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
+                        style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
                         title="Copy"
                         aria-label="Copy message"
                       >
@@ -824,7 +869,7 @@ export function ChatPanel({
           {/* Streaming */}
           {streaming && (
             <div className="fade-in flex justify-start">
-              <div className="w-full max-w-[820px] px-3 py-2">
+              <div className="w-full px-3 py-2">
                 {streamThinkRef.current.trim() && (
                   <ThinkingBlock
                     content={streamThinkRef.current}

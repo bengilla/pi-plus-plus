@@ -332,7 +332,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                       <button
                         onClick={() => navigator.clipboard.writeText(content).catch(() => {})}
                         className="inline-flex h-6 w-6 items-center justify-center transition-colors hover:bg-[var(--bg-hover)]"
-                        style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.25)" }}
+                        style={{ color: "oklch(68% 0.15 55)" }}
                         title={zh ? "复制" : "Copy"}
                         aria-label={zh ? "复制" : "Copy"}
                       >

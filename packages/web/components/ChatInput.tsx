@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, type DragEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type DragEvent } from "react";
 import { flattenFiles } from "@/lib/utils/chat";
 
 // ── Types ────────────────────────────────────────────────────
@@ -44,10 +44,39 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
   const [mentionSelected, setMentionSelected] = useState(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [inputDragOver, setInputDragOver] = useState(false);
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputHistoryRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
+  const composingRef = useRef(false);
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // ── Panel drag resize ────────────────────────────────────
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      e.preventDefault();
+      // Invert: dragging UP (decreasing Y) should make panel taller
+      const dh = dragRef.current.startY - e.clientY;
+      setPanelHeight(Math.max(180, dragRef.current.startH + dh));
+    };
+    const onMouseUp = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = panelRef.current;
+    if (!el) return;
+    dragRef.current = { startY: e.clientY, startH: el.offsetHeight };
+  }, []);
 
   // ── Helpers ─────────────────────────────────────────────────
 
@@ -173,7 +202,9 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
       }, 0);
       return;
     }
+    // Don't send on Enter during IME composition (Chinese pinyin, Japanese, etc.)
     if (e.key === "Enter" && !e.shiftKey) {
+      if (composingRef.current) return;
       e.preventDefault();
       handleSend();
     }
@@ -272,13 +303,43 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
 
   return (
     <div
-      className="shrink-0 border-t px-5 py-3"
-      style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
-      onDragOver={handleInputDragOver}
-      onDragLeave={handleInputDragLeave}
-      onDrop={handleInputDrop}
+      ref={panelRef}
+      className="shrink-0 flex flex-col"
+      style={{
+        borderTop: "1px solid var(--border)",
+        background: "var(--bg-panel)",
+        height: panelHeight ?? undefined,
+      }}
     >
-      <div className="mx-auto w-full max-w-[880px]">
+      {/* Drag handle */}
+      <div
+        onMouseDown={handleDragStart}
+        className="shrink-0 cursor-row-resize"
+        style={{
+          height: "4px",
+          background: "transparent",
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: "1px 0",
+            background: "var(--border)",
+            opacity: 0.3,
+            transition: "opacity 0.15s",
+          }}
+          className="hover:opacity-100"
+        />
+      </div>
+
+      <div
+        className="flex-1 min-h-0 overflow-y-auto px-5 py-3 flex flex-col"
+        onDragOver={handleInputDragOver}
+        onDragLeave={handleInputDragLeave}
+        onDrop={handleInputDrop}
+      >
+        <div className="mx-auto w-full max-w-[880px] flex flex-col flex-1 min-h-0">
         {/* Attachment bar */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -517,6 +578,8 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                 setMentionOpen(false);
               }
             }}
+            onCompositionStart={() => { composingRef.current = true; }}
+            onCompositionEnd={() => { composingRef.current = false; }}
             onPaste={(e) => {
               const items = e.clipboardData?.items;
               if (!items) return;
@@ -573,6 +636,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
             rows={3}
             className="w-full resize-none p-3 text-sm outline-none transition-colors"
             style={{
+              flex: "1",
               background: inputDragOver
                 ? "var(--color-accent-dim)"
                 : "var(--bg-input)",
@@ -650,6 +714,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
               </button>
             )}
           </div>
+        </div>
         </div>
       </div>
     </div>

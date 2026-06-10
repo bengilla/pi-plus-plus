@@ -9,6 +9,9 @@ export interface ConvInfo {
   agentId: string;
   createdAt: number;
   totalTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
 }
 
 interface AgentInfo {
@@ -113,6 +116,63 @@ export function Sidebar({
 
       {/* ── Explorer ──────────────────────────────────────── */}
       <div className="border-b shrink-0 px-2 py-2" style={{ borderColor: "var(--border)" }}>
+        {/* Project selector — always visible, not collapsible */}
+        <div className="p-2 mb-2" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+              {zh ? "当前项目" : "Current project"}
+            </span>
+            {workspace && (
+              <span className="truncate text-[10px]" style={{ color: "var(--text-secondary)" }}>
+                {folderName}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <select
+              value={workspace}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "__custom__") { setShowCustom(true); }
+                else if (val) { onWorkspaceChange(val); }
+              }}
+              className="flex-1 w-0 pl-2 pr-5 py-1.5 cursor-pointer appearance-none truncate"
+              style={{
+                background: "var(--bg-panel)", color: "var(--text)",
+                border: "1px solid var(--border)", fontSize: "var(--text-xs)",
+                fontFamily: "var(--font-mono)",
+              }}
+            >
+              <option value="" disabled>{zh ? "选择工作区..." : "Select workspace..."}</option>
+              {options.map((w) => (
+                <option key={w.path} value={w.path}>{w.label}</option>
+              ))}
+              <option value="__custom__">{zh ? "+ 自定义路径..." : "+ Custom path..."}</option>
+            </select>
+          </div>
+          {showCustom && (
+            <div className="mt-1.5 flex gap-1">
+              <input type="text" value={customPath} onChange={(e) => setCustomPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customPath.trim()) { onWorkspaceChange(customPath.trim()); setShowCustom(false); setCustomPath(""); }
+                  if (e.key === "Escape") { setShowCustom(false); setCustomPath(""); }
+                }}
+                placeholder="/path/to/folder"
+                className="flex-1 px-2 py-1 outline-none"
+                style={{
+                  background: "var(--bg)", color: "var(--text)",
+                  border: "1px solid var(--border)", fontSize: "var(--text-xs)",
+                  fontFamily: "var(--font-mono)",
+                }}
+                spellCheck={false} autoFocus
+              />
+              <button onClick={() => { setShowCustom(false); setCustomPath(""); }}
+                className="px-2 py-1 text-xs" style={{ color: "var(--text-secondary)" }}>✕</button>
+            </div>
+          )}
+        </div>
+
+        {/* File tree — collapsible */}
         <div className="flex items-center justify-between mb-2">
           <button
             onClick={() => setExplorerOpen(!explorerOpen)}
@@ -120,81 +180,39 @@ export function Sidebar({
             style={{ color: "var(--text-tertiary)" }}
           >
             <span className="text-[8px]" style={{ color: "var(--accent)" }}>{explorerOpen ? "▼" : "▶"}</span>
-            {zh ? "文件" : "Explorer"}
+            {zh ? "文件" : "Files"}
           </button>
-          {workspace && (
-            <span className="max-w-[120px] truncate text-[10px]" style={{ color: "var(--text-secondary)" }}>
-              {folderName}
-            </span>
-          )}
+          {workspace && (() => {
+            const parent = workspace.replace(/\/+$/, "").replace(/\/[^\/]+$/, "");
+            if (!parent) return null;
+            return (
+              <button
+                onClick={() => onWorkspaceChange(parent)}
+                className="shrink-0 text-[11px] px-1 py-0.5 transition-colors hover:opacity-80"
+                style={{ color: "var(--accent)", background: "transparent" }}
+                title={zh ? "上级目录" : "Parent directory"}
+              >
+                ←
+              </button>
+            );
+          })()}
         </div>
         {explorerOpen && (
-          <div className="space-y-2">
-            <div className="p-2" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-                  {zh ? "当前项目" : "Current project"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <select
-                  value={workspace}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === "__custom__") { setShowCustom(true); }
-                    else if (val) { onWorkspaceChange(val); }
-                  }}
-                  className="flex-1 w-0 pl-2 pr-5 py-1.5 cursor-pointer appearance-none truncate"
-                  style={{
-                    background: "var(--bg-panel)", color: "var(--text)",
-                    border: "1px solid var(--border)", fontSize: "var(--text-xs)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  <option value="" disabled>{zh ? "选择工作区..." : "Select workspace..."}</option>
-                  {options.map((w) => (
-                    <option key={w.path} value={w.path}>{w.label}</option>
-                  ))}
-                  <option value="__custom__">{zh ? "+ 自定义路径..." : "+ Custom path..."}</option>
-                </select>
-              </div>
-              {showCustom && (
-                <div className="mt-1.5 flex gap-1">
-                  <input type="text" value={customPath} onChange={(e) => setCustomPath(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && customPath.trim()) { onWorkspaceChange(customPath.trim()); setShowCustom(false); setCustomPath(""); }
-                      if (e.key === "Escape") { setShowCustom(false); setCustomPath(""); }
-                    }}
-                    placeholder="/path/to/folder"
-                    className="flex-1 px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg)", color: "var(--text)",
-                      border: "1px solid var(--border)", fontSize: "var(--text-xs)",
-                      fontFamily: "var(--font-mono)",
-                    }}
-                    spellCheck={false} autoFocus
-                  />
-                  <button onClick={() => { setShowCustom(false); setCustomPath(""); }}
-                    className="px-2 py-1 text-xs" style={{ color: "var(--text-secondary)" }}>✕</button>
-                </div>
-              )}
+          workspace ? (
+            <div
+              className="max-h-[34vh] overflow-y-auto"
+              style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+            >
+              <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} language={language} />
             </div>
-            {workspace ? (
-              <div
-                className="max-h-[34vh] overflow-y-auto"
-                style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
-              >
-                <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} language={language} />
-              </div>
-            ) : (
-              <div
-                className="px-3 py-4 text-center text-xs"
-                style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
-              >
-                {zh ? "选择一个项目来浏览文件" : "Choose a project to browse files"}
-              </div>
-            )}
-          </div>
+          ) : (
+            <div
+              className="px-3 py-4 text-center text-xs"
+              style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
+            >
+              {zh ? "选择一个项目来浏览文件" : "Choose a project to browse files"}
+            </div>
+          )
         )}
       </div>
 
@@ -245,66 +263,72 @@ export function Sidebar({
               conversations.map((c) => (
                 <div
                   key={c.id}
-                  className="group flex items-center gap-2 px-2.5 py-2 transition-colors hover:bg-[var(--bg-hover)]"
+                  className="group cursor-pointer rounded-md px-3 py-2.5 transition-all duration-75 hover:bg-[var(--bg-hover)]"
+                  onClick={() => onSelectConversation(c.id)}
                   style={{
-                    color: "var(--text)",
-                    background: c.id === activeConvId ? "var(--bg-selected)" : "transparent",
-                    border: c.id === activeConvId ? "1px solid var(--border-light)" : "1px solid transparent",
+                    background: c.id === activeConvId ? "var(--bg-selected)" : undefined,
+                    borderLeft: c.id === activeConvId ? "2px solid var(--accent)" : "2px solid transparent",
                   }}
                 >
-                  <div className="min-w-0 flex-1">
-                    {editingConvId === c.id ? (
-                      <input
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") finishConversationEdit();
-                          if (e.key === "Escape") {
-                            setEditingConvId(null);
-                            setEditingTitle("");
-                          }
-                        }}
-                        onBlur={finishConversationEdit}
-                        className="block w-full px-1 py-0.5 text-xs font-medium outline-none"
-                        style={{ background: "var(--bg)", color: "var(--accent)", border: "1px solid var(--accent)" }}
-                        autoFocus
-                        spellCheck={false}
-                      />
-                    ) : (
-                      <button
-                        onClick={() => onSelectConversation(c.id)}
-                        className="block w-full truncate text-left text-xs font-medium"
-                      >
-                        {c.title}
-                      </button>
-                    )}
-                    <span className="mt-1 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                      <span style={{ fontFamily: "var(--font-mono)" }}>
-                        {(c.totalTokens ?? 0) >= 1000 ? `${((c.totalTokens ?? 0) / 1000).toFixed(1)}k` : (c.totalTokens ?? 0)} token
-                      </span>
-                      <span>·</span>
-                      <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
-                      className="px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
-                      style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
-                      title={zh ? "编辑" : "Edit"}
-                    >
-                      {zh ? "编辑" : "Edit"}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
-                      className="px-1.5 py-0.5 text-[10px] font-medium transition-colors hover:bg-[var(--bg-selected)]"
-                      style={{ color: "var(--error)", border: "1px solid oklch(55% 0.22 20 / 0.25)" }}
-                      title={zh ? "删除" : "Delete"}
-                    >
-                      {zh ? "删除" : "Delete"}
-                    </button>
-                  </div>
+                  {editingConvId === c.id ? (
+                    <input
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") finishConversationEdit();
+                        if (e.key === "Escape") {
+                          setEditingConvId(null);
+                          setEditingTitle("");
+                        }
+                      }}
+                      onBlur={finishConversationEdit}
+                      className="block w-full px-1 py-0.5 text-xs font-medium outline-none"
+                      style={{ background: "var(--bg)", color: "var(--accent)", border: "1px solid var(--accent)" }}
+                      autoFocus
+                      spellCheck={false}
+                    />
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className="truncate text-xs font-medium"
+                          style={{ color: c.id === activeConvId ? "var(--accent)" : "var(--text)" }}
+                        >
+                          {c.title}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                          <span style={{ fontFamily: "var(--font-mono)" }}>
+                            <span style={{ color: "var(--accent)" }}>↑</span>{((c.inputTokens ?? 0) >= 1000 ? `${((c.inputTokens ?? 0) / 1000).toFixed(1)}k` : (c.inputTokens ?? 0))}
+                            {' '}<span style={{ color: "var(--accent)" }}>↓</span>{((c.outputTokens ?? 0) >= 1000 ? `${((c.outputTokens ?? 0) / 1000).toFixed(1)}k` : (c.outputTokens ?? 0))}
+                            {(c.cacheTokens ?? 0) > 0 && <>
+                              {' '}<span style={{ color: "var(--accent)" }}>⚡</span>{((c.cacheTokens ?? 0) >= 1000 ? `${((c.cacheTokens ?? 0) / 1000).toFixed(1)}k` : (c.cacheTokens ?? 0))}
+                            </>}
+                          </span>
+                          <span>·</span>
+                          <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
+                          className="px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+                          title={zh ? "编辑" : "Edit"}
+                        >
+                          {zh ? "编辑" : "Edit"}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                          className="px-1.5 py-0.5 text-[10px] font-medium"
+                          style={{ color: "var(--error)", border: "1px solid oklch(55% 0.22 20 / 0.25)" }}
+                          title={zh ? "删除" : "Delete"}
+                        >
+                          {zh ? "删除" : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}

@@ -124,6 +124,17 @@ function extractContentText(content: unknown): string {
   return "";
 }
 
+/** Extract tool call info (id + name) from a partial.content array, if present */
+function extractToolCallFromPartial(content: unknown): { id?: string; name?: string } | null {
+  if (!Array.isArray(content)) return null;
+  for (const item of content) {
+    if (item?.type === "toolCall") {
+      return { id: item.id, name: item.name };
+    }
+  }
+  return null;
+}
+
 /** Parse Pi JSON Lines output (pi --mode json) */
 export function parsePiLine(line: string): AgentEvent | null {
   if (!line.trim()) return null;
@@ -148,43 +159,49 @@ export function parsePiLine(line: string): AgentEvent | null {
         case "thinking_end":
           // Thinking block complete — no visible content to emit
           return null;
-        case "toolcall_start":
-          // Tool call starting — allocate an id from contentIndex, name unknown yet
+        case "toolcall_start": {
+          // Tool call starting — try to extract actual name/id from partial.content
+          const partialInfo = extractToolCallFromPartial(ame.partial?.content);
           return {
             type: "tool_use",
-            toolId: `call_${ame.contentIndex}`,
-            toolName: "",
+            toolId: partialInfo?.id ?? `call_${ame.contentIndex}`,
+            toolName: partialInfo?.name ?? "",
             toolInput: {},
           };
-        case "toolcall_delta":
-          // Partial JSON arguments streamed token-by-token
+        }
+        case "toolcall_delta": {
+          // Partial JSON arguments streamed token-by-token.
+          // Extract real ID from partial.content too in case toolcall_start already
+          // emitted with the real ID (so delta's ID matches).
+          const partialInfo = extractToolCallFromPartial(ame.partial?.content);
           return {
             type: "tool_use",
-            toolId: `call_${ame.contentIndex}`,
+            toolId: partialInfo?.id ?? `call_${ame.contentIndex}`,
             toolInput: { __partial: ame.delta },
           };
+        }
         case "toolcall_end": {
-          // Tool call complete — emit full tool_use with name + parsed arguments.
-          // Use contentIndex as ID (same as toolcall_start/toolcall_delta) so
-          // the client can update the placeholder block created by toolcall_start.
+          // Tool call complete — emit full tool_use with the **real** toolCall id,
+          // which matches what tool_execution_start will use.
           const tc = ame.toolCall;
           if (!tc) return null;
           return {
             type: "tool_use",
-            toolId: `call_${ame.contentIndex}`,
+            toolId: tc.id ?? `call_${ame.contentIndex}`,
             toolName: tc.name ?? "",
             toolInput: (tc.arguments ?? {}) as Record<string, unknown>,
           };
         }
         case "done": {
           // Message complete — extract usage from the message
+          // Anthropic SDK uses snake_case (input_tokens, output_tokens).
           const msg = ame.message || evt.message;
           const usage = msg?.usage;
           return {
             type: "done",
-            inputTokens: usage?.inputTokens,
-            outputTokens: usage?.outputTokens,
-            cacheTokens: (usage?.cacheReadInputTokens ?? 0) + (usage?.cacheCreationInputTokens ?? 0) || undefined,
+            inputTokens: usage?.input_tokens ?? usage?.input,
+            outputTokens: usage?.output_tokens ?? usage?.output,
+            cacheTokens: (usage?.cache_read_input_tokens ?? usage?.cacheRead ?? 0) + (usage?.cache_creation_input_tokens ?? usage?.cacheWrite ?? 0) || undefined,
           };
         }
         case "error": {
@@ -230,9 +247,10 @@ export function parsePiLine(line: string): AgentEvent | null {
       if (usage) {
         return {
           type: "done",
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          cacheTokens: (usage?.cacheReadInputTokens ?? 0) + (usage?.cacheCreationInputTokens ?? 0) || undefined,
+          // Pi's own message format uses input/output, Anthropic SDK uses input_tokens/output_tokens
+          inputTokens: usage?.input ?? usage?.input_tokens,
+          outputTokens: usage?.output ?? usage?.output_tokens,
+          cacheTokens: (usage?.cacheRead ?? usage?.cache_read_input_tokens ?? 0) + (usage?.cacheWrite ?? usage?.cache_creation_input_tokens ?? 0) || undefined,
         };
       }
       return null;

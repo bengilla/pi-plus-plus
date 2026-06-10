@@ -18,7 +18,7 @@ export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Pro
 
   return (
     <div
-      className="my-1 ml-4 overflow-hidden"
+      className="my-2 ml-4 overflow-hidden"
       style={{
         border: "1px solid var(--color-border)",
         background: "var(--color-surface)",

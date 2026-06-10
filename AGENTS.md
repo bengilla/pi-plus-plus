@@ -122,6 +122,34 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 
 ## Changelog
 
+### 2026-06-10 — Token Fix, Stop Preserve, Sidebar Cards, Copy Button
+
+**Bug fixes:**
+- Pi-reported token values (`input_tokens`/`output_tokens`) not being read: `spawn.ts` used wrong field names (camelCase vs snake_case). Now correctly reads both Pi's `input`/`output` format and Anthropic's `input_tokens`/`output_tokens`.
+- Stopping a streaming response lost partial content: `handleStop` now captures partial text/blocks/tokens before clearing refs and saves them as a partial assistant message.
+- `0 || undefined` swallowed valid zero token values: replaced with `!= null ? val : undefined`.
+
+**UI improvements:**
+- Copy button: removed border, added hover glow (`box-shadow`) and active press feedback (`scale-90` + border flash).
+- Sidebar conversation list: redesigned as clickable cards with rounded corners. Selected state shows left accent border + colored title. Hover/selected states are now visually distinct.
+- Sidebar token display: shows `↑input ↓output ⚡cache` breakdown using Pi's reported values instead of `content.length / 4` estimation.
+
+**Refactoring:**
+- Tool call event IDs: `toolcall_start`/`toolcall_delta` now extract real tool name/ID from `partial.content`; `toolcall_end` uses real `toolCall.id`. All events in the chain share the same ID, fixing `Action {}` stuck-running issue.
+- `useConversations` now separately tracks `inputTokens`, `outputTokens`, `cacheTokens` per conversation.
+- `Sidebar.ConvInfo` interface extended with `inputTokens`, `outputTokens`, `cacheTokens`.
+
+### 2026-06-10 — IME, Scroll, Layout, Line Breaks, File Tree
+
+**Bug fixes:**
+- Tool call `Action {}` stuck running: `toolcall_start` now extracts real tool name/ID from `partial.content`; `toolcall_end` uses real `toolCall.id` instead of fabricated `call_{contentIndex}`. All events in the chain now share the same ID.
+- IME composition (Chinese pinyin) Enter sent message prematurely: added `composingRef` + `onCompositionStart/End` to skip send during composition.
+- Agent content didn't fill right side of container: removed `max-w-[820px]` from agent message wrapper.
+- Couldn't scroll up during streaming: auto-scroll only fires when user is within 150px of bottom.
+- Line breaks in user messages collapsed: added `remark-breaks` plugin so single `\n` renders as `<br>`.
+- Markdown ordered/unordered list numbers hidden by Tailwind preflight: added `list-style: decimal` / `disc` on `.md-body ol` / `.md-body ul`.
+- File tree didn't refresh after agent created files: added 5s auto-polling interval.
+
 ### 2026-06-10 — Package Mgmt + Session Tree + Major Refactor
 
 **New features:**

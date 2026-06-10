@@ -22,6 +22,9 @@ export interface ConvInfo {
   agentId: string;
   createdAt: number;
   totalTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
 }
 
 const STORAGE_KEY = "agents-web-conversations";
@@ -61,22 +64,30 @@ export function useConversations(workspace: string, activeAgent: string) {
   const [convs, setConvs] = useState<ConvData[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount; reset activeConvId if not in new workspace
   useEffect(() => {
-    setConvs(loadConvs(workspace));
+    const all = loadConvs(workspace);
+    setConvs(all);
+    setActiveConvId((prev) => {
+      if (!prev) return null;
+      const belongs = all.some((c) => c.id === prev && (c.workspace ?? "") === workspace);
+      return belongs ? prev : null;
+    });
   }, [workspace]);
 
   const currentProjectConvs = projectConvs(convs, workspace);
   const convList: ConvInfo[] = currentProjectConvs.map((c) => {
-    const totalTokens =
-      c.messages?.reduce((sum, m) => {
-        // Pi reports inputTokens + outputTokens on assistant messages (per-turn usage).
-        // User messages have no token fields — estimate from content.
-        const inT = m.inputTokens ?? (m.role === "user" ? Math.round(m.content.length / 4) : 0);
-        const outT = m.outputTokens ?? (m.role === "assistant" ? Math.round(m.content.length / 4) : 0);
-        return sum + inT + outT;
-      }, 0) || 0;
-    return { id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt, totalTokens };
+    let totalTokens = 0, inputTokens = 0, outputTokens = 0, cacheTokens = 0;
+    for (const m of c.messages ?? []) {
+      const inT = m.inputTokens ?? (m.role === "user" ? Math.round(m.content.length / 4) : 0);
+      const outT = m.outputTokens ?? (m.role === "assistant" ? Math.round(m.content.length / 4) : 0);
+      const cacheT = m.cacheTokens ?? 0;
+      inputTokens += inT;
+      outputTokens += outT;
+      cacheTokens += cacheT;
+      totalTokens += inT + outT;
+    }
+    return { id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt, totalTokens, inputTokens, outputTokens, cacheTokens };
   });
 
   const activeConv = currentProjectConvs.find((c) => c.id === activeConvId) ?? null;

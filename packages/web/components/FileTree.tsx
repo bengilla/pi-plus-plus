@@ -40,6 +40,12 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
 
   useEffect(() => { loadTree(); }, [loadTree]);
 
+  // Auto-refresh file tree every 5s to pick up agent-created files
+  useEffect(() => {
+    const timer = setInterval(loadTree, 5000);
+    return () => clearInterval(timer);
+  }, [loadTree]);
+
   const startNewItem = (type: "file" | "folder") => {
     setNewItemType(type);
     setNewFileName("");
@@ -103,29 +109,6 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
 
   return (
     <div>
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
-          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新建文件" : "New File"}</button>
-        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
-          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新建文件夹" : "New Folder"}</button>
-      </div>
-
-      {/* New item input */}
-      {showNewFile && (
-        <div className="flex items-center gap-1 px-2 py-1 text-xs border-b" style={{ borderColor: "var(--color-border)" }}>
-          <span className="shrink-0">{newItemType === "folder" ? "📁" : "📄"}</span>
-          <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
-            placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
-            className="flex-1 px-1.5 py-0.5 outline-none text-xs"
-            style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
-            autoFocus spellCheck={false} />
-          <button onClick={handleCreate} className="px-2 py-0.5 text-[10px]"
-            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "创建" : "Create"}</button>
-        </div>
-      )}
-
       {/* File/dir list */}
       <div className="py-1">
         {tree.map((node) => (
@@ -160,6 +143,29 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
         {tree.length === 0 && !showNewFile && (
           <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--color-text-secondary)" }}>{zh ? "空文件夹" : "Empty folder"}</div>
         )}
+      </div>
+
+      {/* New item input */}
+      {showNewFile && (
+        <div className="flex items-center gap-1 px-2 py-1 text-xs" style={{ borderTop: "1px solid var(--color-border)" }}>
+          <span className="shrink-0">{newItemType === "folder" ? "📁" : "📄"}</span>
+          <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
+            placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
+            className="flex-1 px-1.5 py-0.5 outline-none text-xs"
+            style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
+            autoFocus spellCheck={false} />
+          <button onClick={handleCreate} className="px-2 py-0.5 text-[10px]"
+            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "创建" : "Create"}</button>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件" : "New"}</button>
+        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件夹" : "Folder"}</button>
       </div>
     </div>
   );
