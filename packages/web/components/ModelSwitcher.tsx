@@ -11,7 +11,7 @@ interface AgentInfo {
 
 function fmtVersion(v?: string): string {
   if (!v) return "";
-  // Extract version number from strings like "2.1.162 (Claude Code)" or "codex-cli 0.136.0"
+  // Extract version number from strings like "0.79.0"
   const m = v.match(/(\d+\.\d+\.\d+)/);
   return m ? m[1] : "";
 }

@@ -20,9 +20,6 @@ const COMMON_BIN_DIRS = [
   "/bin",
 ];
 
-// Only Pi is relevant; other agents have been removed.
-const DETECTABLE_AGENTS: { id: string; name: string; binary: string; description: string }[] = [];
-
 let cached: DiscoveredAgent[] | null = null;
 
 export function discoverAgents(options: { refresh?: boolean } = {}): DiscoveredAgent[] {
@@ -66,23 +63,11 @@ export function detectInstalledAgents(options: { refresh?: boolean } = {}): Dete
       version: agent.version,
       installSource: inferInstallSource(agent.path),
       status: "available",
-      upgradeSupported: Boolean(def?.packageName) || agent.id === "hermes",
+      upgradeSupported: Boolean(def?.packageName),
     });
   }
 
-  for (const candidate of DETECTABLE_AGENTS) {
-    if (found.has(candidate.id) || knownById.has(candidate.id)) continue;
-    const resolved = resolveBinary(candidate.binary, []);
-    if (!resolved) continue;
-    found.set(candidate.id, {
-      ...candidate,
-      path: resolved,
-      version: tryGetVersion(resolved) || tryGetPackageVersion(resolved),
-      installSource: inferInstallSource(resolved),
-      status: "needs-adapter",
-      upgradeSupported: false,
-    });
-  }
+
 
   return Array.from(found.values()).sort((a, b) => {
     if (a.status !== b.status) return a.status === "available" ? -1 : 1;

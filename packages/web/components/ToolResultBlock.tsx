@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 
 interface Props {
   toolOutput: string;
@@ -8,7 +8,7 @@ interface Props {
 
 const MUTED_TEXT = "oklch(75% 0 0)";
 
-export function ToolResultBlock({ toolOutput }: Props) {
+export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Props) {
   const [expanded, setExpanded] = useState(false);
   const output = toolOutput.trim();
 
@@ -58,4 +58,4 @@ export function ToolResultBlock({ toolOutput }: Props) {
       )}
     </div>
   );
-}
+});

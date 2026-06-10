@@ -36,8 +36,7 @@
   --success:       oklch(62% 0.19 160);
   --warning:       oklch(70% 0.17 85);
   --error:         oklch(55% 0.22 20);
-  /* Kept for backward compat, unused in Pi-only mode */
-  --agent-hermes-text: oklch(96% 0 0);
+
 
   /* Typography */
   --font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -104,8 +103,7 @@
   --user-border:   oklch(84% 0.012 245);
   --tool-bg:       oklch(95% 0.004 260);
   --tool-border:   oklch(90% 0.003 260);
-  /* Kept for backward compat, unused in Pi-only mode */
-  --agent-hermes-text: oklch(16% 0 0);
+
 
   --shadow-panel:   0 0.5px 2px rgba(0,0,0,0.06);
   --shadow-overlay: 0 2px 8px rgba(0,0,0,0.08);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 
 interface Props {
   content: string;
@@ -24,7 +24,7 @@ function levelColor(level?: string): string {
   }
 }
 
-export function ThinkingBlock({ content, duration, defaultOpen = false, level }: Props) {
+export const ThinkingBlock = memo(function ThinkingBlock({ content, duration, defaultOpen = false, level }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const accent = levelColor(level);
 
@@ -84,4 +84,4 @@ export function ThinkingBlock({ content, duration, defaultOpen = false, level }:
       )}
     </div>
   );
-}
+});

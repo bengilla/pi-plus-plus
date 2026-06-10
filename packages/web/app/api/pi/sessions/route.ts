@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { NextResponse, NextRequest } from "next/server";
+import { readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { execFileSync } from "node:child_process";
 
 function encodeWorkspace(w: string): string {
   // Pi encodes workspace paths by replacing / with -, wrapped in --
@@ -103,4 +104,82 @@ export async function GET(req: Request) {
   sessions.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   return NextResponse.json({ sessions, workspace });
+}
+
+// DELETE /api/pi/sessions?id=X&workspace=/path — delete a session
+// DELETE /api/pi/sessions?workspace=/path — delete all sessions for workspace
+export async function DELETE(req: NextRequest) {
+  const url = new URL(req.url);
+  const workspace = url.searchParams.get("workspace") || "";
+  const id = url.searchParams.get("id");
+
+  const sessionsDir = join(homedir(), ".pi", "agent", "sessions");
+  const encoded = encodeWorkspace(workspace);
+  const dir = join(sessionsDir, encoded);
+
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
+    let deleted = 0;
+
+    for (const file of files) {
+      if (id) {
+        // Delete specific session — check if file contains this id
+        try {
+          const content = readFileSync(join(dir, file), "utf-8");
+          const firstLine = JSON.parse(content.split("\n")[0]);
+          const sessionId = firstLine.id || file.split("_")[1]?.replace(".jsonl", "") || file;
+          if (sessionId === id) {
+            unlinkSync(join(dir, file));
+            deleted++;
+          }
+        } catch { /* skip */ }
+      } else {
+        // Delete all sessions for workspace
+        unlinkSync(join(dir, file));
+        deleted++;
+      }
+    }
+
+    return NextResponse.json({ deleted });
+  } catch {
+    return NextResponse.json({ error: "Failed to delete sessions" }, { status: 500 });
+  }
+}
+
+// POST /api/pi/sessions — branch a session
+// Body: { action: "branch", sessionId, workspace, entryId, filename }
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    if (body.action !== "branch") {
+      return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    }
+
+    const { sessionId: sessionIdParam, workspace: ws, entryId, filename } = body;
+    if (!sessionIdParam || !ws || !entryId || !filename) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // The encoded workspace path for the session file
+    function encodeWorkspace(w: string): string {
+      const cleaned = w.replace(/^\/+/, "").replace(/\/+$/, "");
+      return "--" + cleaned.replace(/\//g, "-") + "--";
+    }
+
+    const sessionsDir = join(homedir(), ".pi", "agent", "sessions");
+    const encoded = encodeWorkspace(ws);
+    const filePath = join(sessionsDir, encoded, filename);
+
+    // Use pi --fork to create a branched session
+    const result = execFileSync("pi", ["--fork", filePath], {
+      cwd: ws,
+      encoding: "utf-8",
+      timeout: 15000,
+    });
+
+    return NextResponse.json({ ok: true, output: result.trim() });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Branch failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

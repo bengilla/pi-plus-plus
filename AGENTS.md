@@ -73,6 +73,50 @@ npm run start         # Production server
 - logs: `~/.local/log/agents-web.log` and `~/.local/log/agents-web.err.log`
 - after production changes: `npm run build`, then restart launchd service.
 
+## Missing Pi CLI Features (TODOs)
+
+Pi CLI has features that agents-web doesn't implement yet. Listed by priority:
+
+### 1. Session Tree / Branching
+Pi's `/tree`, `/fork`, `/clone` let you navigate a tree of conversation branches, fork from any point, and switch between branches — all in a single `.jsonl` file. agents-web only lists sessions flat, can't visualize or navigate the tree.
+
+**Pi events:** `turn_start`/`turn_end` structure the conversation turns; `/tree` is an interactive TUI.
+**What's needed:** Parse `parentId` from session files, render a tree view, support branching.
+
+### 2. Compaction (Context Compression)
+`/compact` summarizes older messages when the context window fills up. Pi also does auto-compaction on overflow. agents-web has no compaction — long conversations hit token limits.
+
+**Pi events:** `compaction_start` / `compaction_end` with reason (`manual`, `threshold`, `overflow`) and result.
+**What's needed:** Manual compact button + auto-trigger based on token budget.
+
+### 3. Message Queue (Steering / Follow-up)
+Pi emits `queue_update` with pending `steering[]` and `followUp[]` message queues. agents-web ignores these entirely.
+
+**What's needed:** Listen to `queue_update` events, show pending follow-up actions, let user approve/reject.
+
+### 4. Pi Settings Management
+Pi has `~/.pi/agent/settings.json` (global) and `.pi/settings.json` (project-level) for provider, tools, model cycling, trust, telemetry, etc. agents-web's SettingsModal doesn't read or write Pi's settings.json.
+
+**What's needed:** API to read/write settings.json, UI for provider config, tool toggles, default model, trust settings.
+
+### 5. Context Files (AGENTS.md / CLAUDE.md)
+Pi loads `AGENTS.md` / `CLAUDE.md` from `~/.pi/agent/` (global), parent directories, and cwd. agents-web has no way to preview or edit these.
+
+**What's needed:** File tree integration for context files, preview/edit panel, indicator showing which files are loaded.
+
+### 6. ✅ Package Management
+Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, themes, prompt templates, and skills.
+
+**Implemented:**
+- `GET /api/pi/packages` — lists installed packages with metadata from `settings.json` + `package.json`
+- `POST /api/pi/packages` — install/remove/update via `pi install/remove/update` CLI
+- Settings → 包 Tab: install form, package list, update/remove buttons, global update
+
+### 7. Session Export
+`pi --export <id> [out]` exports a session to HTML. agents-web has no export feature.
+
+**What's needed:** Export button that calls `pi --export` and serves the HTML file.
+
 ## Environment
 
 - `AGENTS_WEB_WORKSPACE` sets the default workspace path.

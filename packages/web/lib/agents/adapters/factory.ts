@@ -33,7 +33,8 @@ export function createAdapter(definition: AgentDefinition, binaryPath: string): 
           for (const line of lines) {
             const event = parse(line);
             if (event) {
-              if (event.type === "done") { yield event; return; }
+              // Don't return on 'done' — tool execution events arrive after
+              // the model's message is done. Keep reading until stdout closes.
               yield event;
             }
           }

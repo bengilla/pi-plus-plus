@@ -6,12 +6,11 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const SKILL_DIRS: Record<string, string> = {
-  "claude-code": join(homedir(), ".claude", "skills"),
   pi: join(homedir(), ".pi", "agent", "skills"),
 };
 
-// GET /api/skills?agent=claude-code — list installed skills
-// GET /api/skills?q=frontend&agent=claude-code — search marketplace
+// GET /api/skills?agent=pi — list installed skills
+// GET /api/skills?q=frontend&agent=pi — search marketplace
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const agent = url.searchParams.get("agent") ?? undefined;

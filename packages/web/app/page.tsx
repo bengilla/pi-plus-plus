@@ -7,6 +7,8 @@ import { getPiDefinition } from "@/lib/agents/registry";
 import { ChatPanel, type ChatMessageSnapshot } from "@/components/ChatPanel";
 import { RightPanel } from "@/components/RightPanel";
 import { SettingsModal } from "@/components/SettingsModal";
+import { useConversations } from "@/lib/hooks/useConversations";
+import { useSettings } from "@/lib/hooks/useSettings";
 
 interface AgentInfo {
   id: string;
@@ -14,17 +16,6 @@ interface AgentInfo {
   description: string;
   version?: string;
   path?: string;
-}
-
-interface ConvData {
-  id: string;
-  title: string;
-  agentId: string;
-  workspace?: string;
-  messages: ChatMessageSnapshot[];
-  createdAt: number;
-  manualTitle?: boolean;
-  piSessionId?: string;
 }
 
 function getDroppedPath(e: DragEvent): string | null {
@@ -45,53 +36,44 @@ function getDroppedPath(e: DragEvent): string | null {
   return null;
 }
 
-const STORAGE_KEY = "agents-web-conversations";
 const WORKSPACE_KEY = "agents-web-workspace";
-const SIDEBAR_WIDTH_KEY = "agents-web-sidebar-width";
-const RIGHT_PANEL_WIDTH_KEY = "agents-web-right-panel-width";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function truncateTitle(text: string, maxLen = 36): string {
-  // Use Array.from for proper CJK character counting
-  const chars = Array.from(text);
-  if (chars.length <= maxLen) return text;
-  return chars.slice(0, maxLen).join("") + "…";
-}
 
-function loadConvs(defaultWorkspace = ""): ConvData[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as ConvData[];
-    return parsed.map((c) => ({ ...c, workspace: c.workspace ?? defaultWorkspace }));
-  }
-  catch { return []; }
-}
-
-function saveConvs(convs: ConvData[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
-}
-
-function projectConvs(convs: ConvData[], workspace: string): ConvData[] {
-  return convs.filter((c) => (c.workspace ?? "") === workspace);
-}
-
-function latestConversationId(convs: ConvData[], workspace: string, agentId?: string): string | null {
-  return projectConvs(convs, workspace).find((c) => !agentId || c.agentId === agentId)?.id ?? null;
-}
 
 export default function Home() {
-  const [workspace, setWorkspace] = useState("");
   const activeAgent = "pi"; // Pi-only mode — no agent switching
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [fontScale, setFontScale] = useState(1.1);
-  const [language, setLanguage] = useState<"en" | "zh">("en");
   const [thinkingLevel, setThinkingLevel] = useState("auto");
+
+  // Settings from hook
+  const {
+    theme, language, fontScale, sidebarWidth, rightPanelWidth,
+    toggleTheme, handleLanguageChange, handleFontScaleChange,
+    setSidebarWidth, setRightPanelWidth,
+  } = useSettings();
+
+  // Workspace
+  const [workspace, setWorkspace] = useState("");
+  useEffect(() => {
+    const saved = localStorage.getItem(WORKSPACE_KEY);
+    if (saved) setWorkspace(saved);
+  }, []);
+
+  // Conversations from hook
+  const {
+    activeConvId, activeConv, convList,
+    newConversation, selectConversation,
+    deleteConversation, renameConversation,
+    onMessagesChange,
+    deleteConversationsBySession,
+  } = useConversations(workspace, activeAgent);
 
   // Version check
   const [versionCheck, setVersionCheck] = useState<{ currentVersion?: string; latestVersion?: string; updateAvailable?: boolean } | null>(null);
@@ -104,31 +86,6 @@ export default function Home() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<"file" | "agent" | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(260);
-  const [rightPanelWidth, setRightPanelWidth] = useState(520);
-
-  // Conversations
-  const [convs, setConvs] = useState<ConvData[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
-    setTheme(t === "light" ? "light" : "dark");
-    const saved = localStorage.getItem(WORKSPACE_KEY);
-    setConvs(loadConvs(saved ?? ""));
-    if (saved) setWorkspace(saved);
-    const fs = localStorage.getItem("fontScale");
-    if (fs) setFontScale(parseFloat(fs));
-    const savedLanguage = localStorage.getItem("language");
-    if (savedLanguage === "en" || savedLanguage === "zh") {
-      setLanguage(savedLanguage);
-      document.documentElement.lang = savedLanguage === "zh" ? "zh-CN" : "en";
-    }
-    const savedSidebarWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (savedSidebarWidth) setSidebarWidth(clamp(parseInt(savedSidebarWidth, 10), 220, 420));
-    const savedRightPanelWidth = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-    if (savedRightPanelWidth) setRightPanelWidth(clamp(parseInt(savedRightPanelWidth, 10), 320, 760));
-  }, []);
 
   // ── Keyboard shortcuts ────────────────────────────────────
   useEffect(() => {
@@ -140,22 +97,6 @@ export default function Home() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    document.documentElement.style.background = next === "dark"
-      ? "oklch(16% 0.006 260)"
-      : "oklch(98% 0.002 260)";
-    localStorage.setItem("theme", next);
-    setTheme(next);
-  };
-
-  const handleLanguageChange = (next: "en" | "zh") => {
-    setLanguage(next);
-    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
-    localStorage.setItem("language", next);
-  };
 
   const refreshAgents = useCallback(async () => {
     const r = await fetch("/api/agents");
@@ -179,83 +120,10 @@ export default function Home() {
       .catch(() => {});
   }, [refreshAgents]);
 
-  // ── Conversations ──────────────────────────────────────────
-  const currentProjectConvs = projectConvs(convs, workspace);
-  const convList: ConvInfo[] = currentProjectConvs.map((c) => {
-    const totalTokens = c.messages?.reduce((sum, m) => sum + (m.inputTokens || 0) + (m.outputTokens || 0), 0) || 0;
-    return { id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt, totalTokens };
-  });
-
-  const newConversation = () => {
-    const id = Date.now().toString();
-    const c: ConvData = { id, title: "New conversation", agentId: activeAgent, workspace, messages: [], createdAt: Date.now() };
-    const updated = [c, ...convs];
-    setConvs(updated); saveConvs(updated); setActiveConvId(id);
-  };
-
-  const selectConversation = (id: string) => {
-    setActiveConvId(id);
-  };
-
-  const deleteConversation = (id: string) => {
-    const updated = convs.filter((c) => c.id !== id);
-    setConvs(updated); saveConvs(updated);
-    if (activeConvId === id) setActiveConvId(null);
-  };
-
-  const renameConversation = (id: string, title: string) => {
-    const updated = convs.map((c) => c.id === id ? { ...c, title, manualTitle: true } : c);
-    setConvs(updated);
-    saveConvs(updated);
-  };
-
-  const onMessagesChange = useCallback(
-    (messages: ChatMessageSnapshot[]) => {
-      const firstUser = messages.find((m) => m.role === "user");
-      const cid = activeConvId;
-
-      if (cid) {
-        setConvs((prev) => {
-          const updated = prev.map((c) => {
-            if (c.id !== cid) return c;
-            return {
-              ...c,
-              workspace,
-              messages,
-              piSessionId: firstUser?.piSessionId || c.piSessionId,
-              title: c.manualTitle ? c.title : (firstUser ? truncateTitle(firstUser.content) : c.title),
-            };
-          });
-          saveConvs(updated);
-          return updated;
-        });
-      } else if (messages.length > 0) {
-        const newId = Date.now().toString();
-        const newConv: ConvData = {
-          id: newId,
-          title: firstUser ? truncateTitle(firstUser.content) : "New conversation",
-          agentId: activeAgent,
-          workspace,
-          messages,
-          createdAt: Date.now(),
-          piSessionId: firstUser?.piSessionId,
-        };
-        setConvs((prev) => {
-          const updated = [newConv, ...prev];
-          saveConvs(updated);
-          return updated;
-        });
-        setActiveConvId(newId);
-      }
-    },
-    [activeConvId, activeAgent, workspace],
-  );
-
   const navigateTo = useCallback((newPath: string) => {
     setWorkspace(newPath);
     localStorage.setItem(WORKSPACE_KEY, newPath);
-    setActiveConvId(latestConversationId(convs, newPath, activeAgent));
-  }, [activeAgent, convs]);
+  }, []);
 
   const handleFileClick = useCallback((filePath: string) => {
     setSelectedFilePath(filePath);
@@ -283,7 +151,6 @@ export default function Home() {
     const onUp = (upEvent: MouseEvent) => {
       const next = clamp(startWidth + upEvent.clientX - startX, 220, 420);
       setSidebarWidth(next);
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
@@ -293,7 +160,7 @@ export default function Home() {
     document.body.style.userSelect = "none";
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [sidebarWidth]);
+  }, [sidebarWidth, setSidebarWidth]);
 
   const startRightPanelResize = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
@@ -307,7 +174,6 @@ export default function Home() {
     const onUp = (upEvent: MouseEvent) => {
       const next = clamp(startWidth + startX - upEvent.clientX, 320, maxWidth);
       setRightPanelWidth(next);
-      localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(next));
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       window.removeEventListener("mousemove", onMove);
@@ -317,7 +183,7 @@ export default function Home() {
     document.body.style.userSelect = "none";
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, [rightPanelWidth]);
+  }, [rightPanelWidth, setRightPanelWidth]);
 
   const handleDragOver = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }, []);
   const handleDragLeave = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }, []);
@@ -329,7 +195,6 @@ export default function Home() {
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
   const currentAgentDefinition = getPiDefinition();
-  const activeConv = currentProjectConvs.find((c) => c.id === activeConvId);
 
   useEffect(() => {
     const levels = currentAgentDefinition?.thinkingLevels ?? [];
@@ -351,7 +216,7 @@ export default function Home() {
           <div className="space-y-2 text-left" style={{ fontSize: "var(--text-xs)" }}>
             <div className="px-3 py-2" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}>
               <code style={{ fontSize: "var(--text-sm)", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>npm install -g @earendil-works/pi-coding-agent</code>
-              <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>Earendil Pi coding agent</div>
+              <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{language === 'zh' ? 'Earendil Pi 编码智能体' : 'Earendil Pi coding agent'}</div>
             </div>
           </div>
         </div>
@@ -505,14 +370,11 @@ export default function Home() {
         agents={agents}
         onAgentsRefresh={refreshAgents}
         fontScale={fontScale}
-        onFontScaleChange={(s: number) => {
-          setFontScale(s);
-          document.documentElement.style.setProperty("--font-scale", String(s));
-          localStorage.setItem("fontScale", String(s));
-        }}
+        onFontScaleChange={handleFontScaleChange}
         language={language}
         workspace={workspace}
         onLanguageChange={handleLanguageChange}
+        onDeleteSession={deleteConversationsBySession}
       />
 
       {/* Drag overlay */}

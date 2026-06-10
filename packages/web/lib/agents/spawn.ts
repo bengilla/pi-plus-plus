@@ -164,12 +164,14 @@ export function parsePiLine(line: string): AgentEvent | null {
             toolInput: { __partial: ame.delta },
           };
         case "toolcall_end": {
-          // Tool call complete — emit full tool_use with name + parsed arguments
+          // Tool call complete — emit full tool_use with name + parsed arguments.
+          // Use contentIndex as ID (same as toolcall_start/toolcall_delta) so
+          // the client can update the placeholder block created by toolcall_start.
           const tc = ame.toolCall;
           if (!tc) return null;
           return {
             type: "tool_use",
-            toolId: tc.id ?? `call_${ame.contentIndex}`,
+            toolId: `call_${ame.contentIndex}`,
             toolName: tc.name ?? "",
             toolInput: (tc.arguments ?? {}) as Record<string, unknown>,
           };

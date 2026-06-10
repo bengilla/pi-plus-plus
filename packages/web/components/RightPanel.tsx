@@ -2,37 +2,9 @@
 
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
-import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
-import css from "react-syntax-highlighter/dist/esm/languages/prism/css";
-import go from "react-syntax-highlighter/dist/esm/languages/prism/go";
-import html from "react-syntax-highlighter/dist/esm/languages/prism/markup";
-import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
-import json from "react-syntax-highlighter/dist/esm/languages/prism/json";
-import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
-import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
-import rust from "react-syntax-highlighter/dist/esm/languages/prism/rust";
-import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
-import tsx from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
-import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
-import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
+import { SyntaxHighlighter, piDarkTheme } from "@/lib/utils/prism";
 import type { AgentDefinition } from "@/lib/agents/types";
 import { AgentIcon } from "./AgentIcon";
-
-SyntaxHighlighter.registerLanguage("bash", bash);
-SyntaxHighlighter.registerLanguage("css", css);
-SyntaxHighlighter.registerLanguage("go", go);
-SyntaxHighlighter.registerLanguage("html", html);
-SyntaxHighlighter.registerLanguage("javascript", javascript);
-SyntaxHighlighter.registerLanguage("json", json);
-SyntaxHighlighter.registerLanguage("markdown", markdown);
-SyntaxHighlighter.registerLanguage("python", python);
-SyntaxHighlighter.registerLanguage("rust", rust);
-SyntaxHighlighter.registerLanguage("sql", sql);
-SyntaxHighlighter.registerLanguage("tsx", tsx);
-SyntaxHighlighter.registerLanguage("typescript", typescript);
-SyntaxHighlighter.registerLanguage("yaml", yaml);
 
 interface AgentInfo {
   id: string;
@@ -379,7 +351,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                   >
                     <SyntaxHighlighter
                       language={lang?.syntax ?? "text"}
-                      style={oneDark}
+                      style={piDarkTheme}
                       PreTag="div"
                       wrapLongLines
                       customStyle={{
@@ -424,7 +396,9 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                     {agent.name}
                   </div>
                   <div className="mt-1 leading-relaxed" style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-                    {agent.description}
+                    {agent.id === "pi" && language === "zh"
+                      ? "Earendil Pi 编码智能体 — 多模型支持，RPC 模式"
+                      : agent.description}
                   </div>
                 </div>
               </div>

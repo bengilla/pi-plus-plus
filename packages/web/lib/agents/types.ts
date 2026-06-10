@@ -40,13 +40,13 @@ export interface AgentCapabilities {
 
 // ── Agent definition (known agent registry) ───────────────
 export interface AgentDefinition {
-  /** Unique key, e.g. "claude-code", "pi" */
+  /** Unique key, e.g. "pi" */
   id: string;
   /** Display name, e.g. "Claude Code" */
   name: string;
   /** Description shown in UI */
   description: string;
-  /** Binary name to detect, e.g. "claude" */
+  /** Binary name to detect, e.g. "pi" */
   binary: string;
   /** Extra PATH directories to check */
   fallbackPaths: string[];

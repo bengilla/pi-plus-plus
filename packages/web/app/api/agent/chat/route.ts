@@ -61,11 +61,13 @@ export async function POST(req: NextRequest) {
       for await (const event of chat(agent, workspace, prompt, thinkingLevel, model, sessionId)) {
         const wrote = await writeEvent(event);
         if (!wrote) break;
-        if (event.type === "done" || event.type === "error") {
-          // Yield a tick so the stream flushes the done event before close
+        if (event.type === "error") {
+          // Error ends the session — close the stream
           await new Promise((r) => setTimeout(r, 0));
           break;
         }
+        // Don't break on 'done' — tool execution events come after the
+        // model's message completes. The stream ends when the iterator ends.
       }
     } catch (e) {
       if (!disconnected && !isAbortLikeError(e)) {

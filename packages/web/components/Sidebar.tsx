@@ -280,12 +280,10 @@ export function Sidebar({
                       </button>
                     )}
                     <span className="mt-1 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                      {c.totalTokens != null && c.totalTokens > 0 ? (
-                        <>
-                          <span style={{ fontFamily: "var(--font-mono)" }}>{c.totalTokens >= 1000 ? `${(c.totalTokens / 1000).toFixed(1)}k` : c.totalTokens} tok</span>
-                          <span>·</span>
-                        </>
-                      ) : null}
+                      <span style={{ fontFamily: "var(--font-mono)" }}>
+                        {(c.totalTokens ?? 0) >= 1000 ? `${((c.totalTokens ?? 0) / 1000).toFixed(1)}k` : (c.totalTokens ?? 0)} token
+                      </span>
+                      <span>·</span>
                       <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                     </span>
                   </div>

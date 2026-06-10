@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 
 interface Props {
   toolName: string;
@@ -64,7 +64,7 @@ function actionSummary(toolName: string, input: Record<string, unknown>): string
   return "running action";
 }
 
-export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
+export const ToolCallBlock = memo(function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
   const [expanded, setExpanded] = useState(status === "running");
   const key = toolKey(toolName);
   const meta = TOOL_META[key] ?? { label: toolName || "Action", accent: "var(--color-accent)" };
@@ -165,4 +165,4 @@ export function ToolCallBlock({ toolName, toolInput, status, result }: Props) {
       )}
     </div>
   );
-}
+});

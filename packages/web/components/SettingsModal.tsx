@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { SessionTreeView } from "./SessionTreeView";
+import { PackagesTab } from "./PackagesTab";
 
 interface SkillInfo {
   id: string;
@@ -51,11 +53,13 @@ interface Props {
   language?: "en" | "zh";
   onLanguageChange?: (language: "en" | "zh") => void;
   workspace?: string;
+  /** Called when a Pi session is deleted — page.tsx clears matching conversations */
+  onDeleteSession?: (sessionId: string) => void;
 }
 
-type Tab = "models" | "sessions" | "skills" | "general";
+type Tab = "models" | "sessions" | "skills" | "packages" | "general";
 
-export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFontScaleChange, language = "en", onLanguageChange, workspace = "" }: Props) {
+export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFontScaleChange, language = "en", onLanguageChange, workspace = "", onDeleteSession }: Props) {
   const [tab, setTab] = useState<Tab>("models");
   const zh = language === "zh";
 
@@ -115,7 +119,7 @@ export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFon
           className="flex gap-0 px-5 border-b shrink-0"
           style={{ borderColor: "var(--color-border)" }}
         >
-          {(["models", "sessions", "skills", "general"] as Tab[]).map((t) => (
+          {(["models", "sessions", "skills", "packages", "general"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -126,7 +130,7 @@ export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFon
                 marginBottom: -1,
               }}
             >
-              {zh ? (t === "models" ? "模型" : t === "sessions" ? "会话" : t === "skills" ? "技能" : "通用") : t}
+              {zh ? (t === "models" ? "模型" : t === "sessions" ? "会话" : t === "skills" ? "技能" : t === "packages" ? "包" : "通用") : t}
             </button>
           ))}
         </div>
@@ -134,8 +138,9 @@ export function SettingsModal({ open, onClose, onAgentsRefresh, fontScale, onFon
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           {tab === "models" && <ModelsTab language={language} />}
-          {tab === "sessions" && <SessionsTab language={language} workspace={workspace} />}
+          {tab === "sessions" && <SessionsTab language={language} workspace={workspace} onDeleteSession={onDeleteSession} />}
           {tab === "skills" && <SkillsTab language={language} />}
+          {tab === "packages" && <PackagesTab language={language} />}
           {tab === "general" && (
             <GeneralTab
               fontScale={fontScale}
@@ -294,10 +299,12 @@ function ModelsTab({ language }: { language: "en" | "zh" }) {
 
 // ── Sessions Tab ───────────────────────────────────────────
 
-function SessionsTab({ language, workspace }: { language: "en" | "zh"; workspace: string }) {
+function SessionsTab({ language, workspace, onDeleteSession }: { language: "en" | "zh"; workspace: string; onDeleteSession?: (id: string) => void }) {
   const zh = language === "zh";
   const [sessions, setSessions] = useState<{ id: string; timestamp: string; model?: string; provider?: string; messageCount: number; firstMessage?: string; size: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; firstMessage?: string } | null>(null);
+  const [viewingTree, setViewingTree] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/pi/sessions?workspace=${encodeURIComponent(workspace)}`)
@@ -321,6 +328,29 @@ function SessionsTab({ language, workspace }: { language: "en" | "zh"; workspace
 
   if (loading) {
     return <div className="p-5 text-xs text-center" style={{ color: "var(--text-secondary)" }}>{zh ? "加载中..." : "Loading..."}</div>;
+  }
+
+  // Show tree view for a specific session
+  if (viewingTree) {
+    return (
+      <div className="flex flex-col min-h-0" style={{ height: "60vh" }}>
+        <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <button
+            onClick={() => setViewingTree(null)}
+            className="text-[10px] px-2 py-0.5 transition-colors hover:opacity-70"
+            style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+          >
+            ← {zh ? "返回" : "Back"}
+          </button>
+          <span className="text-xs font-medium" style={{ color: "var(--text)" }}>
+            {zh ? "会话树" : "Session Tree"}
+          </span>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <SessionTreeView sessionId={viewingTree} workspace={workspace} language={language} />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -360,16 +390,77 @@ function SessionsTab({ language, workspace }: { language: "en" | "zh"; workspace
                   {s.model && <span style={{ fontFamily: "var(--font-mono)" }}>{s.model}</span>}
                 </div>
               )}
-              <div className="mt-1 flex gap-1">
+              <div className="mt-1 flex items-center gap-1">
                 <button
                   className="px-2 py-0.5 text-[10px] transition-colors hover:opacity-70"
                   style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+                  onClick={() => setViewingTree(s.id)}
                 >
                   {zh ? "查看" : "View"}
+                </button>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setDeleteTarget({ id: s.id, firstMessage: s.firstMessage })}
+                  className="px-2 py-0.5 text-[10px] transition-colors hover:opacity-70"
+                  style={{ color: "var(--error)", border: "1px solid var(--error)", background: "transparent" }}
+                  title={zh ? "删除会话" : "Delete session"}
+                >
+                  ✕
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(2px)" }}
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm p-5 fade-in"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-4">
+              <div className="text-lg mb-2" style={{ color: "var(--error)" }}>⚠️</div>
+              <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                {zh ? "删除会话" : "Delete session"}
+              </div>
+              {deleteTarget.firstMessage && (
+                <div className="mt-2 text-xs truncate px-2" style={{ color: "var(--text-secondary)" }}>
+                  "{deleteTarget.firstMessage}"
+                </div>
+              )}
+              <div className="mt-3 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {zh ? "此操作不可撤销。" : "This cannot be undone."}
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+              >
+                {zh ? "取消" : "Cancel"}
+              </button>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/pi/sessions?id=${encodeURIComponent(deleteTarget.id)}&workspace=${encodeURIComponent(workspace)}`, { method: "DELETE" });
+                  setSessions((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+                  onDeleteSession?.(deleteTarget.id);
+                  setDeleteTarget(null);
+                }}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--error)", border: "1px solid var(--error)", background: "transparent" }}
+              >
+                {zh ? "删除" : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
