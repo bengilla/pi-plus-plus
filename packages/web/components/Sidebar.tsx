@@ -325,7 +325,7 @@ export function Sidebar({
                         <button
                           onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
                           className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
-                          style={{ color: "var(--text-secondary)" }}
+                          style={{ color: "oklch(68% 0.13 250)" }}
                           title={zh ? "编辑" : "Edit"}
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

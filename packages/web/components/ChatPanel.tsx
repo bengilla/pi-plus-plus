@@ -918,7 +918,7 @@ export function ChatPanel({
                       {msg.cacheTokens != null && msg.cacheTokens > 0 && (
                         <>
                           <span>·</span>
-                          <span style={{ textDecoration: "underline", textUnderlineOffset: "2px" }}>{formatTokens(msg.cacheTokens)} cache</span>
+                          <span style={{ textDecoration: "underline", textUnderlineOffset: "2px", opacity: 0.75 }}>{formatTokens(msg.cacheTokens)} cache</span>
                         </>
                       )}
                       {msg.durationSeconds != null && (
