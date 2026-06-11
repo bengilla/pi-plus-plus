@@ -256,6 +256,42 @@ export function parsePiLine(line: string): AgentEvent | null {
       return null;
     }
 
+    // ── queue_update: pending steering / follow-up ──────
+    if (evt.type === "queue_update") {
+      const items: { type: "steering" | "followUp"; text: string }[] = [];
+      const steering = evt.steering as { text?: string }[] | undefined;
+      const followUp = evt.followUp as { text?: string }[] | undefined;
+      if (Array.isArray(steering)) {
+        for (const s of steering) {
+          if (s.text) items.push({ type: "steering", text: s.text });
+        }
+      }
+      if (Array.isArray(followUp)) {
+        for (const f of followUp) {
+          if (f.text) items.push({ type: "followUp", text: f.text });
+        }
+      }
+      if (items.length > 0) {
+        return { type: "queue_update", queueItems: items };
+      }
+      return null;
+    }
+
+    // ── compaction_start / compaction_end ───────────────
+    if (evt.type === "compaction_start") {
+      return {
+        type: "compaction_start",
+        compactionReason: evt.reason ?? "manual",
+      };
+    }
+    if (evt.type === "compaction_end") {
+      return {
+        type: "compaction_end",
+        compactionReason: evt.reason ?? "manual",
+        compactionResult: evt.result ?? "",
+      };
+    }
+
     // ── session: capture session ID for resume ──────────
     if (evt.type === "session" && evt.id) {
       return { type: "thinking", thinkingText: "", sessionId: evt.id };
@@ -278,9 +314,6 @@ export function parsePiLine(line: string): AgentEvent | null {
       evt.type === "turn_start" ||
       evt.type === "turn_end" ||
       evt.type === "message_start" ||
-      evt.type === "queue_update" ||
-      evt.type === "compaction_start" ||
-      evt.type === "compaction_end" ||
       evt.type === "auto_retry_start" ||
       evt.type === "auto_retry_end" ||
       evt.type === "session_info_changed" ||

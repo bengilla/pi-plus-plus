@@ -114,6 +114,13 @@ export function ChatPanel({
   const streamCacheTokensRef = useRef(0);
   const streamTickRef = useRef(0);
   const [streamTick, setStreamTick] = useState(0);
+  // Compaction state
+  const isCompactingRef = useRef(false);
+  const compactionResultRef = useRef("");
+  const [compactionActive, setCompactionActive] = useState(false);
+  const [compactionMessage, setCompactionMessage] = useState("");
+  // Message queue (steering / follow-up)
+  const [queueItems, setQueueItems] = useState<{ type: "steering" | "followUp"; text: string }[]>([]);
   // Rich content blocks accumulated during streaming
   const streamBlocksRef = useRef<ContentBlock[]>([]);
   const streamThinkRef = useRef("");
@@ -294,6 +301,7 @@ export function ChatPanel({
     };
     setMessages((prev) => [...prev, userMsg]);
     setStreaming(true);
+    setQueueItems([]);
     streamContentRef.current = "";
     streamOutputTokensRef.current = 0;
     streamInputTokensRef.current = 0;
@@ -520,6 +528,31 @@ export function ChatPanel({
                 if (parsed.outputTokens != null) streamOutputTokensRef.current = parsed.outputTokens;
                 continue;
               }
+              if (parsed.type === "compaction_start") {
+                isCompactingRef.current = true;
+                setCompactionActive(true);
+                setCompactionMessage(zh ? "正在压缩上下文…" : "Compacting context…");
+                continue;
+              }
+              if (parsed.type === "compaction_end") {
+                isCompactingRef.current = false;
+                setCompactionActive(false);
+                const reason = parsed.compactionReason || "manual";
+                const result = parsed.compactionResult || "";
+                const reasonLabel = reason === "threshold" ? (zh ? "阈值" : "threshold") : reason === "overflow" ? (zh ? "溢出" : "overflow") : (zh ? "手动" : "manual");
+                setCompactionMessage(
+                  zh
+                    ? `上下文已压缩 (${reasonLabel})${result ? `: ${result}` : ""}`
+                    : `Context compacted (${reasonLabel})${result ? `: ${result}` : ""}`
+                );
+                setTimeout(() => setCompactionMessage(""), 6000);
+                continue;
+              }
+              if (parsed.type === "queue_update" && parsed.queueItems) {
+                setQueueItems(parsed.queueItems);
+                streamTickRef.current++;
+                continue;
+              }
               if (parsed.text) {
                 flushThinking(parsed.text);
                 full += parsed.text;
@@ -542,6 +575,12 @@ export function ChatPanel({
         blocks.push({ type: "text", content: full });
       }
 
+      // Capture token values BEFORE finally resets refs — setMessages callback
+      // runs asynchronously in React 18, after the try/catch/finally block.
+      const finalInputTokens = streamInputTokensRef.current != null ? streamInputTokensRef.current : undefined;
+      const finalOutputTokens = streamOutputTokensRef.current != null ? streamOutputTokensRef.current : undefined;
+      const finalCacheTokens = streamCacheTokensRef.current != null ? streamCacheTokensRef.current : undefined;
+
       setMessages((prev) => [
         ...prev,
         {
@@ -550,13 +589,13 @@ export function ChatPanel({
           id: Date.now().toString(),
           createdAt: Date.now(),
           blocks: blocks.length > 0 ? blocks : undefined,
-          inputTokens: streamInputTokensRef.current != null ? streamInputTokensRef.current : undefined,
-          outputTokens: streamOutputTokensRef.current != null ? streamOutputTokensRef.current : undefined,
-          cacheTokens: streamCacheTokensRef.current != null ? streamCacheTokensRef.current : undefined,
+          inputTokens: finalInputTokens,
+          outputTokens: finalOutputTokens,
+          cacheTokens: finalCacheTokens,
           durationSeconds: (Date.now() - responseStartedAt) / 1000,
         },
       ]);
-    } catch (e: unknown) {
+  } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       const errMsg = e instanceof Error ? e.message : "Chat error";
       setMessages((prev) => [
@@ -578,6 +617,10 @@ export function ChatPanel({
       streamProviderRef.current = "";
     }
   }, [activeAgent, workspace, thinkingLevel, selectedModel, sessionId]);
+
+  const handleCompact = useCallback(() => {
+    handleSend("/compact", []);
+  }, [handleSend]);
 
   // ── Model selector footer extras ───────────────────────────
 
@@ -681,6 +724,49 @@ export function ChatPanel({
           </div>
         </>
       )}
+      {/* Compact button */}
+      {!streaming && messages.length >= 4 && (
+        <>
+          <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
+          <button
+            onClick={handleCompact}
+            className="shrink-0 text-[10px] px-1 py-0.5 transition-colors hover:opacity-70 inline-flex items-center gap-1"
+            style={{ color: "var(--text-tertiary)" }}
+            title={zh ? "压缩上下文" : "Compact context"}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <path d="M9 12h6" />
+            </svg>
+            {zh ? "压缩" : "Compact"}
+          </button>
+        </>
+      )}
+      {/* Auto-trigger warning */}
+      {(() => {
+        const budgetTokens = messages.reduce((s, m) => s + (m.inputTokens ?? 0) + (m.outputTokens ?? 0), 0);
+        const maxContext = 200_000;
+        const pct = budgetTokens / maxContext;
+        if (pct < 0.6) return null;
+        return (
+          <>
+            <span className="shrink-0 w-px h-3 mx-1" style={{ background: !streaming && pct >= 0.8 ? "var(--accent)" : "oklch(70% 0.15 80 / 0.6)" }} />
+            <span
+              className="shrink-0 text-[10px] inline-flex items-center gap-1 cursor-pointer hover:opacity-70"
+              style={{ color: pct >= 0.8 ? "oklch(70% 0.15 80)" : "var(--text-tertiary)" }}
+              onClick={!streaming ? handleCompact : undefined}
+              title={zh ? `上下文占用 ${Math.round(pct * 100)}%，点击压缩` : `Context at ${Math.round(pct * 100)}%, click to compact`}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+              </svg>
+              {Math.round(pct * 100)}%
+            </span>
+          </>
+        );
+      })()}
     </>
   );
 
@@ -923,16 +1009,95 @@ export function ChatPanel({
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>
-                  <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                    <path d="M21 12a9 9 0 1 1-3.2-6.9" />
-                  </svg>
-                  <span className="tabular-nums">{elapsed}s</span>
+                  {compactionActive ? (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                      </svg>
+                      <span style={{ color: "oklch(70% 0.12 175)" }}>{zh ? "压缩中…" : "Compacting…"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                      </svg>
+                      <span className="tabular-nums">{elapsed}s</span>
+                    </>
+                  )}
                 </div>
+                {queueItems.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {queueItems.map((item, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { handleSend(item.text, []); setQueueItems([]); }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] transition-colors hover:opacity-80"
+                        style={{
+                          color: item.type === "steering" ? "oklch(68% 0.13 250)" : "var(--accent)",
+                          border: `1px solid ${item.type === "steering" ? "oklch(68% 0.13 250 / 0.4)" : "var(--accent)"}`,
+                          background: item.type === "steering" ? "oklch(68% 0.13 250 / 0.06)" : "oklch(72% 0.12 175 / 0.06)",
+                        }}
+                      >
+                        <span className="text-[9px]">{item.type === "steering" ? "→" : "↳"}</span>
+                        <span className="truncate max-w-[180px]">{item.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           <div ref={bottomRef} />
+
+          {/* Queue items: steering / follow-up suggestions */}
+          {queueItems.length > 0 && !streaming && (
+            <div className="fade-in flex flex-wrap gap-1.5 px-1">
+              {queueItems.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => { handleSend(item.text, []); setQueueItems([]); }}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] transition-colors hover:opacity-80"
+                  style={{
+                    color: item.type === "steering" ? "oklch(68% 0.13 250)" : "var(--accent)",
+                    border: `1px solid ${item.type === "steering" ? "oklch(68% 0.13 250 / 0.4)" : "var(--accent)"}`,
+                    background: item.type === "steering" ? "oklch(68% 0.13 250 / 0.06)" : "oklch(72% 0.12 175 / 0.06)",
+                  }}
+                >
+                  <span className="text-[10px]">{item.type === "steering" ? "→" : "↳"}</span>
+                  <span className="truncate max-w-[200px]">{item.text}</span>
+                </button>
+              ))}
+              <button
+                onClick={() => setQueueItems([])}
+                className="px-1 text-[11px] hover:opacity-70"
+                style={{ color: "var(--text-tertiary)" }}
+                title={zh ? "关闭" : "Dismiss"}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Compaction notification (auto-dismissed) */}
+          {compactionMessage && !streaming && (
+            <div className="fade-in flex justify-start">
+              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--accent)", background: "oklch(72% 0.12 175 / 0.06)", border: "1px solid oklch(72% 0.12 175 / 0.15)" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  <path d="M9 12h6" />
+                </svg>
+                <span>{compactionMessage}</span>
+                <button
+                  onClick={() => setCompactionMessage("")}
+                  className="ml-1 hover:opacity-70"
+                  style={{ color: "var(--accent)" }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

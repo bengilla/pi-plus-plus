@@ -7,7 +7,7 @@ export type ContentBlock =
 
 // ── Agent event (SSE stream) ──────────────────────────────
 export interface AgentEvent {
-  type: "text" | "tool_use" | "tool_result" | "tool_execution" | "error" | "done" | "thinking";
+  type: "text" | "tool_use" | "tool_result" | "tool_execution" | "error" | "done" | "thinking" | "compaction_start" | "compaction_end" | "queue_update";
   text?: string;
   thinkingText?: string;
   toolName?: string;
@@ -28,6 +28,18 @@ export interface AgentEvent {
   provider?: string;
   /** Pi session ID (for resuming sessions) */
   sessionId?: string;
+  /** Compaction reason: manual, threshold, overflow */
+  compactionReason?: string;
+  /** Result description from compaction_end */
+  compactionResult?: string;
+  /** Queue update: pending steering/follow-up messages */
+  queueItems?: QueueItem[];
+}
+
+/** A pending steering or follow-up action from a queue_update event */
+export interface QueueItem {
+  type: "steering" | "followUp";
+  text: string;
 }
 
 // ── Agent capabilities ────────────────────────────────────

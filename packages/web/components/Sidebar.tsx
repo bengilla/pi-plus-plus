@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { FileTree } from "./FileTree";
+import { ContextFilesSection } from "./sidebar/ContextFilesSection";
 
 export interface ConvInfo {
   id: string;
@@ -77,10 +78,13 @@ export function Sidebar({
   const isDefault = defaultWorkspaces.some((w) => w.path === workspace);
   const folderName = workspace.split("/").filter(Boolean).pop() || workspace || "Select project";
   const options = useMemo(
-    () => workspace && !isDefault
-      ? [...defaultWorkspaces, { label: `→ ${folderName}`, path: workspace }]
-      : defaultWorkspaces,
-    [defaultWorkspaces, folderName, isDefault, workspace],
+    () => {
+      const none = { label: language === "zh" ? "- 不使用项目 -" : "- No Project -", path: "__none__" };
+      return workspace && !isDefault
+        ? [none, ...defaultWorkspaces, { label: `→ ${folderName}`, path: workspace }]
+        : [none, ...defaultWorkspaces];
+    },
+    [defaultWorkspaces, folderName, isDefault, workspace, language],
   );
   const zh = language === "zh";
 
@@ -122,18 +126,23 @@ export function Sidebar({
             <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
               {zh ? "当前项目" : "Current project"}
             </span>
-            {workspace && (
+            {workspace ? (
               <span className="truncate text-[10px]" style={{ color: "var(--text-secondary)" }}>
                 {folderName}
+              </span>
+            ) : (
+              <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                {zh ? "无项目" : "No project"}
               </span>
             )}
           </div>
           <div className="flex items-center gap-1">
             <select
-              value={workspace}
+              value={workspace || "__none__"}
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === "__custom__") { setShowCustom(true); }
+                else if (val === "__none__") { onWorkspaceChange(""); }
                 else if (val) { onWorkspaceChange(val); }
               }}
               className="flex-1 w-0 pl-2 pr-5 py-1.5 cursor-pointer appearance-none truncate"
@@ -210,11 +219,14 @@ export function Sidebar({
               className="px-3 py-4 text-center text-xs"
               style={{ background: "var(--bg)", border: "1px dashed var(--border)", color: "var(--text-tertiary)" }}
             >
-              {zh ? "选择一个项目来浏览文件" : "Choose a project to browse files"}
+              {zh ? "选择一个项目，或使用「不使用项目」模式。" : "Choose a project or use No Project mode."}
             </div>
           )
         )}
       </div>
+
+      {/* ── Context Files ────────────────────────────────── */}
+      {workspace && <ContextFilesSection workspace={workspace} onFileClick={onFileClick} language={language} />}
 
       {/* ── Conversations ─────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-0">

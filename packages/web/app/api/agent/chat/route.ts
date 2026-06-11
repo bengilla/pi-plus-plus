@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const workspace = reqWorkspace || process.env.AGENTS_WEB_WORKSPACE || process.cwd();
+  const workspace = (reqWorkspace && reqWorkspace !== "__none__") ? reqWorkspace : (process.env.AGENTS_WEB_WORKSPACE || "/tmp");
   const encoder = new TextEncoder();
 
   // Use TransformStream so writer.write() flushes each event immediately.
