@@ -122,6 +122,29 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 
 ## Changelog
 
+### 2026-06-11 — Pi CLI Sync, Triple-Link Data Flow
+
+**Architecture: Pi CLI is the source of truth.**
+
+**Sync:**
+- Settings → 会话 Sync button writes all Pi sessions to localStorage with merge
+- Sidebar delete also removes Pi `.jsonl` file via DELETE API
+- Settings → 会话 cards click to open in sidebar (auto-switches workspace + syncs)
+- Sessions API uses `cwd` from file headers, not lossy directory name decode
+- All session endpoints support partial ID matching (startsWith)
+- Chat API resolves session ID to full file path across all directories
+
+**UI fixes:**
+- Sidebar conversation cards: consistent left/right padding, edit + delete buttons restored
+- ChatInput background matches chat area (both `var(--bg)`)
+- Model dropdown uses fixed positioning to escape overflow clipping
+- Session tree: flat left-aligned layout, scroll position restored on back
+- WelcomeScreen description i18n support
+
+**Persistence:**
+- Thinking level changes write to Pi `settings.json` (model already did)
+- `useConversations` delete propagates to Pi session file
+
 ### 2026-06-11 — Workspace-Scoped Conversations, Pi-Only Mode
 
 **Refactoring:**
