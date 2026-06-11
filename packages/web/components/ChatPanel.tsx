@@ -134,6 +134,7 @@ export function ChatPanel({
   const [availableModels, setAvailableModels] = useState<{ id: string; name: string; provider: string; thinking?: boolean }[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [modelDropdownStyle, setModelDropdownStyle] = useState<React.CSSProperties>({});
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -637,7 +638,7 @@ export function ChatPanel({
             return (
               <button
                 key={level.value}
-                onClick={() => onThinkingLevelChange(level.value)}
+                onClick={() => { onThinkingLevelChange(level.value); fetch("/api/pi/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "global", updates: { defaultThinkingLevel: level.value } }) }).catch(() => {}); }}
                 disabled={streaming}
                 className="px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50"
                 style={{
@@ -657,7 +658,11 @@ export function ChatPanel({
           <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
           <div className="relative">
             <button
-              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                setModelDropdownStyle({ bottom: window.innerHeight - rect.top + 4 + "px", left: rect.left + "px" });
+                setModelDropdownOpen(!modelDropdownOpen);
+              }}
               disabled={streaming}
               className="shrink-0 text-[10px] max-w-[140px] px-1 py-0.5 transition-colors hover:opacity-70 disabled:opacity-50 flex items-center"
               style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}
@@ -672,10 +677,10 @@ export function ChatPanel({
             </button>
             {modelDropdownOpen && (
               <>
-                <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
+                <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
                 <div
-                  className="absolute bottom-full left-0 mb-1 z-40 min-w-[200px] max-h-[280px] overflow-y-auto p-1"
-                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
+                  className="fixed z-50 min-w-[200px] max-h-[280px] overflow-y-auto p-1"
+                  style={{ ...modelDropdownStyle, background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
                 >
                   {(() => {
                     const grouped = new Map<string, typeof availableModels>();
@@ -775,8 +780,8 @@ export function ChatPanel({
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5" onScroll={updateNearBottom}>
-        <div className="mx-auto flex w-full max-w-[880px] flex-col gap-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={updateNearBottom} style={{ background: "var(--bg)" }}>
+        <div className="mx-auto flex min-h-full w-full max-w-[880px] flex-col gap-5 px-5 py-5">
           {messages.length === 0 && !streaming && (
             <WelcomeScreen
               agentName={displayName}

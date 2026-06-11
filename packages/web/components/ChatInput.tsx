@@ -307,7 +307,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
       className="shrink-0 flex flex-col"
       style={{
         borderTop: "1px solid var(--border)",
-        background: "var(--bg-panel)",
+        background: "var(--bg)",
         height: panelHeight ?? undefined,
       }}
     >

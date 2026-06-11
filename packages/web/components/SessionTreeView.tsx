@@ -84,52 +84,36 @@ function TreeNode({
   const hasChildren = entry.children && entry.children.length > 0;
   const isLeaf = entry.id === leafId;
   const zh = lang === "zh";
-
   return (
     <div>
       <div
-        className="flex items-start gap-1.5 px-2 py-1 text-xs transition-colors hover:bg-[var(--bg-hover)] group"
+        className="flex items-start gap-1.5 px-3 py-0.5 text-[11px] transition-colors hover:bg-[var(--bg-hover)] group"
         style={{
-          paddingLeft: `${depth * 16 + 8}px`,
           background: isLeaf ? "var(--bg-selected)" : "transparent",
           borderLeft: isLeaf ? "2px solid var(--accent)" : "2px solid transparent",
         }}
       >
-        {/* Collapse toggle */}
-        {hasChildren ? (
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="shrink-0 mt-0.5 w-3 text-center text-[8px] hover:opacity-70"
-            style={{ color: "var(--accent)" }}
-          >
-            {collapsed ? "▶" : "▼"}
-          </button>
-        ) : (
-          <span className="shrink-0 mt-0.5 w-3 text-center text-[8px]" style={{ color: roleColor(entry.role) }}>
-            {roleDot(entry.role)}
-          </span>
-        )}
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
+            <span className="text-[9px] shrink-0" style={{ color: roleColor(entry.role) }}>
+              {roleDot(entry.role)}
+            </span>
             <span
               className="truncate font-medium"
               style={{ color: entry.isLeaf ? "var(--accent)" : "var(--text)" }}
+              title={entry.summary || `(${entry.type})`}
             >
               {entry.summary || `(${entry.type})`}
             </span>
             {entry.isLeaf && (
-              <span className="shrink-0 text-[9px] px-1" style={{ color: "var(--accent)", border: "1px solid var(--accent)" }}>
-                {zh ? "当前" : "leaf"}
+              <span className="shrink-0 text-[8px]" style={{ color: "var(--accent)" }}>
+                ← {zh ? "当前" : "leaf"}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[9px]" style={{ color: "var(--text-tertiary)" }}>
-              {entry.type === "message" && entry.role ? entry.role : entry.type}
-              {entry.provider && ` · ${entry.provider}/${entry.model || ""}`}
-            </span>
-            <span className="text-[9px]" style={{ color: "var(--text-tertiary)" }}>
+          <div className="flex items-center gap-2 pl-[14px]">
+            <span className="text-[8px] whitespace-nowrap" style={{ color: "var(--text-tertiary)" }}>
               {formatTimestamp(entry.timestamp)}
             </span>
           </div>
@@ -138,7 +122,7 @@ function TreeNode({
         {!isLeaf && (
           <button
             onClick={() => onBranch(entry.id)}
-            className="shrink-0 px-1.5 py-0.5 text-[9px] opacity-0 group-hover:opacity-100 transition-opacity"
+            className="shrink-0 px-1 py-px text-[9px] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
             style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
             title={zh ? "从此处分叉" : "Branch here"}
           >
@@ -283,9 +267,10 @@ export function SessionTreeView({ sessionId, workspace, language = "en", onClose
       </div>
 
       {/* Tree */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="min-h-full px-3 py-2">
         {tree.entries.length === 0 ? (
-          <div className="px-4 py-4 text-xs text-center" style={{ color: "var(--text-secondary)" }}>
+          <div className="text-xs text-center" style={{ color: "var(--text-secondary)" }}>
             {zh ? "会话为空" : "Empty session"}
           </div>
         ) : (
@@ -300,6 +285,7 @@ export function SessionTreeView({ sessionId, workspace, language = "en", onClose
             />
           ))
         )}
+        </div>
       </div>
 
       {/* Branching indicator */}

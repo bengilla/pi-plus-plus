@@ -30,6 +30,7 @@ interface Props {
   activeConvId: string | null;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
+
   onDeleteConversation: (id: string) => void;
   onRenameConversation: (id: string, title: string) => void;
   agents: AgentInfo[];
@@ -254,7 +255,7 @@ export function Sidebar({
           </div>
         </div>
         {convOpen && (
-          <div className="flex-1 overflow-y-auto px-2 py-2 min-h-0">
+          <div className="flex-1 overflow-y-auto pl-2 pr-0 py-2 min-h-0">
             {conversations.length === 0 ? (
               <div
                 className="px-3 py-4 text-center"
@@ -275,11 +276,13 @@ export function Sidebar({
               conversations.map((c) => (
                 <div
                   key={c.id}
-                  className="group cursor-pointer rounded-md px-3 py-2.5 transition-all duration-75 hover:bg-[var(--bg-hover)]"
+                  className="group cursor-pointer py-2.5 transition-all duration-75 hover:bg-[var(--bg-hover)]"
                   onClick={() => onSelectConversation(c.id)}
                   style={{
+                    paddingLeft: c.id === activeConvId ? "10px" : "12px",
+                    paddingRight: "3px",
                     background: c.id === activeConvId ? "var(--bg-selected)" : undefined,
-                    borderLeft: c.id === activeConvId ? "2px solid var(--accent)" : "2px solid transparent",
+                    borderLeft: c.id === activeConvId ? "2px solid var(--accent)" : "none",
                   }}
                 >
                   {editingConvId === c.id ? (
@@ -321,30 +324,26 @@ export function Sidebar({
                           <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
-                          className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
-                          style={{ color: "oklch(68% 0.13 250)" }}
-                          title={zh ? "编辑" : "Edit"}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
-                          className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
-                          style={{ color: "var(--error)" }}
-                          title={zh ? "删除" : "Delete"}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
+                        className="shrink-0 inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                        style={{ color: "oklch(68% 0.13 250)" }}
+                        title={zh ? "编辑" : "Edit"}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                        className="shrink-0 inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--error)" }}
+                        title={zh ? "删除" : "Delete"}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -368,11 +367,11 @@ export function Sidebar({
         </button>
       </div>
 
-      {/* ── Delete confirmation ──────────────────────────────── */}
+      {/* ── Delete confirmation ──────────────────────── */}
       {deleteTarget && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.4)" }}
+          style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
           onClick={() => setDeleteTarget(null)}
         >
           <div
@@ -381,10 +380,10 @@ export function Sidebar({
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm mb-3" style={{ color: "var(--text)" }}>
-              Delete "<span className="font-semibold">{deleteTarget.title}</span>"?
+              {zh ? "删除" : "Delete"} "<span className="font-semibold">{deleteTarget.title}</span>"?
             </p>
             <p className="text-[11px] mb-5" style={{ color: "var(--text-secondary)" }}>
-              This cannot be undone.
+              {zh ? "同时删除两侧的对话记录" : "Deletes from both agents-web and Pi CLI"}
             </p>
             <div className="flex justify-center gap-3">
               <button
@@ -392,19 +391,20 @@ export function Sidebar({
                 className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
                 style={{ color: "var(--text)", border: "1px solid var(--border)" }}
               >
-                Cancel
+                {zh ? "取消" : "Cancel"}
               </button>
               <button
                 onClick={() => { onDeleteConversation(deleteTarget.id); setDeleteTarget(null); }}
                 className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
                 style={{ background: "var(--error)", color: "#fff" }}
               >
-                Delete
+                {zh ? "删除" : "Delete"}
               </button>
             </div>
           </div>
         </div>
       )}
-    </>
+
+      </>
   );
 }

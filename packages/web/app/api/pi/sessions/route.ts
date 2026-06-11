@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, unlinkSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { execFileSync } from "node:child_process";
@@ -20,6 +20,8 @@ interface SessionInfo {
   messageCount: number;
   firstMessage?: string;
   size: number;
+  name?: string;
+  workspace?: string;
 }
 
 // GET /api/pi/sessions?workspace=/path — list Pi sessions
@@ -27,13 +29,29 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const workspace = url.searchParams.get("workspace") || "";
 
-  const sessionsDir = join(homedir(), ".pi", "agent", "sessions");
-  const encoded = encodeWorkspace(workspace);
-  const dir = join(sessionsDir, encoded);
+  const sessionsBase = join(homedir(), ".pi", "agent", "sessions");
+
+  // Determine which directories to scan
+  let dirsToScan: string[] = [];
+  if (workspace) {
+    const encoded = encodeWorkspace(workspace);
+    dirsToScan.push(join(sessionsBase, encoded));
+  } else {
+    // No Project mode: scan all session directories (home, tmp, etc.)
+    try {
+      dirsToScan = readdirSync(sessionsBase)
+        .filter((d) => {
+          try { return statSync(join(sessionsBase, d)).isDirectory(); }
+          catch { return false; }
+        })
+        .map((d) => join(sessionsBase, d));
+    } catch { dirsToScan = []; }
+  }
 
   const sessions: SessionInfo[] = [];
 
-  try {
+  for (const dir of dirsToScan) {
+    try {
     const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
     for (const file of files) {
       try {
@@ -46,13 +64,17 @@ export async function GET(req: Request) {
         const firstLine = JSON.parse(lines[0]);
         const sessionId = firstLine.id || file.split("_")[1]?.replace(".jsonl", "") || file;
 
-        // Find first user message for preview
+        // Check for session_info name first, then find first user message
+        let sessionName: string | undefined;
         let firstUserMessage = "";
-        for (let i = 1; i < Math.min(lines.length, 30); i++) {
+        for (let i = 1; i < Math.min(lines.length, 50); i++) {
           try {
             const evt = JSON.parse(lines[i]);
+            if (evt.type === "session_info" && evt.name) {
+              sessionName = evt.name;
+            }
             // Pi stores user messages as "message" events
-            if ((evt.type === "message" || evt.type === "message_start") && evt.message?.role === "user") {
+            if (!firstUserMessage && (evt.type === "message" || evt.type === "message_start") && evt.message?.role === "user") {
               const content = evt.message.content;
               if (Array.isArray(content)) {
                 firstUserMessage = content
@@ -63,7 +85,6 @@ export async function GET(req: Request) {
               } else if (typeof content === "string") {
                 firstUserMessage = content.slice(0, 80);
               }
-              break;
             }
           } catch { /* skip malformed lines */ }
         }
@@ -89,8 +110,10 @@ export async function GET(req: Request) {
           model,
           provider,
           messageCount: lines.length,
-          firstMessage: firstUserMessage || undefined,
+          firstMessage: sessionName || firstUserMessage || undefined,
           size: stat.size,
+          name: sessionName,
+          workspace: firstLine.cwd || undefined,
         });
       } catch {
         // Skip unreadable files
@@ -98,6 +121,7 @@ export async function GET(req: Request) {
     }
   } catch {
     // Directory doesn't exist or can't be read
+  }
   }
 
   // Sort by timestamp descending
@@ -128,7 +152,7 @@ export async function DELETE(req: NextRequest) {
           const content = readFileSync(join(dir, file), "utf-8");
           const firstLine = JSON.parse(content.split("\n")[0]);
           const sessionId = firstLine.id || file.split("_")[1]?.replace(".jsonl", "") || file;
-          if (sessionId === id) {
+          if (sessionId.startsWith(id)) {
             unlinkSync(join(dir, file));
             deleted++;
           }
@@ -147,10 +171,56 @@ export async function DELETE(req: NextRequest) {
 }
 
 // POST /api/pi/sessions — branch a session
+function findSessionFile(sessionId: string): string | null {
+  const base = join(homedir(), ".pi", "agent", "sessions");
+  try {
+    const dirs = readdirSync(base);
+    for (const dir of dirs) {
+      const dirPath = join(base, dir);
+      if (!statSync(dirPath).isDirectory()) continue;
+      try {
+        const files = readdirSync(dirPath).filter((f) => f.endsWith(".jsonl"));
+        for (const file of files) {
+          const content = readFileSync(join(dirPath, file), "utf-8");
+          const firstLine = content.split("\n")[0];
+          const parsed = JSON.parse(firstLine);
+          if (parsed.id && parsed.id.startsWith(sessionId.slice(0, 20))) {
+            return join(dirPath, file);
+          }
+        }
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return null;
+}
+
 // Body: { action: "branch", sessionId, workspace, entryId, filename }
+// Body: { action: "rename", sessionId, name }
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    if (body.action === "rename") {
+      const { sessionId, name } = body;
+      if (!sessionId || !name) {
+        return NextResponse.json({ error: "sessionId and name required" }, { status: 400 });
+      }
+      const filePath = findSessionFile(sessionId);
+      if (!filePath) {
+        return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      }
+      // Append a session_info event with the name
+      const infoEvent = JSON.stringify({
+        type: "session_info",
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+        parentId: null,
+        timestamp: new Date().toISOString(),
+        name,
+      }) + "\n";
+      appendFileSync(filePath, infoEvent);
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.action !== "branch") {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }

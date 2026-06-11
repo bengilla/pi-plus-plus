@@ -27,6 +27,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Resolve session ID to full path if provided
+  let resolvedSessionId = sessionId;
+  if (sessionId) {
+    const homedir = require("os").homedir();
+    const fs = require("fs");
+    const path = require("path");
+    const sessionsBase = path.join(homedir, ".pi/agent/sessions");
+    try {
+      const dirs = fs.readdirSync(sessionsBase);
+      for (const dir of dirs) {
+        const dirPath = path.join(sessionsBase, dir);
+        if (!fs.statSync(dirPath).isDirectory()) continue;
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+          if (file.includes(sessionId)) {
+            resolvedSessionId = path.join(dirPath, file);
+            break;
+          }
+        }
+        if (resolvedSessionId !== sessionId) break;
+      }
+    } catch { /* session not found, use as-is */ }
+  }
+
   const workspace = (reqWorkspace && reqWorkspace !== "__none__") ? reqWorkspace : (process.env.AGENTS_WEB_WORKSPACE || "/tmp");
   const encoder = new TextEncoder();
 
@@ -58,7 +82,7 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      for await (const event of chat(agent, workspace, prompt, thinkingLevel, model, sessionId)) {
+      for await (const event of chat(agent, workspace, prompt, thinkingLevel, model, resolvedSessionId)) {
         const wrote = await writeEvent(event);
         if (!wrote) break;
         if (event.type === "error") {

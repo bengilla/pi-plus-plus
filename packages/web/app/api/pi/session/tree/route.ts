@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -42,15 +42,31 @@ export async function GET(req: Request) {
   const workspace = url.searchParams.get("workspace") || "";
   const id = url.searchParams.get("id");
 
-  if (!workspace || !id) {
-    return NextResponse.json({ error: "workspace and id required" }, { status: 400 });
+  if (!id) {
+    return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
-  const sessionsDir = join(homedir(), ".pi", "agent", "sessions");
-  const encoded = encodeWorkspace(workspace);
-  const dir = join(sessionsDir, encoded);
+  const sessionsBase = join(homedir(), ".pi", "agent", "sessions");
 
-  try {
+  // Determine which directories to scan
+  let dirsToScan: string[] = [];
+  if (workspace) {
+    const encoded = encodeWorkspace(workspace);
+    dirsToScan.push(join(sessionsBase, encoded));
+  } else {
+    // No Project mode: scan all session directories
+    try {
+      dirsToScan = readdirSync(sessionsBase)
+        .filter((d) => {
+          try { return statSync(join(sessionsBase, d)).isDirectory(); }
+          catch { return false; }
+        })
+        .map((d) => join(sessionsBase, d));
+    } catch { dirsToScan = []; }
+  }
+
+  for (const dir of dirsToScan) {
+    try {
     const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
 
     for (const file of files) {
@@ -61,7 +77,7 @@ export async function GET(req: Request) {
       // Parse header
       const header = JSON.parse(lines[0]);
       const sessionId = header.id || file.split("_")[1]?.replace(".jsonl", "") || file;
-      if (sessionId !== id) continue;
+      if (!sessionId.startsWith(id)) continue;
 
       // Determine the leaf: walk parentId chain from last entry to first
       const entryMap = new Map<string, { line: string; parsed: any }>();
@@ -152,14 +168,10 @@ export async function GET(req: Request) {
 
       return NextResponse.json({ tree });
     }
+    } catch { /* skip unreadable dir */ }
+    }
 
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
-  } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to read session" },
-      { status: 500 },
-    );
-  }
 }
 
 /** Produce a short human-readable summary of a session entry */

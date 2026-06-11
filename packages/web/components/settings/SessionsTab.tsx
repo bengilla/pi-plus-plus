@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { SessionTreeView } from "../SessionTreeView";
 
 export function SessionsTab({ language, workspace, onDeleteSession }: {
@@ -9,10 +9,14 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
   onDeleteSession?: (id: string) => void;
 }) {
   const zh = language === "zh";
-  const [sessions, setSessions] = useState<{ id: string; timestamp: string; model?: string; provider?: string; messageCount: number; firstMessage?: string; size: number }[]>([]);
+  const [sessions, setSessions] = useState<{ id: string; timestamp: string; model?: string; provider?: string; messageCount: number; firstMessage?: string; size: number; name?: string; workspace?: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; firstMessage?: string } | null>(null);
   const [viewingTree, setViewingTree] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollTop = useRef(0);
+  const [syncModal, setSyncModal] = useState<"confirm" | "done" | null>(null);
+  const [syncCount, setSyncCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetch(`/api/pi/sessions?workspace=${encodeURIComponent(workspace)}`)
@@ -21,6 +25,19 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [workspace]);
+
+  // Restore scroll position when returning from tree view
+  useEffect(() => {
+    if (!viewingTree && savedScrollTop.current > 0 && sessions.length > 0) {
+      const restore = () => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = savedScrollTop.current;
+        }
+      };
+      // Multiple RAFs to wait for layout to settle
+      requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(restore)));
+    }
+  }, [viewingTree, sessions.length]);
 
   const formatDate = (ts: string) => {
     const d = new Date(ts);
@@ -34,6 +51,21 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
+  // Compute grouped session list
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<string, typeof sessions>();
+    for (const s of sessions) {
+      const key = s.workspace || "__none__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(s);
+    }
+    return [...groups.entries()].sort((a, b) => {
+      const aMax = Math.max(...a[1].map(s => new Date(s.timestamp).getTime()));
+      const bMax = Math.max(...b[1].map(s => new Date(s.timestamp).getTime()));
+      return bMax - aMax;
+    });
+  }, [sessions]);
+
   if (loading) {
     return <div className="p-5 text-xs text-center" style={{ color: "var(--text-secondary)" }}>{zh ? "加载中..." : "Loading..."}</div>;
   }
@@ -41,8 +73,8 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
   // Show tree view for a specific session
   if (viewingTree) {
     return (
-      <div className="flex flex-col min-h-0" style={{ height: "60vh" }}>
-        <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+      <div className="flex flex-col min-h-0" style={{ height: "75vh", maxHeight: "600px" }}>
+        <div className="flex items-center gap-2 px-4 py-2 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
           <button
             onClick={() => setViewingTree(null)}
             className="text-[10px] px-2 py-0.5 transition-colors hover:opacity-70"
@@ -54,7 +86,7 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
             {zh ? "会话树" : "Session Tree"}
           </span>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0" style={{ background: "var(--bg)" }}>
           <SessionTreeView sessionId={viewingTree} workspace={workspace} language={language} />
         </div>
       </div>
@@ -63,20 +95,56 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
 
   return (
     <div className="p-5">
-      <div className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>
-        {zh ? `当前项目的 Pi CLI 会话 (${sessions.length})` : `Pi CLI sessions for this project (${sessions.length})`}
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+          {zh ? `当前项目的 Pi CLI 会话 (${sessions.length})` : `Pi CLI sessions for this project (${sessions.length})`}
+        </div>
+        <button
+          onClick={() => setSyncModal("confirm")}
+          className="text-[10px] px-2 py-1 transition-colors hover:opacity-70"
+          style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+        >
+          {zh ? "同步" : "Sync"}
+        </button>
       </div>
       {sessions.length === 0 ? (
         <div className="px-3 py-4 text-center text-xs" style={{ color: "var(--text-secondary)", border: "1px dashed var(--border)" }}>
           {zh ? "还没有 Pi 会话。运行 pi CLI 后这里会显示。" : "No Pi sessions yet. Run pi CLI to create sessions."}
         </div>
       ) : (
-        <div className="space-y-1 max-h-[60vh] overflow-y-auto">
-          {sessions.map((s) => (
+        <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto">
+          {groupedSessions.map(([ws, sessList]) => {
+            const label = ws === "__none__" ? (zh ? "📁 (不使用项目)" : "📁 (No Project)") : `📁 ${ws.split("/").filter(Boolean).pop() || ws}`;
+            return (
+              <div key={ws} className="mb-3">
+                <div className="px-3 py-1.5 text-[10px] font-semibold truncate" style={{ color: "var(--text-tertiary)", background: "var(--bg)", borderBottom: "1px solid var(--border-light)" }}>
+                  {label} · {sessList.length}
+                </div>
+                <div className="space-y-1 px-2 pt-1">
+                  {sessList.map((s) => (
             <div
               key={s.id}
-              className="px-3 py-2 text-xs"
+              className="px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
               style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}
+              onClick={async () => {
+                savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
+                // Switch workspace if needed
+                if (s.workspace && s.workspace !== workspace) {
+                  localStorage.setItem("agents-web-workspace", s.workspace || "");
+                }
+                // Sync conversation into localStorage
+                try {
+                  const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                  const data = await r.json();
+                  if (data.conversations) {
+                    const existing = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
+                    const existingIds = new Set(existing.map((c: {id: string}) => c.id));
+                    const newConvs = data.conversations.filter((c: {id: string}) => !existingIds.has(c.id));
+                    localStorage.setItem("agents-web-conversations", JSON.stringify([...existing, ...newConvs]));
+                  }
+                } catch {}
+                location.reload();
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px]" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
@@ -86,11 +154,15 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
                   {s.messageCount} msgs · {formatSize(s.size)}
                 </span>
               </div>
-              {s.firstMessage && (
+              {s.name ? (
+                <div className="mt-1 truncate text-xs font-medium" style={{ color: "var(--accent)" }}>
+                  {s.name}
+                </div>
+              ) : s.firstMessage ? (
                 <div className="mt-1 truncate" style={{ color: "var(--text-secondary)" }}>
                   {s.firstMessage}
                 </div>
-              )}
+              ) : null}
               {(s.model || s.provider) && (
                 <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
                   {s.provider && <span style={{ color: "var(--accent)" }}>{s.provider}</span>}
@@ -100,14 +172,14 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
               )}
               <div className="mt-1 flex items-center gap-1">
                 <button
+                  onClick={(e) => { e.stopPropagation(); savedScrollTop.current = scrollRef.current?.scrollTop ?? 0; setViewingTree(s.id); }}
                   className="px-2 py-0.5 text-[10px] transition-colors hover:opacity-70"
                   style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
-                  onClick={() => setViewingTree(s.id)}
                 >
-                  {zh ? "查看" : "View"}
+                  {zh ? "树" : "Tree"}
                 </button>
                 <button
-                  onClick={async () => {
+                  onClick={async (e) => { e.stopPropagation();
                     const r = await fetch(`/api/pi/session/export?id=${encodeURIComponent(s.id)}&workspace=${encodeURIComponent(workspace)}`);
                     if (!r.ok) return;
                     const blob = await r.blob();
@@ -124,68 +196,101 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
                 >
                   {zh ? "导出" : "Export"}
                 </button>
-                <div className="flex-1" />
-                <button
-                  onClick={() => setDeleteTarget({ id: s.id, firstMessage: s.firstMessage })}
-                  className="px-2 py-0.5 text-[10px] transition-colors hover:opacity-70"
-                  style={{ color: "var(--error)", border: "1px solid var(--error)", background: "transparent" }}
-                  title={zh ? "删除会话" : "Delete session"}
-                >
-                  ✕
-                </button>
               </div>
             </div>
           ))}
         </div>
+      </div>
+    );
+  })}
+      </div>
       )}
 
-      {/* Delete confirmation */}
-      {deleteTarget && (
+      {/* Sync modal */}
+      {syncModal && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center"
           style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(2px)" }}
-          onClick={() => setDeleteTarget(null)}
+          onClick={() => !syncing && setSyncModal(null)}
         >
           <div
             className="w-full max-w-sm p-5 fade-in"
             style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-center mb-4">
-              <div className="text-lg mb-2" style={{ color: "var(--error)" }}>⚠️</div>
-              <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                {zh ? "删除会话" : "Delete session"}
-              </div>
-              {deleteTarget.firstMessage && (
-                <div className="mt-2 text-xs truncate px-2" style={{ color: "var(--text-secondary)" }}>
-                  "{deleteTarget.firstMessage}"
+            {syncModal === "confirm" ? (
+              <>
+                <div className="text-center mb-4">
+                  <div className="text-lg mb-2">🔄</div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    {zh ? "同步 Pi 会话" : "Sync Pi Sessions"}
+                  </div>
+                  <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {zh ? "将 Pi CLI 的所有对话记录同步到 agents-web 的对话列表。" : "Import all Pi CLI sessions into the agents-web conversation list."}
+                  </div>
                 </div>
-              )}
-              <div className="mt-3 text-xs" style={{ color: "var(--text-tertiary)" }}>
-                {zh ? "此操作不可撤销。" : "This cannot be undone."}
-              </div>
-            </div>
-            <div className="flex justify-center gap-3">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
-              >
-                {zh ? "取消" : "Cancel"}
-              </button>
-              <button
-                onClick={async () => {
-                  await fetch(`/api/pi/sessions?id=${encodeURIComponent(deleteTarget.id)}&workspace=${encodeURIComponent(workspace)}`, { method: "DELETE" });
-                  setSessions((prev) => prev.filter((x) => x.id !== deleteTarget.id));
-                  onDeleteSession?.(deleteTarget.id);
-                  setDeleteTarget(null);
-                }}
-                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                style={{ color: "var(--error)", border: "1px solid var(--error)", background: "transparent" }}
-              >
-                {zh ? "删除" : "Delete"}
-              </button>
-            </div>
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => setSyncModal(null)}
+                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                    style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+                    disabled={syncing}
+                  >
+                    {zh ? "取消" : "Cancel"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setSyncing(true);
+                      try {
+                        const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                        const data = await r.json();
+                        if (data.count != null) {
+                          // Merge with existing conversations (don't overwrite)
+                          const existing = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
+                          const existingIds = new Set(existing.map((c: {id: string}) => c.id));
+                          const newConvs = data.conversations.filter((c: {id: string}) => !existingIds.has(c.id));
+                          localStorage.setItem("agents-web-conversations", JSON.stringify([...existing, ...newConvs]));
+                          setSyncCount(newConvs.length);
+                          setSyncModal("done");
+                        } else {
+                          setSyncModal(null);
+                        }
+                      } catch {
+                        setSyncModal(null);
+                      } finally {
+                        setSyncing(false);
+                      }
+                    }}
+                    disabled={syncing}
+                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
+                  >
+                    {syncing ? (zh ? "同步中..." : "Syncing...") : (zh ? "开始同步" : "Sync Now")}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center mb-4">
+                  <div className="text-lg mb-2">✅</div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                    {zh ? "同步完成" : "Sync Complete"}
+                  </div>
+                  <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {syncCount > 0 ? (zh ? `已同步 ${syncCount} 个新对话。刷新页面即可看到。` : `Synced ${syncCount} new conversations. Refresh to see them.`) : (zh ? "没有新对话" : "No new conversations")}
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <button
+                    onClick={() => { if (syncCount > 0) location.reload(); else setSyncModal(null); }}
+                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                    style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
+                  >
+                    {syncCount > 0 ? (zh ? "刷新页面" : "Refresh") : (zh ? "关闭" : "Close")}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

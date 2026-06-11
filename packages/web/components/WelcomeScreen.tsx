@@ -64,7 +64,11 @@ export function WelcomeScreen({ agentName, agentDescription, agentVersion, onSta
           </h1>
           {agentDescription && (
             <p className="mt-1.5 max-w-[560px] text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              {agentDescription}
+              {zh
+                ? (agentDescription === "Earendil Pi coding agent — multi-provider, RPC mode"
+                  ? "Earendil Pi 编码智能体 — 多提供商, RPC 模式"
+                  : agentDescription)
+                : agentDescription}
             </p>
           )}
         </div>

@@ -116,8 +116,18 @@ export function useConversations(workspace: string, activeAgent: string) {
 
   const deleteConversation = useCallback((id: string) => {
     setConvs((prev) => {
+      const idx = prev.findIndex((c) => c.id === id);
+      if (idx === -1) return prev;
+      const conv = prev[idx];
       const updated = prev.filter((c) => c.id !== id);
       saveConvs(updated);
+      // Also delete Pi session file
+      if (conv?.piSessionId) {
+        const ws = conv.workspace || "";
+        fetch(`/api/pi/sessions?id=${encodeURIComponent(conv.piSessionId)}&workspace=${encodeURIComponent(ws)}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      }
       return updated;
     });
     setActiveConvId((prev) => (prev === id ? null : prev));
@@ -129,6 +139,15 @@ export function useConversations(workspace: string, activeAgent: string) {
         c.id === id ? { ...c, title, manualTitle: true } : c,
       );
       saveConvs(updated);
+      // Also rename in Pi session file
+      const conv = updated.find((c) => c.id === id);
+      if (conv?.piSessionId) {
+        fetch("/api/pi/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "rename", sessionId: conv.piSessionId, name: title }),
+        }).catch(() => {});
+      }
       return updated;
     });
   }, []);
