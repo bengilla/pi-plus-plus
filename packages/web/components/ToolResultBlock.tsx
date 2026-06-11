@@ -1,39 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 
 interface Props {
   toolOutput: string;
 }
 
-export function ToolResultBlock({ toolOutput }: Props) {
+const MUTED_TEXT = "oklch(75% 0 0)";
+
+export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const truncated = toolOutput.length > 500 && !expanded
-    ? toolOutput.slice(0, 500) + "…"
-    : toolOutput;
+  const output = toolOutput.trim();
+
+  if (!output) return null;
+
+  const preview = output.split("\n")[0].slice(0, 100);
 
   return (
-    <div className="my-1 ml-4 rounded-md px-3 py-1.5" style={{ borderLeft: "2px solid var(--color-border)" }}>
-      <div
-        className="text-[11px] whitespace-pre-wrap break-words"
+    <div
+      className="my-2 ml-4 overflow-hidden"
+      style={{
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
+      }}
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-[10px] font-medium text-left"
         style={{
-          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
-          color: "var(--color-text-secondary)",
-          maxHeight: expanded ? "none" : "6rem",
-          overflowY: expanded ? "visible" : "auto",
+          color: MUTED_TEXT,
+          background: "var(--color-surface-secondary)",
         }}
       >
-        {truncated}
-      </div>
-      {toolOutput.length > 500 && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-[10px] mt-1 hover:opacity-70"
-          style={{ color: "var(--color-accent)" }}
+        <span className="inline-flex items-center gap-2 min-w-0 flex-1">
+          <span className="shrink-0">{expanded ? "▾" : "▸"}</span>
+          <span className="shrink-0">Output</span>
+          {!expanded && preview && (
+            <span className="truncate" style={{ opacity: 0.55, fontFamily: "var(--font-mono)", fontSize: "9px" }}>
+              {preview}{preview.length < output.length ? "…" : ""}
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
+      </button>
+      {expanded && (
+        <div
+          className="whitespace-pre-wrap break-words px-3 py-2 text-[11px]"
+          style={{
+            fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+            color: MUTED_TEXT,
+            maxHeight: "12rem",
+            overflowY: "auto",
+          }}
         >
-          {expanded ? "Show less" : "Show more"}
-        </button>
+          {toolOutput}
+        </div>
       )}
     </div>
   );
-}
+});

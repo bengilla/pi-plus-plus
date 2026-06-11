@@ -1,44 +1,42 @@
 @import "tailwindcss";
 
-/* ═══════════════════════════════════════════════════════════════
-   agents-web — Design System
-   Direction: Dark Industrial Precision
-   References: pi-web, Codex Desktop
-   ═══════════════════════════════════════════════════════════════ */
+/* agents-web design tokens: quiet desktop workspace. */
 
 /* ── Design Tokens ──────────────────────────────────────────── */
 /* Dark theme is the default (SSR-safe, no white flash). */
 
 :root {
   /* Surfaces */
-  --bg:            oklch(16% 0.006 260);
-  --bg-panel:      oklch(20% 0.005 260);
-  --bg-hover:      oklch(24% 0.004 260);
-  --bg-selected:   oklch(27% 0.004 260);
-  --bg-elevated:   oklch(22% 0.005 260);
+  --bg:            oklch(17% 0.004 255);
+  --bg-panel:      oklch(20.5% 0.004 255);
+  --bg-hover:      oklch(25% 0.004 255);
+  --bg-selected:   oklch(28% 0.006 255);
+  --bg-elevated:   oklch(22.5% 0.005 255);
+  --bg-input:      oklch(18.5% 0.004 255);
 
   /* Borders */
-  --border:        oklch(30% 0.003 260);
-  --border-light:  oklch(26% 0.003 260);
+  --border:        oklch(31% 0.003 255);
+  --border-light:  oklch(27% 0.003 255);
 
   /* Text */
-  --text:          oklch(93% 0 0);
-  --text-secondary: oklch(62% 0.01 260);
-  --text-tertiary: oklch(45% 0.01 260);
+  --text:          oklch(92% 0 0);
+  --text-secondary: oklch(75% 0 0);
+  --text-tertiary: oklch(75% 0 0);
 
-  /* Accent — cobalt blue */
-  --accent:        oklch(66% 0.19 252);
-  --accent-hover:  oklch(72% 0.19 252);
-  --accent-dim:    oklch(66% 0.19 252 / 0.12);
+  /* Accent — Pi green */
+  --accent:        oklch(72% 0.12 175);
+  --accent-hover:  oklch(78% 0.12 175);
+  --accent-dim:    oklch(72% 0.12 175 / 0.13);
 
   /* Semantic */
-  --user-bg:       oklch(26% 0.04 250);
-  --user-border:   oklch(34% 0.04 250);
+  --user-bg:       oklch(25% 0.018 245);
+  --user-border:   oklch(35% 0.018 245);
   --tool-bg:       oklch(22% 0.005 260);
   --tool-border:   oklch(28% 0.004 260);
   --success:       oklch(62% 0.19 160);
   --warning:       oklch(70% 0.17 85);
   --error:         oklch(55% 0.22 20);
+
 
   /* Typography */
   --font-sans:     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -62,12 +60,12 @@
   --radius-sm:  4px;
   --radius-md:  6px;
   --radius-lg:  8px;
-  --radius-xl:  12px;
+  --radius-xl:  10px;
 
   /* Shadows */
-  --shadow-panel:   0 1px 3px rgba(0,0,0,0.3);
-  --shadow-overlay: 0 4px 12px rgba(0,0,0,0.4);
-  --shadow-modal:   0 8px 24px rgba(0,0,0,0.5);
+  --shadow-panel:   0 1px 2px rgba(0,0,0,0.18);
+  --shadow-overlay: 0 8px 24px rgba(0,0,0,0.28);
+  --shadow-modal:   0 18px 50px rgba(0,0,0,0.42);
 
   /* Animations */
   --duration-fast:   100ms;
@@ -83,11 +81,12 @@
 
 /* ── Light Theme ───────────────────────────────────────────── */
 [data-theme="light"] {
-  --bg:            oklch(98% 0.002 260);
-  --bg-panel:      oklch(96% 0.002 260);
-  --bg-hover:      oklch(93% 0.003 260);
-  --bg-selected:   oklch(90% 0.003 260);
-  --bg-elevated:   oklch(94% 0.002 260);
+  --bg:            oklch(98% 0.001 255);
+  --bg-panel:      oklch(96.5% 0.001 255);
+  --bg-hover:      oklch(93.5% 0.002 255);
+  --bg-selected:   oklch(91% 0.003 255);
+  --bg-elevated:   oklch(95% 0.001 255);
+  --bg-input:      oklch(99% 0.001 255);
 
   --border:        oklch(88% 0.002 260);
   --border-light:  oklch(92% 0.001 260);
@@ -96,14 +95,15 @@
   --text-secondary: oklch(48% 0.01 260);
   --text-tertiary: oklch(62% 0.008 260);
 
-  --accent:        oklch(52% 0.19 252);
-  --accent-hover:  oklch(46% 0.19 252);
-  --accent-dim:    oklch(52% 0.19 252 / 0.08);
+  --accent:        oklch(50% 0.13 245);
+  --accent-hover:  oklch(44% 0.13 245);
+  --accent-dim:    oklch(50% 0.13 245 / 0.09);
 
-  --user-bg:       oklch(93% 0.03 250);
-  --user-border:   oklch(84% 0.03 250);
+  --user-bg:       oklch(93.5% 0.012 245);
+  --user-border:   oklch(84% 0.012 245);
   --tool-bg:       oklch(95% 0.004 260);
   --tool-border:   oklch(90% 0.003 260);
+
 
   --shadow-panel:   0 0.5px 2px rgba(0,0,0,0.06);
   --shadow-overlay: 0 2px 8px rgba(0,0,0,0.08);
@@ -291,6 +291,12 @@ code, pre {
   padding-left: 1.5em;
   margin-bottom: 0.6em;
 }
+.md-body ol {
+  list-style: decimal;
+}
+.md-body ul {
+  list-style: disc;
+}
 .md-body li {
   margin-bottom: 0.15em;
 }
@@ -393,4 +399,10 @@ input[type="range"]::-moz-range-thumb {
     width: 280px !important;
     min-width: 280px !important;
   }
+}
+
+/* ── Pi splash animation ──────────────────────────────────── */
+@keyframes pi-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
 }

@@ -13,8 +13,6 @@ export interface MarketplaceSkill {
   description: string;
   /** npm package or GitHub repo */
   source: string;
-  /** Compatible agents */
-  agents: string[];
 }
 
 export interface SkillsResult {

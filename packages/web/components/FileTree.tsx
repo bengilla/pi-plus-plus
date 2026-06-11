@@ -13,13 +13,13 @@ interface Props {
   workspace: string;
   onNavigate: (newWorkspace: string) => void;
   onFileClick?: (filePath: string) => void;
+  language?: "en" | "zh";
 }
 
-export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
+export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }: Props) {
+  const zh = language === "zh";
   const [tree, setTree] = useState<FileNode[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [expandedPath, setExpandedPath] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [newFileName, setNewFileName] = useState("");
@@ -40,11 +40,11 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
 
   useEffect(() => { loadTree(); }, [loadTree]);
 
-  const segments = workspace.split("/").filter(Boolean);
-  const goUp = () => {
-    const parent = workspace.split("/").slice(0, -1).join("/") || "/";
-    onNavigate(parent);
-  };
+  // Auto-refresh file tree every 5s to pick up agent-created files
+  useEffect(() => {
+    const timer = setInterval(loadTree, 5000);
+    return () => clearInterval(timer);
+  }, [loadTree]);
 
   const startNewItem = (type: "file" | "folder") => {
     setNewItemType(type);
@@ -63,14 +63,14 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
           body: JSON.stringify({ workspace, name }),
         });
       } else {
-        await fetch("/api/files", {
+        await fetch(`/api/files?workspace=${encodeURIComponent(workspace)}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ path: name, content: "" }),
         });
       }
       loadTree();
-    } catch { alert("Create failed"); }
+    } catch { alert(zh ? "创建失败" : "Create failed"); }
     setNewFileName("");
     setShowNewFile(false);
   };
@@ -85,22 +85,22 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
       setRenaming(null); return;
     }
     try {
-      await fetch("/api/files/rename", {
+      await fetch(`/api/files/rename?workspace=${encodeURIComponent(workspace)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: oldPath, name: renameValue.trim() }),
       });
       loadTree();
-    } catch { alert("Rename failed"); }
+    } catch { alert(zh ? "重命名失败" : "Rename failed"); }
     setRenaming(null);
   };
 
   const handleDelete = async (node: FileNode) => {
-    if (!confirm(`Delete "${node.name}"?`)) return;
+    if (!confirm(zh ? `删除 "${node.name}"？` : `Delete "${node.name}"?`)) return;
     try {
       await fetch(`/api/files?path=${encodeURIComponent(node.path)}&workspace=${encodeURIComponent(workspace)}`, { method: "DELETE" });
       loadTree();
-    } catch { alert("Delete failed"); }
+    } catch { alert(zh ? "删除失败" : "Delete failed"); }
   };
 
   if (error) {
@@ -109,47 +109,6 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
 
   return (
     <div>
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b text-[11px]"
-        style={{ borderColor: "var(--color-border)", overflowX: expandedPath ? "auto" : "hidden" }}>
-        <button onClick={goUp} className="shrink-0 px-1 rounded hover:opacity-70"
-          style={{ color: "var(--color-text-secondary)" }}>←</button>
-        <button onClick={() => setExpandedPath(!expandedPath)} className="text-xs text-left min-w-0 select-all"
-          style={{ color: "var(--color-text)", cursor: "pointer", whiteSpace: expandedPath ? "nowrap" : "normal", flex: expandedPath ? "1 0 auto" : "0 1 auto", overflow: "hidden" }}>
-          {expandedPath ? workspace : `${segments.length > 2 ? ".../" : ""}${segments[segments.length - 1] || workspace}`}
-        </button>
-        {!expandedPath && (
-          <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(workspace); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] transition-all ml-auto"
-            style={{ color: copied ? "#fff" : "oklch(68% 0.15 55)", background: copied ? "oklch(0.55 0.15 160)" : "transparent", border: copied ? "none" : "1px solid oklch(68% 0.15 55 / 0.3)" }}>
-            {copied ? "COPIED!" : "COPY"}
-          </button>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b" style={{ borderColor: "var(--color-border)" }}>
-        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📄 New File</button>
-        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 rounded text-xs hover:opacity-80"
-          style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>📁 New Folder</button>
-      </div>
-
-      {/* New item input */}
-      {showNewFile && (
-        <div className="flex items-center gap-1 px-2 py-1 text-xs border-b" style={{ borderColor: "var(--color-border)" }}>
-          <span className="shrink-0">{newItemType === "folder" ? "📁" : "📄"}</span>
-          <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
-            placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
-            className="flex-1 px-1.5 py-0.5 rounded outline-none text-xs"
-            style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
-            autoFocus spellCheck={false} />
-          <button onClick={handleCreate} className="px-2 py-0.5 rounded text-[10px]"
-            style={{ color: "oklch(68% 0.15 55)", background: "transparent", border: "1px solid oklch(68% 0.15 55 / 0.3)" }}>Create</button>
-        </div>
-      )}
-
       {/* File/dir list */}
       <div className="py-1">
         {tree.map((node) => (
@@ -159,31 +118,54 @@ export function FileTree({ workspace, onNavigate, onFileClick }: Props) {
               <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(node.path); if (e.key === "Escape") setRenaming(null); }}
                 onBlur={() => handleRenameSubmit(node.path)}
-                className="flex-1 px-1 py-0 rounded outline-none text-xs"
+                className="flex-1 px-1 py-0 outline-none text-xs"
                 style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
                 autoFocus spellCheck={false} />
             </div>
           ) : (
             <div key={node.path} className="group flex items-center gap-0.5 px-1 py-0.5">
               <button onClick={() => { if (node.type === "directory") onNavigate(workspace.replace(/\/$/, "") + "/" + node.name); else onFileClick?.(workspace.replace(/\/$/, "") + "/" + node.name); }}
-                className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs rounded-sm hover:opacity-80 min-w-0"
+                className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs hover:opacity-80 min-w-0"
                 style={{ color: node.type === "directory" ? "var(--color-text)" : "var(--color-text-secondary)" }}>
                 <span className="shrink-0">{node.type === "directory" ? "📁" : fileIcon(node.name)}</span>
                 <span className="truncate">{node.name}</span>
                 {node.type === "directory" && <span className="ml-auto text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.4 }}>›</span>}
               </button>
               <button onClick={() => handleRenameStart(node)}
-                className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "var(--color-text-secondary)" }} title="Rename">✏️</button>
+                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ color: "var(--color-text-secondary)" }} title={zh ? "重命名" : "Rename"}>✏️</button>
               <button onClick={() => handleDelete(node)}
-                className="shrink-0 px-1 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "oklch(0.55 0.2 30)" }} title="Delete">🗑</button>
+                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ color: "oklch(0.55 0.2 30)" }} title={zh ? "删除" : "Delete"}>🗑</button>
             </div>
           )
         ))}
         {tree.length === 0 && !showNewFile && (
-          <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--color-text-secondary)" }}>Empty folder</div>
+          <div className="px-3 py-4 text-xs text-center" style={{ color: "var(--color-text-secondary)" }}>{zh ? "空文件夹" : "Empty folder"}</div>
         )}
+      </div>
+
+      {/* New item input */}
+      {showNewFile && (
+        <div className="flex items-center gap-1 px-2 py-1 text-xs" style={{ borderTop: "1px solid var(--color-border)" }}>
+          <span className="shrink-0">{newItemType === "folder" ? "📁" : "📄"}</span>
+          <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
+            placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
+            className="flex-1 px-1.5 py-0.5 outline-none text-xs"
+            style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
+            autoFocus spellCheck={false} />
+          <button onClick={handleCreate} className="px-2 py-0.5 text-[10px]"
+            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "创建" : "Create"}</button>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件" : "New"}</button>
+        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件夹" : "Folder"}</button>
       </div>
     </div>
   );

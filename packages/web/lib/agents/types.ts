@@ -7,7 +7,7 @@ export type ContentBlock =
 
 // ── Agent event (SSE stream) ──────────────────────────────
 export interface AgentEvent {
-  type: "text" | "tool_use" | "tool_result" | "error" | "done" | "thinking";
+  type: "text" | "tool_use" | "tool_result" | "tool_execution" | "error" | "done" | "thinking" | "compaction_start" | "compaction_end" | "queue_update";
   text?: string;
   thinkingText?: string;
   toolName?: string;
@@ -19,6 +19,27 @@ export interface AgentEvent {
   inputTokens?: number;
   outputTokens?: number;
   cacheTokens?: number;
+  /** For tool_execution events: partial streaming output from a running tool */
+  partialOutput?: string;
+  /** For tool_execution events: true when tool finishes with an error */
+  isError?: boolean;
+  /** Model info from the assistant message */
+  model?: string;
+  provider?: string;
+  /** Pi session ID (for resuming sessions) */
+  sessionId?: string;
+  /** Compaction reason: manual, threshold, overflow */
+  compactionReason?: string;
+  /** Result description from compaction_end */
+  compactionResult?: string;
+  /** Queue update: pending steering/follow-up messages */
+  queueItems?: QueueItem[];
+}
+
+/** A pending steering or follow-up action from a queue_update event */
+export interface QueueItem {
+  type: "steering" | "followUp";
+  text: string;
 }
 
 // ── Agent capabilities ────────────────────────────────────
@@ -31,18 +52,20 @@ export interface AgentCapabilities {
 
 // ── Agent definition (known agent registry) ───────────────
 export interface AgentDefinition {
-  /** Unique key, e.g. "claude-code", "pi" */
+  /** Unique key, e.g. "pi" */
   id: string;
   /** Display name, e.g. "Claude Code" */
   name: string;
   /** Description shown in UI */
   description: string;
-  /** Binary name to detect, e.g. "claude" */
+  /** Binary name to detect, e.g. "pi" */
   binary: string;
   /** Extra PATH directories to check */
   fallbackPaths: string[];
-  /** How to spawn: build args array from workspace + prompt + thinking level */
-  spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string) => string[];
+  /** npm package name when the CLI is distributed as a global npm package */
+  packageName?: string;
+  /** How to spawn: build args array from workspace + prompt + thinking level + model */
+  spawnArgs: (workspace: string, prompt: string, thinkingLevel?: string, model?: string, sessionId?: string) => string[];
   /** Capabilities */
   capabilities: AgentCapabilities;
   /** Supported thinking levels (if empty, thinking control is hidden for this agent) */
@@ -59,10 +82,22 @@ export interface DiscoveredAgent {
   capabilities: AgentCapabilities;
 }
 
+export interface DetectedAgent {
+  id: string;
+  name: string;
+  binary: string;
+  description: string;
+  path: string;
+  version?: string;
+  installSource?: string;
+  status: "available" | "needs-adapter";
+  upgradeSupported?: boolean;
+}
+
 // ── Adapter: spawns a CLI and yields events ───────────────
 export interface AgentAdapter {
   readonly definition: AgentDefinition;
   readonly path: string;
-  chat(workspace: string, prompt: string, thinkingLevel?: string): AsyncIterable<AgentEvent>;
+  chat(workspace: string, prompt: string, thinkingLevel?: string, model?: string, sessionId?: string): AsyncIterable<AgentEvent>;
   interrupt(): void;
 }

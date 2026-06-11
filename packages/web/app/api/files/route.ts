@@ -74,7 +74,14 @@ export async function GET(req: NextRequest) {
     }
 
     const content = fs.readFileSync(resolved, "utf-8");
-    return NextResponse.json({ content, path: filePath });
+    const lines = content.split("\n").length;
+    return NextResponse.json({
+      content,
+      path: filePath,
+      size: stat.size,
+      modified: stat.mtimeMs,
+      lines,
+    });
   } catch (e: unknown) {
     const err = e as NodeJS.ErrnoException;
     return NextResponse.json({ error: err.message ?? "Read error" }, { status: 404 });

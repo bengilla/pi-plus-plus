@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const { agent, prompt, workspace: reqWorkspace, thinkingLevel } = body as Record<string, string | undefined>;
+  const { agent, prompt, workspace: reqWorkspace, thinkingLevel, model, sessionId } = body as Record<string, string | undefined>;
 
   if (!agent || !prompt) {
     return Response.json({ error: "agent and prompt required" }, { status: 400 });
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const workspace = reqWorkspace || process.env.AGENTS_WEB_WORKSPACE || process.cwd();
+  const workspace = (reqWorkspace && reqWorkspace !== "__none__") ? reqWorkspace : (process.env.AGENTS_WEB_WORKSPACE || "/tmp");
   const encoder = new TextEncoder();
 
   // Use TransformStream so writer.write() flushes each event immediately.
@@ -58,14 +58,16 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      for await (const event of chat(agent, workspace, prompt, thinkingLevel)) {
+      for await (const event of chat(agent, workspace, prompt, thinkingLevel, model, sessionId)) {
         const wrote = await writeEvent(event);
         if (!wrote) break;
-        if (event.type === "done" || event.type === "error") {
-          // Yield a tick so the stream flushes the done event before close
+        if (event.type === "error") {
+          // Error ends the session — close the stream
           await new Promise((r) => setTimeout(r, 0));
           break;
         }
+        // Don't break on 'done' — tool execution events come after the
+        // model's message completes. The stream ends when the iterator ends.
       }
     } catch (e) {
       if (!disconnected && !isAbortLikeError(e)) {

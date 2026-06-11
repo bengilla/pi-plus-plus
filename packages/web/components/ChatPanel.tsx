@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, type DragEvent } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ContentBlock } from "@/lib/agents/types";
+import { formatTokens, formatTime, formatDuration } from "@/lib/utils/chat";
 import { MarkdownBody } from "./MarkdownBody";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { ToolResultBlock } from "./ToolResultBlock";
+import { ChatInput } from "./ChatInput";
 import { WelcomeScreen } from "./WelcomeScreen";
 
 interface Attachment {
@@ -25,77 +27,83 @@ interface Message {
   inputTokens?: number;
   outputTokens?: number;
   cacheTokens?: number;
+  durationSeconds?: number;
+  piSessionId?: string;
 }
 
-interface SimpleMessage {
+export interface ChatMessageSnapshot {
   role: string;
   content: string;
   id: string;
+  createdAt?: number;
+  attachments?: Attachment[];
+  blocks?: ContentBlock[];
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheTokens?: number;
+  durationSeconds?: number;
+  piSessionId?: string;
 }
 
-function flattenFiles(nodes: { name: string; path: string; type: string; children?: unknown[] }[]): { name: string; path: string }[] {
-  const out: { name: string; path: string }[] = [];
-  const walk = (list: typeof nodes, prefix: string) => {
-    for (const n of list) {
-      out.push({ name: n.name, path: n.path });
-      if (n.type === "directory" && n.children) walk(n.children as typeof nodes, prefix);
-    }
-  };
-  walk(nodes, "");
-  return out;
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
-
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const hours = d.getHours().toString().padStart(2, "0");
-  const mins = d.getMinutes().toString().padStart(2, "0");
-  return `${month}月${day}日 ${hours}:${mins}`;
-}
-
-// Approximate cost based on typical API pricing ($3/M in, $15/M out)
-function estimateCost(inputTokens: number, outputTokens: number): string {
-  const cost = (inputTokens / 1_000_000) * 3 + (outputTokens / 1_000_000) * 15;
-  if (cost < 0.0001) return "$0.0001";
-  if (cost < 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(2)}`;
+interface BriefDraft {
+  goal: string;
+  plan: string;
+  references: string;
+  acceptance: string;
 }
 
 interface Props {
   activeAgent: string;
   agentName?: string;
   agentDescription?: string;
+  agentVersion?: string;
   conversationId?: string | null;
   workspace: string;
-  initialMessages?: SimpleMessage[];
-  onMessagesChange?: (messages: SimpleMessage[]) => void;
+  initialMessages?: ChatMessageSnapshot[];
+  onMessagesChange?: (messages: ChatMessageSnapshot[]) => void;
   thinkingLevel?: string;
+  thinkingLevels?: { value: string; label: string }[];
+  onThinkingLevelChange?: (level: string) => void;
+  language?: "en" | "zh";
+  modelVersion?: number;
+  sessionId?: string | null;
 }
 
-function toMessages(messages?: SimpleMessage[]): Message[] {
+function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
   return (messages ?? []).map((m) => ({
     role: m.role as "user" | "assistant" | "error",
     content: m.content,
     id: m.id,
-    createdAt: 0,
+    createdAt: m.createdAt ?? 0,
+    attachments: m.attachments,
+    blocks: m.blocks,
+    inputTokens: m.inputTokens,
+    outputTokens: m.outputTokens,
+    cacheTokens: m.cacheTokens,
+    durationSeconds: m.durationSeconds,
   }));
 }
 
-export function ChatPanel({ activeAgent, agentName, agentDescription, conversationId, workspace, initialMessages, onMessagesChange, thinkingLevel }: Props) {
+export function ChatPanel({
+  activeAgent,
+  agentName,
+  agentDescription,
+  agentVersion,
+  conversationId,
+  workspace,
+  initialMessages,
+  onMessagesChange,
+  thinkingLevel = "auto",
+  thinkingLevels = [],
+  onThinkingLevelChange,
+  language = "en",
+  modelVersion,
+  sessionId,
+}: Props) {
   const displayName = agentName ?? activeAgent;
+  const zh = language === "zh";
 
   const [messages, setMessages] = useState<Message[]>(() => toMessages(initialMessages));
-  const [input, setInput] = useState("");
-  const [mentionOpen, setMentionOpen] = useState(false);
-  const [mentionResults, setMentionResults] = useState<{ name: string; path: string }[]>([]);
-  const [mentionSelected, setMentionSelected] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const streamStartRef = useRef(0);
@@ -106,27 +114,54 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
   const streamCacheTokensRef = useRef(0);
   const streamTickRef = useRef(0);
   const [streamTick, setStreamTick] = useState(0);
-  // Smooth animated token count — chases the real value each frame
-  const [displayTokens, setDisplayTokens] = useState(0);
+  // Compaction state
+  const isCompactingRef = useRef(false);
+  const compactionResultRef = useRef("");
+  const [compactionActive, setCompactionActive] = useState(false);
+  const [compactionMessage, setCompactionMessage] = useState("");
+  // Message queue (steering / follow-up)
+  const [queueItems, setQueueItems] = useState<{ type: "steering" | "followUp"; text: string }[]>([]);
   // Rich content blocks accumulated during streaming
   const streamBlocksRef = useRef<ContentBlock[]>([]);
   const streamThinkRef = useRef("");
   const streamThinkStartRef = useRef(0);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [inputDragOver, setInputDragOver] = useState(false);
+  const streamModelRef = useRef("");
+  const streamProviderRef = useRef("");
+  const streamSessionRef = useRef("");
+  const [currentModel, setCurrentModel] = useState("");
+  const [currentProvider, setCurrentProvider] = useState("");
+  const [piSessionId, setPiSessionId] = useState<string | null>(sessionId || null);
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string; provider: string; thinking?: boolean }[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const isNearBottomRef = useRef(true);
+  const scrollThreshold = 150; // px from bottom to consider "near bottom"
 
   useEffect(() => {
     setMessages(toMessages(initialMessages));
-  }, [conversationId]);
+    setPiSessionId(sessionId || null);
+  }, [conversationId, sessionId]);
 
   // Report messages back to parent for conversation persistence
   const onSaveRef = useRef(onMessagesChange);
   onSaveRef.current = onMessagesChange;
   useEffect(() => {
-    onSaveRef.current?.(messages.map((m) => ({ role: m.role, content: m.content, id: m.id })));
+    onSaveRef.current?.(messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+      id: m.id,
+      createdAt: m.createdAt,
+      attachments: m.attachments,
+      blocks: m.blocks,
+      inputTokens: m.inputTokens,
+      outputTokens: m.outputTokens,
+      cacheTokens: m.cacheTokens,
+      durationSeconds: m.durationSeconds,
+      piSessionId: piSessionId || undefined,
+    })));
   }, [messages]);
 
   // Elapsed timer during streaming
@@ -139,98 +174,102 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
     return () => clearInterval(timer);
   }, [streaming]);
 
-  // rAF sync: poll refs each frame, trigger re-render when content changes,
-  // and smoothly animate the token counter toward the real value.
+  // rAF sync: poll refs each frame and trigger re-render when content changes.
   useEffect(() => {
-    if (!streaming) { setDisplayTokens(0); return; }
+    if (!streaming) return;
     let running = true;
     const tick = () => {
       if (!running) return;
-      // Trigger re-render if SSE loop wrote new data
       if (streamTickRef.current !== streamTick) {
         setStreamTick(streamTickRef.current);
       }
-      // Smooth token count — chase target with easing
-      const target = streamOutputTokensRef.current > 0
-        ? streamOutputTokensRef.current
-        : Math.round(streamContentRef.current.length / 4);
-      setDisplayTokens(prev => {
-        if (prev >= target) return target;
-        const step = Math.max(1, Math.ceil((target - prev) / 3));
-        return prev + step > target ? target : prev + step;
-      });
+      if (streamModelRef.current && currentModel !== streamModelRef.current) {
+        setCurrentModel(streamModelRef.current);
+      }
+      if (streamProviderRef.current && currentProvider !== streamProviderRef.current) {
+        setCurrentProvider(streamProviderRef.current);
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
     return () => { running = false; };
-  }, [streaming]);
+  }, [streaming, currentModel, currentProvider]);
 
+  // Track scroll position — user can scroll up freely during streaming
+  const updateNearBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < scrollThreshold;
+  }, []);
+
+  // Only auto-scroll if user is already near bottom; always scroll when streaming ends
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamTick]);
-
-  // Handle file selection from button
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      if (f.type.startsWith("image/")) {
-        setAttachments((prev) => [...prev, { name: f.name, path: f.name, type: "image" }]);
-      } else {
-        setAttachments((prev) => [...prev, { name: f.name, path: f.name, type: "file" }]);
-      }
+    if (!streaming && isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      return;
     }
-    e.target.value = "";
-  }, []);
-
-  // Handle drag-drop files onto input area
-  const handleInputDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setInputDragOver(true);
-  }, []);
-
-  const handleInputDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setInputDragOver(false);
-  }, []);
-
-  const handleInputDrop = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setInputDragOver(false);
-
-    const files = e.dataTransfer.files;
-    if (files) {
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        const isImage = f.type.startsWith("image/");
-        setAttachments((prev) => {
-          if (prev.some((a) => a.name === f.name)) return prev;
-          return [...prev, { name: f.name, path: f.name, type: isImage ? "image" : "file" }];
-        });
-      }
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, []);
+  }, [messages, streamTick, streaming]);
 
-  // Remove attachment
-  const removeAttachment = useCallback((name: string) => {
-    setAttachments((prev) => prev.filter((a) => a.name !== name));
-  }, []);
+  // Load Pi's default model on mount and when model changes in settings
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/pi/model").then((r) => r.json()),
+      fetch("/api/pi/models").then((r) => r.json()),
+    ])
+      .then(([modelData, modelsData]: [
+        { provider?: string; model?: string },
+        { models: { id: string; name: string; provider: string; enabled: boolean; thinking?: boolean }[]; defaultModel: string | null },
+      ]) => {
+        if (modelData.model) {
+          setCurrentModel(modelData.model);
+          setCurrentProvider(modelData.provider || "");
+          setSelectedModel(modelData.model);
+        }
+        setAvailableModels(modelsData.models.filter((m) => m.enabled));
+      })
+      .catch(() => {});
+  }, [modelVersion]);
 
   const handleStop = useCallback(() => {
-    // Abort the fetch — stops reading the SSE stream
     abortRef.current?.abort();
     abortRef.current = null;
-    // Tell the server to kill the agent process
     fetch("/api/agent/stop", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agent: activeAgent }),
     }).catch(() => {});
+
+    // Capture partial content before clearing refs
+    const partialContent = streamContentRef.current;
+    const partialBlocks = [...streamBlocksRef.current];
+    const partialInputTokens = streamInputTokensRef.current;
+    const partialOutputTokens = streamOutputTokensRef.current;
+    const partialCacheTokens = streamCacheTokensRef.current;
+
     setStreaming(false);
+    if (partialContent.trim() || partialBlocks.length > 0) {
+      const blocks: ContentBlock[] = [...partialBlocks];
+      if (partialContent.trim()) {
+        blocks.push({ type: "text", content: partialContent });
+      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: partialContent,
+          id: Date.now().toString(),
+          createdAt: Date.now(),
+          blocks: blocks.length > 0 ? blocks : undefined,
+          inputTokens: partialInputTokens || undefined,
+          outputTokens: partialOutputTokens || undefined,
+          cacheTokens: partialCacheTokens || undefined,
+        },
+      ]);
+    }
+
     streamContentRef.current = "";
     streamOutputTokensRef.current = 0;
     streamInputTokensRef.current = 0;
@@ -239,13 +278,20 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
     streamBlocksRef.current = [];
     streamThinkRef.current = "";
     streamThinkStartRef.current = 0;
-  }, [activeAgent]);
+    streamModelRef.current = "";
+    streamProviderRef.current = "";
+    streamSessionRef.current = "";
+  }, [activeAgent, setMessages]);
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if ((!text && attachments.length === 0) || streaming) return;
-
+  const handleSend = useCallback(async (text: string, attachments: Attachment[]) => {
+    // Build prompt with attachment references
+    let prompt = text;
     const attList = [...attachments];
+    if (attList.length > 0) {
+      const names = attList.map((a) => a.name).join(", ");
+      prompt = text ? `${text}\n\n[Attached files: ${names}]` : `[Attached files: ${names}]`;
+    }
+
     const userMsg: Message = {
       role: "user",
       content: text || "(attachments)",
@@ -254,9 +300,8 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
       attachments: attList.length > 0 ? attList : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setAttachments([]);
     setStreaming(true);
+    setQueueItems([]);
     streamContentRef.current = "";
     streamOutputTokensRef.current = 0;
     streamInputTokensRef.current = 0;
@@ -265,23 +310,25 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
     streamBlocksRef.current = [];
     streamThinkRef.current = "";
     streamThinkStartRef.current = 0;
-
-    // Build prompt with attachment references
-    let prompt = text;
-    if (attList.length > 0) {
-      const names = attList.map((a) => a.name).join(", ");
-      prompt = text ? `${text}\n\n[Attached files: ${names}]` : `[Attached files: ${names}]`;
-    }
+    streamModelRef.current = "";
+    streamProviderRef.current = "";
 
     try {
-      // Create fresh AbortController so handleStop can cancel the SSE stream
+      const responseStartedAt = Date.now();
       const controller = new AbortController();
       abortRef.current = controller;
 
       const r = await fetch("/api/agent/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent: activeAgent, prompt, workspace, thinkingLevel }),
+        body: JSON.stringify({
+          agent: activeAgent,
+          prompt,
+          workspace,
+          thinkingLevel: thinkingLevel === "auto" ? undefined : thinkingLevel,
+          model: selectedModel || undefined,
+          sessionId: sessionId || undefined,
+        }),
         signal: controller.signal,
       });
 
@@ -297,12 +344,9 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
       let full = "";
 
       // Flush accumulated thinking text into a ThinkingBlock.
-      // Skips if thinking content is essentially identical to the text that follows
-      // (DeepSeek models include the full response in the thinking block).
       const flushThinking = (textContent = "") => {
         const t = streamThinkRef.current.trim();
         if (!t) return;
-        // If the thinking content is just the text content repeated, skip it
         if (textContent.trim() && (t.includes(textContent.trim()) || textContent.trim().includes(t))) {
           streamThinkRef.current = "";
           streamThinkStartRef.current = 0;
@@ -346,7 +390,12 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                 return;
               }
               if (parsed.type === "thinking") {
-                // Accumulate thinking text for display
+                if (parsed.sessionId && !streamSessionRef.current) {
+                  streamSessionRef.current = parsed.sessionId;
+                  setPiSessionId(parsed.sessionId);
+                }
+                if (parsed.model) streamModelRef.current = parsed.model;
+                if (parsed.provider) streamProviderRef.current = parsed.provider;
                 if (parsed.thinkingText) {
                   if (!streamThinkRef.current) {
                     streamThinkStartRef.current = Date.now();
@@ -365,26 +414,69 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                 continue;
               }
               if (parsed.type === "tool_use") {
-                flushThinking(); // no text arg — tool events don't carry text for dedup
+                flushThinking();
                 const id = parsed.toolId ?? `tool-${streamBlocksRef.current.length}`;
-                if (parsed.toolName) {
-                  // New tool call
+                if (parsed.toolName && parsed.toolId) {
+                  // Try exact toolId match first
+                  let existing = streamBlocksRef.current.find(
+                    (b) => b.type === "tool_use" && b.id === id,
+                  );
+                  // tool_execution_start may have a different ID than toolcall_end.
+                  // Find the last incomplete tool_use with matching toolName.
+                  if (!existing) {
+                    for (let i = streamBlocksRef.current.length - 1; i >= 0; i--) {
+                      const b = streamBlocksRef.current[i];
+                      if (b.type === "tool_use" && b.toolName === parsed.toolName && b.status !== "completed") {
+                        existing = b;
+                        break;
+                      }
+                    }
+                    // Update the block's id to match the execution event's id,
+                    // so subsequent tool_result events can find it.
+                    if (existing && existing.type === "tool_use") {
+                      (existing as { id: string }).id = id;
+                    }
+                  }
+                  if (existing && existing.type === "tool_use") {
+                    existing.toolName = parsed.toolName;
+                    existing.toolInput = parsed.toolInput ?? {};
+                    existing.status = "running";
+                  } else {
+                    streamBlocksRef.current.push({
+                      type: "tool_use",
+                      id,
+                      toolName: parsed.toolName,
+                      toolInput: parsed.toolInput ?? {},
+                      status: "running",
+                    });
+                  }
+                } else if (parsed.toolInput?.__partial != null) {
+                  const target = parsed.toolId
+                    ? streamBlocksRef.current.find((b) => b.type === "tool_use" && b.id === parsed.toolId)
+                    : streamBlocksRef.current[streamBlocksRef.current.length - 1];
+                  if (target?.type === "tool_use") {
+                    const prev = (target.toolInput as Record<string, unknown>).__partial as string ?? "";
+                    target.toolInput = {
+                      ...target.toolInput,
+                      __partial: prev + (parsed.toolInput.__partial as string),
+                    };
+                  } else {
+                    streamBlocksRef.current.push({
+                      type: "tool_use",
+                      id,
+                      toolName: "",
+                      toolInput: { __partial: parsed.toolInput.__partial },
+                      status: "running",
+                    });
+                  }
+                } else {
                   streamBlocksRef.current.push({
                     type: "tool_use",
                     id,
-                    toolName: parsed.toolName,
+                    toolName: parsed.toolName ?? "",
                     toolInput: parsed.toolInput ?? {},
                     status: "running",
                   });
-                } else if (parsed.toolInput?.__partial != null) {
-                  // Partial JSON delta — append to last tool_use block
-                  const last = streamBlocksRef.current[streamBlocksRef.current.length - 1];
-                  if (last?.type === "tool_use") {
-                    last.toolInput = {
-                      ...last.toolInput,
-                      __partial: ((last.toolInput as Record<string, unknown>).__partial as string ?? "") + (parsed.toolInput.__partial as string),
-                    };
-                  }
                 }
                 streamTickRef.current++;
                 continue;
@@ -392,20 +484,37 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
               if (parsed.type === "tool_result") {
                 flushThinking();
                 const targetId = parsed.toolId;
-                // Mark matching tool_use as completed
+                let toolFound = false;
                 for (let i = streamBlocksRef.current.length - 1; i >= 0; i--) {
                   const b = streamBlocksRef.current[i];
                   if (b.type === "tool_use" && b.id === targetId) {
                     b.status = "completed";
+                    toolFound = true;
                     break;
                   }
                 }
-                // Append tool_result block
-                streamBlocksRef.current.push({
-                  type: "tool_result",
-                  id: targetId ?? `result-${streamBlocksRef.current.length}`,
-                  toolOutput: parsed.toolOutput ?? "",
-                });
+                // If no tool_use matched by ID, mark the most recent running tool as completed
+                if (!toolFound) {
+                  for (let i = streamBlocksRef.current.length - 1; i >= 0; i--) {
+                    const b = streamBlocksRef.current[i];
+                    if (b.type === "tool_use" && b.status === "running") {
+                      b.status = "completed";
+                      break;
+                    }
+                  }
+                }
+                const existing = streamBlocksRef.current.find(
+                  (b) => b.type === "tool_result" && b.id === targetId,
+                );
+                if (existing && existing.type === "tool_result") {
+                  existing.toolOutput = (existing.toolOutput ?? "") + (parsed.toolOutput ?? "");
+                } else {
+                  streamBlocksRef.current.push({
+                    type: "tool_result",
+                    id: targetId ?? `result-${streamBlocksRef.current.length}`,
+                    toolOutput: parsed.toolOutput ?? "",
+                  });
+                }
                 streamTickRef.current++;
                 continue;
               }
@@ -419,8 +528,32 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
                 if (parsed.outputTokens != null) streamOutputTokensRef.current = parsed.outputTokens;
                 continue;
               }
+              if (parsed.type === "compaction_start") {
+                isCompactingRef.current = true;
+                setCompactionActive(true);
+                setCompactionMessage(zh ? "正在压缩上下文…" : "Compacting context…");
+                continue;
+              }
+              if (parsed.type === "compaction_end") {
+                isCompactingRef.current = false;
+                setCompactionActive(false);
+                const reason = parsed.compactionReason || "manual";
+                const result = parsed.compactionResult || "";
+                const reasonLabel = reason === "threshold" ? (zh ? "阈值" : "threshold") : reason === "overflow" ? (zh ? "溢出" : "overflow") : (zh ? "手动" : "manual");
+                setCompactionMessage(
+                  zh
+                    ? `上下文已压缩 (${reasonLabel})${result ? `: ${result}` : ""}`
+                    : `Context compacted (${reasonLabel})${result ? `: ${result}` : ""}`
+                );
+                setTimeout(() => setCompactionMessage(""), 6000);
+                continue;
+              }
+              if (parsed.type === "queue_update" && parsed.queueItems) {
+                setQueueItems(parsed.queueItems);
+                streamTickRef.current++;
+                continue;
+              }
               if (parsed.text) {
-                // Flush pending thinking block before text, with dedup
                 flushThinking(parsed.text);
                 full += parsed.text;
                 streamContentRef.current = full;
@@ -435,14 +568,18 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
         }
       }
 
-      // Flush any remaining thinking (dedup against final text)
       flushThinking(full);
 
-      // Build blocks array: thinking blocks first, then final text block
       const blocks: ContentBlock[] = [...streamBlocksRef.current];
       if (full.trim()) {
         blocks.push({ type: "text", content: full });
       }
+
+      // Capture token values BEFORE finally resets refs — setMessages callback
+      // runs asynchronously in React 18, after the try/catch/finally block.
+      const finalInputTokens = streamInputTokensRef.current != null ? streamInputTokensRef.current : undefined;
+      const finalOutputTokens = streamOutputTokensRef.current != null ? streamOutputTokensRef.current : undefined;
+      const finalCacheTokens = streamCacheTokensRef.current != null ? streamCacheTokensRef.current : undefined;
 
       setMessages((prev) => [
         ...prev,
@@ -452,13 +589,13 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
           id: Date.now().toString(),
           createdAt: Date.now(),
           blocks: blocks.length > 0 ? blocks : undefined,
-          inputTokens: streamInputTokensRef.current || undefined,
-          outputTokens: streamOutputTokensRef.current || undefined,
-          cacheTokens: streamCacheTokensRef.current || undefined,
+          inputTokens: finalInputTokens,
+          outputTokens: finalOutputTokens,
+          cacheTokens: finalCacheTokens,
+          durationSeconds: (Date.now() - responseStartedAt) / 1000,
         },
       ]);
-    } catch (e: unknown) {
-      // AbortError = user clicked Stop — not a real error
+  } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
       const errMsg = e instanceof Error ? e.message : "Chat error";
       setMessages((prev) => [
@@ -476,336 +613,501 @@ export function ChatPanel({ activeAgent, agentName, agentDescription, conversati
       streamBlocksRef.current = [];
       streamThinkRef.current = "";
       streamThinkStartRef.current = 0;
+      streamModelRef.current = "";
+      streamProviderRef.current = "";
     }
-  };
+  }, [activeAgent, workspace, thinkingLevel, selectedModel, sessionId]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  const handleCompact = useCallback(() => {
+    handleSend("/compact", []);
+  }, [handleSend]);
 
-  const insertMention = () => {
-    const ta = textareaRef.current;
-    if (!ta || mentionResults.length === 0) return;
-    const file = mentionResults[mentionSelected];
-    const cursor = ta.selectionStart;
-    const textBefore = input.slice(0, cursor);
-    const atIdx = textBefore.lastIndexOf("@");
-    if (atIdx === -1) return;
-    const newInput = input.slice(0, atIdx) + file.path + " " + input.slice(cursor);
-    setInput(newInput);
-    setMentionOpen(false);
-    // Restore cursor after inserted path
-    setTimeout(() => {
-      const pos = atIdx + file.path.length + 1;
-      ta.setSelectionRange(pos, pos);
-      ta.focus();
-    }, 0);
-  };
+  // ── Model selector footer extras ───────────────────────────
 
-  const canSend = (input.trim() || attachments.length > 0) && !streaming;
+  const modelSelector = (
+    <>
+      {thinkingLevels.length > 1 && onThinkingLevelChange && (
+        <div className="flex items-center gap-1.5">
+          <span className="pr-1 text-[10px] shrink-0" style={{ color: "var(--accent)", borderBottom: "1px solid var(--accent)" }}>
+            {zh ? "思考" : "Think"}
+          </span>
+          {thinkingLevels.map((level) => {
+            const isActive = thinkingLevel === level.value;
+            const abbr = level.label.length > 4 ? level.label.slice(0, 4) : level.label;
+            return (
+              <button
+                key={level.value}
+                onClick={() => onThinkingLevelChange(level.value)}
+                disabled={streaming}
+                className="px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50"
+                style={{
+                  color: isActive ? "var(--accent)" : "var(--text-tertiary)",
+                  border: isActive ? "1px solid var(--accent)" : "1px solid transparent",
+                }}
+                title={level.label}
+              >
+                {abbr}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {currentModel && (
+        <>
+          <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
+          <div className="relative">
+            <button
+              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+              disabled={streaming}
+              className="shrink-0 text-[10px] max-w-[140px] px-1 py-0.5 transition-colors hover:opacity-70 disabled:opacity-50 flex items-center"
+              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}
+              title={`${currentProvider}/${currentModel}`}
+            >
+              <span className="truncate">
+                {(selectedModel || currentModel).includes("/")
+                  ? (selectedModel || currentModel).split("/").pop()
+                  : (selectedModel || currentModel)}
+              </span>
+              <span className="ml-1.5 text-[8px] shrink-0" style={{ color: "var(--accent)" }}>▼</span>
+            </button>
+            {modelDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setModelDropdownOpen(false)} />
+                <div
+                  className="absolute bottom-full left-0 mb-1 z-40 min-w-[200px] max-h-[280px] overflow-y-auto p-1"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
+                >
+                  {(() => {
+                    const grouped = new Map<string, typeof availableModels>();
+                    for (const m of availableModels) {
+                      const list = grouped.get(m.provider) || [];
+                      list.push(m);
+                      grouped.set(m.provider, list);
+                    }
+                    return [...grouped.entries()].map(([provider, providerModels]) => (
+                      <div key={provider}>
+                        <div className="text-[9px] px-2 py-1 font-semibold uppercase" style={{ color: "var(--accent)" }}>
+                          {provider}
+                        </div>
+                        {providerModels.map((m) => {
+                          const isActive = (selectedModel || currentModel) === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              onClick={() => {
+                                setSelectedModel(m.id);
+                                setCurrentModel(m.id);
+                                setCurrentProvider(m.provider);
+                                setModelDropdownOpen(false);
+                                fetch("/api/pi/models", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ model: m.id }),
+                                }).catch(() => {});
+                              }}
+                              className="w-full text-left px-2 py-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
+                              style={{ color: isActive ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-mono)" }}
+                            >
+                              {m.name.includes('pro') && <span className="mr-1 text-[10px]" style={{ color: "var(--accent)" }}>•</span>}
+                              {m.name}
+                              {m.thinking && <span className="ml-1 text-[8px]" style={{ color: "var(--text-tertiary)" }}>🧠</span>}
+                              {isActive && <span className="ml-1">✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+      {/* Compact button */}
+      {!streaming && messages.length >= 4 && (
+        <>
+          <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
+          <button
+            onClick={handleCompact}
+            className="shrink-0 text-[10px] px-1 py-0.5 transition-colors hover:opacity-70 inline-flex items-center gap-1"
+            style={{ color: "var(--text-tertiary)" }}
+            title={zh ? "压缩上下文" : "Compact context"}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <path d="M9 12h6" />
+            </svg>
+            {zh ? "压缩" : "Compact"}
+          </button>
+        </>
+      )}
+      {/* Auto-trigger warning */}
+      {(() => {
+        const budgetTokens = messages.reduce((s, m) => s + (m.inputTokens ?? 0) + (m.outputTokens ?? 0), 0);
+        const maxContext = 200_000;
+        const pct = budgetTokens / maxContext;
+        if (pct < 0.6) return null;
+        return (
+          <>
+            <span className="shrink-0 w-px h-3 mx-1" style={{ background: !streaming && pct >= 0.8 ? "var(--accent)" : "oklch(70% 0.15 80 / 0.6)" }} />
+            <span
+              className="shrink-0 text-[10px] inline-flex items-center gap-1 cursor-pointer hover:opacity-70"
+              style={{ color: pct >= 0.8 ? "oklch(70% 0.15 80)" : "var(--text-tertiary)" }}
+              onClick={!streaming ? handleCompact : undefined}
+              title={zh ? `上下文占用 ${Math.round(pct * 100)}%，点击压缩` : `Context at ${Math.round(pct * 100)}%, click to compact`}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+              </svg>
+              {Math.round(pct * 100)}%
+            </span>
+          </>
+        );
+      })()}
+    </>
+  );
+
+  // ── Render ──────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        {messages.length === 0 && !streaming && (
-          <WelcomeScreen
-            agentName={displayName}
-            agentDescription={agentDescription}
-            onStarterClick={(prompt) => {
-              setInput(prompt);
-            }}
-          />
-        )}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5" onScroll={updateNearBottom}>
+        <div className="mx-auto flex w-full max-w-[880px] flex-col gap-5">
+          {messages.length === 0 && !streaming && (
+            <WelcomeScreen
+              agentName={displayName}
+              agentDescription={agentDescription}
+              agentVersion={agentVersion}
+              language={language}
+              onStarterClick={() => {}}
+            />
+          )}
 
-        {messages.map((msg) => (
-          <div key={msg.id} className="fade-in">
-            {/* Attachments in user message */}
-            {msg.attachments && msg.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-1.5">
-                {msg.attachments.map((a) => (
-                  <span
-                    key={a.name}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px]"
-                    style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
-                  >
-                    {a.type === "image" ? "🖼️" : "📎"} {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
+          {messages.map((msg, index) => {
+            const startsTurn = msg.role === "user" && index > 0;
+            return (
             <div
-              className="text-sm leading-relaxed break-words rounded-lg px-3 py-2"
+              key={msg.id}
+              className={`fade-in flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               style={{
-                color: msg.role === "error" ? "var(--error)" : "var(--text)",
-                background: msg.role === "user" ? "var(--user-bg)" : msg.role === "error" ? "oklch(55% 0.22 20 / 0.06)" : "transparent",
-                border: msg.role === "user" ? "1px solid var(--user-border)" : msg.role === "error" ? "1px solid oklch(55% 0.22 20 / 0.15)" : "none",
+                borderTop: startsTurn ? "1px solid oklch(75% 0 0 / 0.14)" : undefined,
+                marginTop: startsTurn ? "10px" : undefined,
+                paddingTop: startsTurn ? "22px" : undefined,
               }}
             >
-              {msg.role === "error" ? (
-                `⚠️ ${msg.content}`
-              ) : msg.role === "assistant" && msg.blocks ? (
-                msg.blocks.map((block, i) => {
-                  switch (block.type) {
-                    case "thinking":
-                      return (
-                        <ThinkingBlock
-                          key={i}
-                          content={block.content}
-                          duration={block.duration}
-                          defaultOpen={false}
-                        />
-                      );
-                    case "tool_use":
-                      return (
-                        <ToolCallBlock
-                          key={i}
-                          toolName={block.toolName}
-                          toolInput={block.toolInput}
-                          status={block.status}
-                        />
-                      );
-                    case "tool_result":
-                      return (
-                        <ToolResultBlock
-                          key={i}
-                          toolOutput={block.toolOutput}
-                        />
-                      );
-                    case "text":
-                      return <MarkdownBody key={i} content={block.content} />;
-                    default:
-                      return null;
-                  }
-                })
-              ) : (
-                <MarkdownBody content={msg.content} />
-              )}
-            </div>
-            {/* Per-message usage + copy + time for assistant messages */}
-            {msg.role === "assistant" && (
-              <div className="flex items-center justify-between mt-1 gap-2">
-                <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "oklch(65% 0.015 252)" }}>
-                  <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
-                  <span>·</span>
-                  <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
-                  {msg.cacheTokens != null && msg.cacheTokens > 0 && (
-                    <>
+              <div className={msg.role === "user" ? "group max-w-[76%]" : "w-full"}>
+                {/* Attachments in user message */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="mb-1.5 flex flex-wrap justify-end gap-1">
+                    {msg.attachments.map((a) => (
+                      <span
+                        key={a.name}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px]"
+                        style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+                      >
+                        {a.type === "image" ? "🖼️" : "📎"} {a.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div
+                  className="text-sm leading-relaxed break-words px-3 py-2"
+                  style={{
+                    color: msg.role === "error" ? "var(--error)" : "var(--text)",
+                    background: msg.role === "user"
+                      ? "var(--user-bg)"
+                      : msg.role === "error"
+                      ? "oklch(55% 0.22 20 / 0.06)"
+                      : "transparent",
+                    border: msg.role === "user"
+                      ? "1px solid var(--user-border)"
+                      : msg.role === "error"
+                      ? "1px solid oklch(55% 0.22 20 / 0.15)"
+                      : "1px solid transparent",
+                  }}
+                >
+                  {msg.role === "error" ? (
+                    `⚠️ ${msg.content}`
+                  ) : msg.role === "assistant" && msg.blocks ? (
+                    (() => {
+                      const groups: { type: "tool" | "text" | "think"; items: typeof msg.blocks }[] = [];
+                      for (const block of msg.blocks) {
+                        const isTool = block.type === "tool_use" || block.type === "tool_result";
+                        const category = isTool ? "tool" : block.type === "thinking" ? "think" : "text";
+                        const last = groups[groups.length - 1];
+                        if (last && last.type === category) {
+                          last.items.push(block);
+                        } else {
+                          groups.push({ type: category, items: [block] });
+                        }
+                      }
+                      return groups.map((group, gi) => {
+                        if (group.type === "tool") {
+                          return (
+                            <div
+                              key={`tool-group-${gi}`}
+                              className="my-1"
+                              style={{ border: "1px solid var(--border-light)", background: "var(--bg)" }}
+                            >
+                              {group.items.map((block, i) => {
+                                switch (block.type) {
+                                  case "tool_use":
+                                    return <ToolCallBlock key={i} toolName={block.toolName} toolInput={block.toolInput} status={block.status} />;
+                                  case "tool_result":
+                                    return <ToolResultBlock key={i} toolOutput={block.toolOutput} />;
+                                  default:
+                                    return null;
+                                }
+                              })}
+                            </div>
+                          );
+                        }
+                        if (group.type === "think") {
+                          return group.items.map((block, i) => (
+                            <ThinkingBlock
+                              key={`think-${gi}-${i}`}
+                              content={block.type === "thinking" ? block.content : ""}
+                              duration={block.type === "thinking" ? block.duration : undefined}
+                              defaultOpen={false}
+                              level={thinkingLevel}
+                            />
+                          ));
+                        }
+                        return group.items.map((block, i) => (
+                          block.type === "text" ? <MarkdownBody key={`text-${gi}-${i}`} content={block.content} /> : null
+                        ));
+                      });
+                    })()
+                  ) : (
+                    <MarkdownBody content={msg.content} />
+                  )}
+                </div>
+                {/* Hover actions for user messages */}
+                {msg.role === "user" && (
+                  <div className="mt-1 flex items-center justify-end gap-2 px-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                    {msg.createdAt > 0 && (
+                      <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                        {formatTime(msg.createdAt)}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
+                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
+                      style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
+                      title="Copy"
+                      aria-label="Copy message"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                {/* Per-message usage + copy + time for assistant messages */}
+                {msg.role === "assistant" && (
+                  <div className="flex items-center justify-between mt-1 gap-2 px-3">
+                    <span className="text-[11px] inline-flex items-center gap-1 flex-wrap" style={{ color: "var(--text-secondary)" }}>
+                      <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                       <span>·</span>
-                      <span>{formatTokens(msg.cacheTokens)} cache</span>
+                      <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
+                      {msg.cacheTokens != null && msg.cacheTokens > 0 && (
+                        <>
+                          <span>·</span>
+                          <span style={{ textDecoration: "underline", textUnderlineOffset: "2px", opacity: 0.75 }}>{formatTokens(msg.cacheTokens)} cache</span>
+                        </>
+                      )}
+                      {msg.durationSeconds != null && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: "var(--accent)" }}>{formatDuration(msg.durationSeconds)}</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
+                        className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
+                        style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
+                        title="Copy"
+                        aria-label="Copy message"
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            );
+          })}
+
+          {/* Streaming */}
+          {streaming && (
+            <div className="fade-in flex justify-start">
+              <div className="w-full px-3 py-2">
+                {streamThinkRef.current.trim() && (
+                  <ThinkingBlock
+                    content={streamThinkRef.current}
+                    duration={
+                      streamThinkStartRef.current
+                        ? (Date.now() - streamThinkStartRef.current) / 1000
+                        : undefined
+                    }
+                    defaultOpen={false}
+                    level={thinkingLevel}
+                  />
+                )}
+                {(() => {
+                  const blocks = streamBlocksRef.current;
+                  const groups: { type: "tool" | "think"; items: typeof blocks }[] = [];
+                  for (const block of blocks) {
+                    const isTool = block.type === "tool_use" || block.type === "tool_result";
+                    const category = isTool ? "tool" : "think";
+                    const last = groups[groups.length - 1];
+                    if (last && last.type === category) {
+                      last.items.push(block);
+                    } else {
+                      groups.push({ type: category, items: [block] });
+                    }
+                  }
+                  return groups.map((group, gi) => {
+                    if (group.type === "tool") {
+                      return (
+                        <div key={`tool-group-${gi}`} className="my-1" style={{ border: "1px solid var(--border-light)", background: "var(--bg)" }}>
+                          {group.items.map((block, i) => {
+                            switch (block.type) {
+                              case "tool_use":
+                                return <ToolCallBlock key={i} toolName={block.toolName || "…"} toolInput={block.toolInput} status={block.status} />;
+                              case "tool_result":
+                                return <ToolResultBlock key={i} toolOutput={block.toolOutput} />;
+                              default:
+                                return null;
+                            }
+                          })}
+                        </div>
+                      );
+                    }
+                    return group.items.map((block, i) => (
+                      block.type === "thinking" ? <ThinkingBlock key={`think-${gi}-${i}`} content={block.content} duration={block.duration} defaultOpen={false} level={thinkingLevel} /> : null
+                    ));
+                  });
+                })()}
+                {streamContentRef.current && (
+                  <div className="text-sm leading-relaxed break-words mb-1" style={{ color: "var(--color-text)" }}>
+                    <MarkdownBody content={streamContentRef.current} />
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>
+                  {compactionActive ? (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                      </svg>
+                      <span style={{ color: "oklch(70% 0.12 175)" }}>{zh ? "压缩中…" : "Compacting…"}</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-3.2-6.9" />
+                      </svg>
+                      <span className="tabular-nums">{elapsed}s</span>
                     </>
                   )}
-                  <span>·</span>
-                  <span>${estimateCost(msg.inputTokens ?? Math.round(msg.content.length / 2), msg.outputTokens ?? Math.round(msg.content.length / 4))}</span>
-                </span>
-                <span className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                    className="text-[11px] px-2 py-0.5 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: "oklch(68% 0.15 55)", border: "1px solid oklch(68% 0.15 55 / 0.3)", background: "transparent" }}
-                  >
-                    Copy
-                  </button>
-                  <span className="text-[11px]" style={{ color: "oklch(65% 0.015 252)" }}>
-                    {formatTime(msg.createdAt)}
-                  </span>
-                </span>
+                </div>
+                {queueItems.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {queueItems.map((item, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { handleSend(item.text, []); setQueueItems([]); }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] transition-colors hover:opacity-80"
+                        style={{
+                          color: item.type === "steering" ? "oklch(68% 0.13 250)" : "var(--accent)",
+                          border: `1px solid ${item.type === "steering" ? "oklch(68% 0.13 250 / 0.4)" : "var(--accent)"}`,
+                          background: item.type === "steering" ? "oklch(68% 0.13 250 / 0.06)" : "oklch(72% 0.12 175 / 0.06)",
+                        }}
+                      >
+                        <span className="text-[9px]">{item.type === "steering" ? "→" : "↳"}</span>
+                        <span className="truncate max-w-[180px]">{item.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
-
-        {/* Streaming */}
-        {streaming && (
-          <div className="fade-in">
-            <div
-              className="text-sm leading-relaxed break-words mb-1"
-              style={{ color: "var(--color-text)" }}
-            >
-              {streamContentRef.current ? (
-                <MarkdownBody content={streamContentRef.current} />
-              ) : null}
             </div>
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.015 252)" }}>
-              <span>Generating…</span>
-              <span>(</span>
-              <span className="tabular-nums">{elapsed}s</span>
-              {displayTokens > 0 ? (
-                <>
-                  <span>·</span>
-                  <span className="inline-flex items-center gap-0.5" style={{ color: "oklch(0.7 0.15 155)" }}>
-                    ↓<span className="tabular-nums">{displayTokens}</span> tokens
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>·</span>
-                  <span className="animate-pulse">thinking</span>
-                </>
-              )}
-              <span>)</span>
-            </div>
-          </div>
-        )}
+          )}
 
-        <div ref={bottomRef} />
-      </div>
+          <div ref={bottomRef} />
 
-      {/* Input area */}
-      <div
-        className="p-4 border-t shrink-0"
-        style={{ borderColor: "var(--color-border)" }}
-        onDragOver={handleInputDragOver}
-        onDragLeave={handleInputDragLeave}
-        onDrop={handleInputDrop}
-      >
-        {/* Attachment bar */}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {attachments.map((a) => (
-              <span
-                key={a.name}
-                className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-md text-xs"
-                style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
-              >
-                {a.type === "image" ? "🖼️" : "📎"} {a.name}
+          {/* Queue items: steering / follow-up suggestions */}
+          {queueItems.length > 0 && !streaming && (
+            <div className="fade-in flex flex-wrap gap-1.5 px-1">
+              {queueItems.map((item, i) => (
                 <button
-                  onClick={() => removeAttachment(a.name)}
-                  className="px-1 hover:opacity-70"
-                  style={{ color: "var(--color-text-secondary)" }}
+                  key={i}
+                  onClick={() => { handleSend(item.text, []); setQueueItems([]); }}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] transition-colors hover:opacity-80"
+                  style={{
+                    color: item.type === "steering" ? "oklch(68% 0.13 250)" : "var(--accent)",
+                    border: `1px solid ${item.type === "steering" ? "oklch(68% 0.13 250 / 0.4)" : "var(--accent)"}`,
+                    background: item.type === "steering" ? "oklch(68% 0.13 250 / 0.06)" : "oklch(72% 0.12 175 / 0.06)",
+                  }}
+                >
+                  <span className="text-[10px]">{item.type === "steering" ? "→" : "↳"}</span>
+                  <span className="truncate max-w-[200px]">{item.text}</span>
+                </button>
+              ))}
+              <button
+                onClick={() => setQueueItems([])}
+                className="px-1 text-[11px] hover:opacity-70"
+                style={{ color: "var(--text-tertiary)" }}
+                title={zh ? "关闭" : "Dismiss"}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Compaction notification (auto-dismissed) */}
+          {compactionMessage && !streaming && (
+            <div className="fade-in flex justify-start">
+              <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--accent)", background: "oklch(72% 0.12 175 / 0.06)", border: "1px solid oklch(72% 0.12 175 / 0.15)" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  <path d="M9 12h6" />
+                </svg>
+                <span>{compactionMessage}</span>
+                <button
+                  onClick={() => setCompactionMessage("")}
+                  className="ml-1 hover:opacity-70"
+                  style={{ color: "var(--accent)" }}
                 >
                   ×
                 </button>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* @mention dropdown */}
-        {mentionOpen && mentionResults.length > 0 && (
-          <div className="mb-1 rounded-md border overflow-hidden"
-            style={{ background: "var(--bg-elevated)", borderColor: "var(--border)", boxShadow: "var(--shadow-overlay)" }}>
-            {mentionResults.map((f, i) => (
-              <button
-                key={f.path}
-                onClick={() => { setMentionSelected(i); insertMention(); }}
-                onMouseEnter={() => setMentionSelected(i)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors"
-                style={{
-                  color: "var(--text)",
-                  background: i === mentionSelected ? "var(--bg-selected)" : "transparent",
-                }}
-              >
-                <span className="shrink-0 opacity-50">{f.name.includes(".") ? "📄" : "📁"}</span>
-                <span className="truncate" style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{f.path}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Textarea */}
-        <textarea
-          value={input}
-          ref={textareaRef}
-          onChange={(e) => {
-            setInput(e.target.value);
-            // @mention detection
-            const ta = e.target;
-            const cursor = ta.selectionStart;
-            const textBefore = e.target.value.slice(0, cursor);
-            const atMatch = textBefore.match(/@(\S*)$/);
-            if (atMatch) {
-              const q = atMatch[1].toLowerCase();
-              setMentionSelected(0);
-              // Fetch files lazily
-              if (workspace) {
-                fetch(`/api/files?path=.&workspace=${encodeURIComponent(workspace)}`)
-                  .then(r => r.json()).then(d => {
-                    const files = (d.files ?? []) as { name: string; path: string; type: string }[];
-                    const flat = flattenFiles(files).filter(f => f.name.toLowerCase().includes(q));
-                    setMentionResults(flat.slice(0, 8));
-                    setMentionOpen(flat.length > 0);
-                  }).catch(() => {});
-              }
-            } else {
-              setMentionOpen(false);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (mentionOpen) {
-              if (e.key === "ArrowDown") { e.preventDefault(); setMentionSelected(s => Math.min(s + 1, mentionResults.length - 1)); return; }
-              if (e.key === "ArrowUp") { e.preventDefault(); setMentionSelected(s => Math.max(s - 1, 0)); return; }
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); insertMention(); return; }
-              if (e.key === "Escape") { setMentionOpen(false); return; }
-            }
-            handleKeyDown(e);
-          }}
-          placeholder={`Ask ${displayName}...`}
-          rows={3}
-          className="w-full resize-none p-2 text-sm rounded-md outline-none transition-colors"
-          style={{
-            background: inputDragOver ? "var(--color-accent-dim)" : "var(--color-surface)",
-            color: "var(--color-text)",
-            border: `1px solid ${inputDragOver ? "var(--color-accent)" : "var(--color-border)"}`,
-          }}
-          disabled={streaming}
-        />
-
-        {/* Bottom bar: attach button + hint + send */}
-        <div className="flex justify-between items-center mt-2">
-          <div className="flex items-center gap-2">
-            {/* Attach button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors"
-              style={{
-                color: "var(--color-text-secondary)",
-                border: "1px solid var(--color-border)",
-              }}
-              disabled={streaming}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
-              Attach
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileSelect}
-              accept="image/*,.md,.txt,.json,.ts,.tsx,.js,.jsx,.py,.css,.html,.yaml,.yml,.toml"
-            />
-          </div>
-          {streaming ? (
-            <button
-              onClick={handleStop}
-              className="px-3 py-1 text-xs rounded-md transition-colors hover:opacity-80"
-              style={{ background: "oklch(0.55 0.2 30)", color: "#fff" }}
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!canSend}
-              className="px-3 py-1 text-xs rounded-md transition-colors"
-              style={{
-                background: canSend ? "var(--color-accent)" : "var(--color-border)",
-                color: canSend ? "#fff" : "var(--color-text-secondary)",
-                opacity: canSend ? 1 : 0.5,
-              }}
-            >
-              Send
-            </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
+
+      {/* ChatInput */}
+      <ChatInput
+        agentName={displayName}
+        workspace={workspace}
+        language={language}
+        streaming={streaming}
+        onSend={handleSend}
+        onStop={handleStop}
+        footerExtras={modelSelector}
+      />
     </div>
   );
 }

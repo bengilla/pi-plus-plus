@@ -1,27 +1,21 @@
 "use client";
 
-import { useState, useCallback, useEffect, type DragEvent } from "react";
+import { useState, useCallback, useEffect, type DragEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { ConvInfo } from "@/components/Sidebar";
 import { Sidebar } from "@/components/Sidebar";
-import { getAllDefinitions } from "@/lib/agents/registry";
-import { ChatPanel } from "@/components/ChatPanel";
+import { getPiDefinition } from "@/lib/agents/registry";
+import { ChatPanel, type ChatMessageSnapshot } from "@/components/ChatPanel";
 import { RightPanel } from "@/components/RightPanel";
 import { SettingsModal } from "@/components/SettingsModal";
+import { useConversations } from "@/lib/hooks/useConversations";
+import { useSettings } from "@/lib/hooks/useSettings";
 
 interface AgentInfo {
   id: string;
   name: string;
   description: string;
   version?: string;
-}
-
-interface ConvData {
-  id: string;
-  title: string;
-  agentId: string;
-  workspace?: string;
-  messages: { role: string; content: string; id: string }[];
-  createdAt: number;
+  path?: string;
 }
 
 function getDroppedPath(e: DragEvent): string | null {
@@ -42,59 +36,56 @@ function getDroppedPath(e: DragEvent): string | null {
   return null;
 }
 
-const STORAGE_KEY = "agents-web-conversations";
 const WORKSPACE_KEY = "agents-web-workspace";
 
-function loadConvs(defaultWorkspace = ""): ConvData[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as ConvData[];
-    return parsed.map((c) => ({ ...c, workspace: c.workspace ?? defaultWorkspace }));
-  }
-  catch { return []; }
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
 }
 
-function saveConvs(convs: ConvData[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(convs));
-}
 
-function projectConvs(convs: ConvData[], workspace: string): ConvData[] {
-  return convs.filter((c) => (c.workspace ?? "") === workspace);
-}
-
-function latestConversationId(convs: ConvData[], workspace: string, agentId?: string): string | null {
-  return projectConvs(convs, workspace).find((c) => !agentId || c.agentId === agentId)?.id ?? null;
-}
 
 export default function Home() {
-  const [workspace, setWorkspace] = useState("");
-  const [activeAgent, setActiveAgent] = useState("");
+  const activeAgent = "pi"; // Pi-only mode — no agent switching
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  const [fontScale, setFontScale] = useState(1.1);
   const [thinkingLevel, setThinkingLevel] = useState("auto");
+
+  // Settings from hook
+  const {
+    theme, language, fontScale, sidebarWidth, rightPanelWidth,
+    toggleTheme, handleLanguageChange, handleFontScaleChange,
+    setSidebarWidth, setRightPanelWidth,
+  } = useSettings();
+
+  // Workspace
+  const [workspace, setWorkspace] = useState("");
+  useEffect(() => {
+    const saved = localStorage.getItem(WORKSPACE_KEY);
+    if (saved) setWorkspace(saved);
+  }, []);
+
+  // Conversations from hook
+  const {
+    activeConvId, activeConv, convList,
+    newConversation, selectConversation,
+    deleteConversation, renameConversation,
+    onMessagesChange,
+    deleteConversationsBySession,
+  } = useConversations(workspace, activeAgent);
+
+  // Version check
+  const [versionCheck, setVersionCheck] = useState<{ currentVersion?: string; latestVersion?: string; updateAvailable?: boolean } | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [modelVersion, setModelVersion] = useState(0);
 
   // Panel state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<"file" | "agent" | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-
-  // Conversations
-  const [convs, setConvs] = useState<ConvData[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = document.documentElement.getAttribute("data-theme") as "light" | "dark" | null;
-    setTheme(t === "light" ? "light" : "dark");
-    const saved = localStorage.getItem(WORKSPACE_KEY);
-    setConvs(loadConvs(saved ?? ""));
-    if (saved) setWorkspace(saved);
-    const fs = localStorage.getItem("fontScale");
-    if (fs) setFontScale(parseFloat(fs));
-  }, []);
 
   // ── Keyboard shortcuts ────────────────────────────────────
   useEffect(() => {
@@ -107,91 +98,32 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    document.documentElement.style.background = next === "dark"
-      ? "oklch(16% 0.006 260)"
-      : "oklch(98% 0.002 260)";
-    localStorage.setItem("theme", next);
-    setTheme(next);
-  };
-
-  useEffect(() => {
-    fetch("/api/agents")
-      .then((r) => r.json())
-      .then((data) => {
-        const list: AgentInfo[] = data.agents ?? [];
-        setAgents(list);
-        if (list.length > 0) setActiveAgent((prev) => list.some((a) => a.id === prev) ? prev : list[0].id);
-      })
-      .catch(() => setAgents([]))
-      .finally(() => setAgentsLoading(false));
+  const refreshAgents = useCallback(async () => {
+    const r = await fetch("/api/agents");
+    const data = await r.json();
+    const list: AgentInfo[] = data.agents ?? [];
+    setAgents(list);
+    return data as { agents?: AgentInfo[] };
   }, []);
 
-  // ── Conversations ──────────────────────────────────────────
-  const currentProjectConvs = projectConvs(convs, workspace);
-  const convList: ConvInfo[] = currentProjectConvs.map((c) => ({
-    id: c.id, title: c.title, agentId: c.agentId, createdAt: c.createdAt,
-  }));
-
-  const newConversation = () => {
-    const id = Date.now().toString();
-    const c: ConvData = { id, title: "New conversation", agentId: activeAgent, workspace, messages: [], createdAt: Date.now() };
-    const updated = [c, ...convs];
-    setConvs(updated); saveConvs(updated); setActiveConvId(id);
-  };
-
-  const selectConversation = (id: string) => {
-    setActiveConvId(id);
-  };
-
-  const deleteConversation = (id: string) => {
-    const updated = convs.filter((c) => c.id !== id);
-    setConvs(updated); saveConvs(updated);
-    if (activeConvId === id) setActiveConvId(null);
-  };
-
-  const onMessagesChange = useCallback(
-    (messages: { role: string; content: string; id: string }[]) => {
-      const firstUser = messages.find((m) => m.role === "user");
-      const cid = activeConvId;
-
-      if (cid) {
-        setConvs((prev) => {
-          const updated = prev.map((c) => {
-            if (c.id !== cid) return c;
-            return { ...c, workspace, messages, title: firstUser ? firstUser.content.slice(0, 40) : c.title };
-          });
-          saveConvs(updated);
-          return updated;
-        });
-      } else if (messages.length > 0) {
-        const newId = Date.now().toString();
-        const newConv: ConvData = {
-          id: newId,
-          title: firstUser ? firstUser.content.slice(0, 40) : "New conversation",
-          agentId: activeAgent,
-          workspace,
-          messages,
-          createdAt: Date.now(),
-        };
-        setConvs((prev) => {
-          const updated = [newConv, ...prev];
-          saveConvs(updated);
-          return updated;
-        });
-        setActiveConvId(newId);
-      }
-    },
-    [activeConvId, activeAgent, workspace],
-  );
+  useEffect(() => {
+    refreshAgents()
+      .catch(() => { setAgents([]); })
+      .finally(() => setAgentsLoading(false));
+    // Check Pi version for updates
+    fetch("/api/pi/version")
+      .then((r) => r.json())
+      .then((data) => {
+        setVersionCheck(data);
+        if (data.updateAvailable) setShowUpdateModal(true);
+      })
+      .catch(() => {});
+  }, [refreshAgents]);
 
   const navigateTo = useCallback((newPath: string) => {
     setWorkspace(newPath);
     localStorage.setItem(WORKSPACE_KEY, newPath);
-    setActiveConvId(latestConversationId(convs, newPath, activeAgent));
-  }, [activeAgent, convs]);
+  }, []);
 
   const handleFileClick = useCallback((filePath: string) => {
     setSelectedFilePath(filePath);
@@ -208,6 +140,51 @@ export default function Home() {
     setRightPanelOpen(false);
   }, []);
 
+  const startSidebarResize = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const onMove = (moveEvent: MouseEvent) => {
+      const next = clamp(startWidth + moveEvent.clientX - startX, 220, 420);
+      setSidebarWidth(next);
+    };
+    const onUp = (upEvent: MouseEvent) => {
+      const next = clamp(startWidth + upEvent.clientX - startX, 220, 420);
+      setSidebarWidth(next);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [sidebarWidth, setSidebarWidth]);
+
+  const startRightPanelResize = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = rightPanelWidth;
+    const maxWidth = Math.min(760, Math.round(window.innerWidth * 0.58));
+    const onMove = (moveEvent: MouseEvent) => {
+      const next = clamp(startWidth + startX - moveEvent.clientX, 320, maxWidth);
+      setRightPanelWidth(next);
+    };
+    const onUp = (upEvent: MouseEvent) => {
+      const next = clamp(startWidth + startX - upEvent.clientX, 320, maxWidth);
+      setRightPanelWidth(next);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [rightPanelWidth, setRightPanelWidth]);
+
   const handleDragOver = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }, []);
   const handleDragLeave = useCallback((e: DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }, []);
   const handleDrop = useCallback((e: DragEvent) => {
@@ -217,7 +194,14 @@ export default function Home() {
   }, [navigateTo]);
 
   const currentAgent = agents.find((a) => a.id === activeAgent);
-  const activeConv = currentProjectConvs.find((c) => c.id === activeConvId);
+  const currentAgentDefinition = getPiDefinition();
+
+  useEffect(() => {
+    const levels = currentAgentDefinition?.thinkingLevels ?? [];
+    if (levels.length > 0 && !levels.some((level) => level.value === thinkingLevel)) {
+      setThinkingLevel("auto");
+    }
+  }, [currentAgentDefinition, thinkingLevel]);
 
   // ── No agents state ────────────────────────────────────────
   if (!agentsLoading && agents.length === 0) {
@@ -225,21 +209,15 @@ export default function Home() {
       <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
         <div className="text-center max-w-sm px-6 fade-in">
           <div className="text-5xl mb-4">🤖</div>
-          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>agents-web</h1>
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Pi Workspace</h1>
           <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-            Multi-agent web workspace. Install a CLI agent to get started.
+            {language === "zh" ? "安装 Pi 编码智能体即可开始。" : "Install the Pi coding agent to get started."}
           </p>
           <div className="space-y-2 text-left" style={{ fontSize: "var(--text-xs)" }}>
-            {[
-              { cmd: "npm install -g @anthropic-ai/claude-code", name: "Anthropic Claude Code" },
-              { cmd: "npm install -g @openai/codex", name: "OpenAI Codex CLI" },
-              { cmd: "npm install -g @earendil-works/pi-coding-agent", name: "Earendil Pi coding agent" },
-            ].map(({ cmd, name }) => (
-              <div key={name} className="px-3 py-2 rounded-md" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}>
-                <code style={{ fontSize: "var(--text-sm)", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>{cmd}</code>
-                <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{name}</div>
-              </div>
-            ))}
+            <div className="px-3 py-2" style={{ background: "var(--bg-panel)", border: "1px solid var(--border)" }}>
+              <code style={{ fontSize: "var(--text-sm)", color: "var(--accent)", fontFamily: "var(--font-mono)" }}>npm install -g @earendil-works/pi-coding-agent</code>
+              <div className="mt-0.5" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{language === 'zh' ? 'Earendil Pi 编码智能体' : 'Earendil Pi coding agent'}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -251,7 +229,12 @@ export default function Home() {
     <div className="flex flex-1 min-h-0" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {/* ── Left: Sidebar ─────────────────────────────────── */}
       <div className={`sidebar-panel shrink-0 border-r flex flex-col min-h-0 ${sidebarOpen ? "" : "collapsed"}`}
-        style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--bg-panel)",
+          width: sidebarOpen ? sidebarWidth : 0,
+          minWidth: sidebarOpen ? sidebarWidth : 0,
+        }}>
         <Sidebar
           workspace={workspace}
           onWorkspaceChange={navigateTo}
@@ -261,20 +244,25 @@ export default function Home() {
           onNewConversation={newConversation}
           onSelectConversation={selectConversation}
           onDeleteConversation={deleteConversation}
+          onRenameConversation={renameConversation}
           agents={agents}
-          activeAgent={activeAgent}
-          onAgentChange={(id) => {
-            setActiveAgent(id);
-            setThinkingLevel("auto");
-            // Switch to the most recent conversation for this agent, or start fresh
-            const agentConvs = currentProjectConvs.filter(c => c.agentId === id);
-            setActiveConvId(agentConvs.length > 0 ? agentConvs[0].id : null);
-          }}
           onFileClick={handleFileClick}
           onAgentInfoClick={handleAgentInfoClick}
-          onToggleSidebar={() => setSidebarOpen(false)}
+          language={language}
         />
       </div>
+      {sidebarOpen && (
+        <div
+          className="group relative z-10 w-1.5 shrink-0 cursor-col-resize"
+          onMouseDown={startSidebarResize}
+          title="Resize sidebar"
+        >
+          <div
+            className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors group-hover:w-0.5"
+            style={{ background: "var(--border)" }}
+          />
+        </div>
+      )}
 
       {/* ── Center: Main ──────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -285,9 +273,9 @@ export default function Home() {
             {/* Sidebar toggle */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1 rounded hover:opacity-70 transition-opacity"
+              className="p-1 hover:opacity-70 transition-opacity"
               style={{ color: "var(--text-secondary)" }}
-              title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+              title={language === "zh" ? (sidebarOpen ? "关闭侧栏" : "打开侧栏") : (sidebarOpen ? "Close sidebar" : "Open sidebar")}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -295,38 +283,14 @@ export default function Home() {
               </svg>
             </button>
 
-            {agentsLoading ? (
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>Scanning...</span>
-            ) : (
-              <>
-                <select
-                  value={thinkingLevel}
-                  onChange={(e) => setThinkingLevel(e.target.value)}
-                  className="text-[11px] px-2 py-0.5 rounded cursor-pointer"
-                  style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border)" }}
-                  title="Thinking level"
-                >
-                  {(getAllDefinitions().find(d => d.id === activeAgent)?.thinkingLevels ?? [
-                    { value: "auto", label: "Auto" },
-                    { value: "off", label: "Off" },
-                  ]).map((l) => (
-                    <option key={l.value} value={l.value}>{l.label}</option>
-                  ))}
-                </select>
-              </>
+            {agentsLoading && (
+              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{language === "zh" ? "扫描中..." : "Scanning..."}</span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleAgentInfoClick}
-              className="text-xs px-2 py-0.5 rounded transition-colors hover:opacity-70"
-              style={{ color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-            >
-              Agent Info
-            </button>
-            <button onClick={toggleTheme} className="shrink-0 p-1 rounded hover:opacity-70 transition-opacity"
-              style={{ color: "var(--text)" }} title={theme === "dark" ? "Switch to light" : "Switch to dark"}>
+            <button onClick={toggleTheme} className="shrink-0 p-1 hover:opacity-70 transition-opacity"
+              style={{ color: "var(--text)" }} title={language === "zh" ? (theme === "dark" ? "切换到浅色" : "切换到深色") : (theme === "dark" ? "Switch to light" : "Switch to dark")}>
               {theme === "dark" ? (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -346,45 +310,134 @@ export default function Home() {
             activeAgent={activeAgent}
             agentName={currentAgent ? currentAgent.name : activeAgent}
             agentDescription={currentAgent?.description}
+            agentVersion={currentAgent?.version}
             conversationId={activeConvId}
+            sessionId={activeConv?.piSessionId}
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
-            thinkingLevel={thinkingLevel === "auto" ? undefined : thinkingLevel}
+            thinkingLevel={thinkingLevel}
+            thinkingLevels={currentAgentDefinition?.thinkingLevels ?? []}
+            onThinkingLevelChange={setThinkingLevel}
+            language={language}
+            modelVersion={modelVersion}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
             <div className="text-center fade-in">
               <div className="text-4xl mb-3">💬</div>
-              <div className="text-sm" style={{ color: "var(--text-secondary)" }}>Select an agent to start</div>
+              <div className="text-sm" style={{ color: "var(--text-secondary)" }}>{language === "zh" ? "选择一个智能体开始" : "Select an agent to start"}</div>
             </div>
           </div>
         )}
       </div>
 
       {/* ── Right: Context Panel ───────────────────────────── */}
+      {rightPanelOpen && (
+        <div
+          className="group relative z-10 w-1.5 shrink-0 cursor-col-resize"
+          onMouseDown={startRightPanelResize}
+          title="Resize inspector"
+        >
+          <div
+            className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors group-hover:w-0.5"
+            style={{ background: "var(--border)" }}
+          />
+        </div>
+      )}
       <div className={`right-panel shrink-0 border-l flex flex-col min-h-0 ${rightPanelOpen ? "" : "collapsed"}`}
-        style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--bg-panel)",
+          width: rightPanelOpen ? rightPanelWidth : 0,
+          minWidth: rightPanelOpen ? Math.min(320, rightPanelWidth) : 0,
+        }}>
         <RightPanel
           view={rightPanelView}
           filePath={selectedFilePath}
           agent={currentAgent}
+          agentDefinition={currentAgentDefinition}
           workspace={workspace}
           onClose={closeRightPanel}
+          language={language}
         />
       </div>
 
       {/* Settings modal */}
-      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} agents={agents} fontScale={fontScale} onFontScaleChange={(s: number) => { setFontScale(s); document.documentElement.style.setProperty("--font-scale", String(s)); localStorage.setItem("fontScale", String(s)); }} />
+      <SettingsModal
+        open={showSettings}
+        onClose={() => { setShowSettings(false); setModelVersion((v) => v + 1); }}
+        agents={agents}
+        onAgentsRefresh={refreshAgents}
+        fontScale={fontScale}
+        onFontScaleChange={handleFontScaleChange}
+        language={language}
+        workspace={workspace}
+        onLanguageChange={handleLanguageChange}
+        onDeleteSession={deleteConversationsBySession}
+      />
 
       {/* Drag overlay */}
       {dragOver && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none fade-in"
           style={{ background: "oklch(66% 0.19 252 / 0.06)", backdropFilter: "blur(2px)" }}>
-          <div className="px-8 py-6 rounded-xl text-center"
+          <div className="px-8 py-6 text-center"
             style={{ background: "var(--bg-elevated)", border: "2px dashed var(--accent)", boxShadow: "var(--shadow-modal)" }}>
             <div className="text-3xl mb-2">📁</div>
             <div className="text-sm font-medium" style={{ color: "var(--text)" }}>Drop folder here</div>
+          </div>
+        </div>
+      )}
+
+      {/* Update available modal */}
+      {showUpdateModal && versionCheck?.latestVersion && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowUpdateModal(false)}
+        >
+          <div
+            className="w-full max-w-sm p-6 shadow-xl fade-in"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-4">
+              <div className="text-3xl mb-2">π</div>
+              <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                {language === "zh" ? "Pi 有新版本可用" : "Pi Update Available"}
+              </div>
+              <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
+                {versionCheck.currentVersion || "?"} → {versionCheck.latestVersion}
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowUpdateModal(false)}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+              >
+                {language === "zh" ? "稍后" : "Later"}
+              </button>
+              <button
+                onClick={async () => {
+                  setUpdating(true);
+                  try {
+                    await fetch("/api/agents/upgrade", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ agentId: "pi", action: "upgrade" }),
+                    });
+                  } catch { /* ignore */ }
+                  setUpdating(false);
+                  setShowUpdateModal(false);
+                }}
+                disabled={updating}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80 disabled:opacity-50"
+                style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
+              >
+                {updating ? (language === "zh" ? "更新中..." : "Updating...") : (language === "zh" ? "立即更新" : "Update Now")}
+              </button>
+            </div>
           </div>
         </div>
       )}

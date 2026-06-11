@@ -4,18 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 31508",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "next build",
     "start": "next start -p 31508"
   },
   "dependencies": {
-    "@lobehub/icons": "^5.10.0",
     "next": "^16.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
-    "remark-gfm": "^4.0.1",
-    "simple-git": "^3.28.0"
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

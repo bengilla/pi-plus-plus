@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SyntaxHighlighter, piDarkTheme, getPrismLanguage } from "@/lib/utils/prism";
 
 interface Props {
   filePath: string | null;
@@ -12,16 +13,19 @@ export function Editor({ filePath, workspace }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState(false);
 
   useEffect(() => {
     if (!filePath) {
       setContent("");
       setError(null);
+      setPreview(false);
       return;
     }
 
     setLoading(true);
     setError(null);
+    setPreview(false);
 
     fetch("/api/files?path=" + encodeURIComponent(filePath) + "&workspace=" + encodeURIComponent(workspace))
       .then((r) => r.json())
@@ -53,14 +57,7 @@ export function Editor({ filePath, workspace }: Props) {
 
   // Infer language from extension
   const ext = filePath?.split(".").pop()?.toLowerCase();
-  const langMap: Record<string, string> = {
-    ts: "typescript", tsx: "tsx", js: "javascript", jsx: "jsx",
-    py: "python", rs: "rust", go: "go", java: "java",
-    md: "markdown", mdx: "mdx", css: "css", html: "html",
-    json: "json", yaml: "yaml", yml: "yaml", toml: "toml",
-    sh: "bash", bash: "bash", zsh: "bash",
-  };
-  const language = langMap[ext ?? ""] ?? "";
+  const language = getPrismLanguage(ext);
 
   // Keyboard shortcut: Cmd+S
   useEffect(() => {
@@ -108,23 +105,39 @@ export function Editor({ filePath, workspace }: Props) {
             {filePath.split("/").pop()}
           </span>
           {language && (
-            <span className="px-1.5 py-0.5 rounded text-[10px]"
+            <span className="px-1.5 py-0.5 text-[10px]"
               style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}>
               {language}
             </span>
           )}
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-2 py-0.5 rounded text-xs transition-colors"
-          style={{
-            background: saving ? "var(--color-border)" : "var(--color-accent-dim)",
-            color: saving ? "var(--color-text-secondary)" : "var(--color-accent)",
-          }}
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
+        <div className="flex items-center gap-2">
+          {language && (
+            <button
+              onClick={() => setPreview(!preview)}
+              className="px-2 py-0.5 text-xs transition-colors"
+              style={{
+                background: preview ? "var(--color-accent-dim)" : "transparent",
+                color: "var(--color-accent)",
+                border: "1px solid var(--color-accent)",
+              }}
+            >
+              {preview ? "Edit" : "Preview"}
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving || preview}
+            className="px-2 py-0.5 text-xs transition-colors"
+            style={{
+              background: saving ? "var(--color-border)" : "var(--color-accent-dim)",
+              color: saving ? "var(--color-text-secondary)" : "var(--color-accent)",
+              opacity: preview ? 0.4 : 1,
+            }}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -137,19 +150,35 @@ export function Editor({ filePath, workspace }: Props) {
       )}
 
       {/* Editor area */}
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        className="flex-1 w-full resize-none p-4 text-sm font-mono leading-relaxed outline-none"
-        style={{
-          background: "var(--color-surface)",
-          color: "var(--color-text)",
-          border: "none",
-          tabSize: 2,
-        }}
-        spellCheck={false}
-        placeholder="// Start typing..."
-      />
+      {preview && language ? (
+        <div
+          className="flex-1 overflow-auto p-4 text-sm leading-relaxed"
+          style={{ background: "var(--color-surface)" }}
+        >
+          <SyntaxHighlighter
+            language={language}
+            style={piDarkTheme}
+            showLineNumbers={false}
+            wrapLines={false}
+          >
+            {content}
+          </SyntaxHighlighter>
+        </div>
+      ) : (
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          className="flex-1 w-full resize-none p-4 text-sm font-mono leading-relaxed outline-none"
+          style={{
+            background: "var(--color-surface)",
+            color: "var(--color-text)",
+            border: "none",
+            tabSize: 2,
+          }}
+          spellCheck={false}
+          placeholder="// Start typing..."
+        />
+      )}
     </div>
   );
 }

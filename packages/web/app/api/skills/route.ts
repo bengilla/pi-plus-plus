@@ -6,12 +6,11 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const SKILL_DIRS: Record<string, string> = {
-  "claude-code": join(homedir(), ".claude", "skills"),
   pi: join(homedir(), ".pi", "agent", "skills"),
 };
 
-// GET /api/skills?agent=claude-code — list installed skills
-// GET /api/skills?q=frontend&agent=claude-code — search marketplace
+// GET /api/skills?agent=pi — list installed skills
+// GET /api/skills?q=frontend&agent=pi — search marketplace
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const agent = url.searchParams.get("agent") ?? undefined;
@@ -26,7 +25,7 @@ export async function GET(req: NextRequest) {
         for (const s of r.skills) installed.add(s.id);
       }
     }
-    const results = searchMarketplace(q, agent).filter((s) => !installed.has(s.id));
+    const results = searchMarketplace(q).filter((s) => !installed.has(s.id));
     return NextResponse.json({ marketplace: results });
   }
 
@@ -130,27 +129,8 @@ async function handleInstall(body: {
 
 // ── Helpers ─────────────────────────────────────────────────
 function findSourceDir(skillId: string): string | null {
-  // Check superpowers plugin cache
-  const superSkills = join(
-    homedir(),
-    ".claude",
-    "plugins",
-    "cache",
-    "claude-plugins-official",
-    "superpowers",
-  );
-
-  // Find the latest version
-  try {
-    const { readdirSync } = require("node:fs");
-    const versions = readdirSync(superSkills).filter((v: string) => /^\d/.test(v));
-    for (const ver of versions) {
-      const skillPath = join(superSkills, ver, "skills", skillId);
-      if (existsSync(skillPath)) return skillPath;
-    }
-  } catch {
-    // Not found
-  }
-
+  // Check Pi skills directory for already-installed skills
+  const piSkills = join(homedir(), ".pi", "agent", "skills", skillId);
+  if (existsSync(piSkills)) return piSkills;
   return null;
 }
