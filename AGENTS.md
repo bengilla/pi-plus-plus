@@ -120,111 +120,69 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 
 **What's needed:** Export button that calls `pi --export` and serves the HTML file.
 
-## Multi-Agent Feature Branch
-
-Branch: `multi-agent` (`git checkout -b multi-agent` from `main`)
-Goal: extend agents-web from Pi-only to support 5 coding agents with context handoff.
-
-### Target Agents
-
-| Agent | Binary | Default Model |
-|-------|--------|---------------|
-| Codex | `codex` | gpt-5.1 |
-| Claude | `claude` | claude-sonnet-4-5 |
-| Pi | `pi` | minimax-m2.1 |
-| Opencode | `opencode` | deepseek-v3 |
-| Hermes | `hermes` | (TBD) |
-
-### Phased Plan
-
-**Phase 1 (MVP):**
-- Register 5 AgentDefinitions in registry.ts
-- Agent switcher dropdown in UI
-- Each agent binds its own default model
-- Cross-agent context via HANDOFF.md (shared context file in project root)
-- Agent A writes summary to HANDOFF.md on switch; Agent B reads it on start
-
-**Phase 2 (Advanced):**
-- Workflow chains: A writes → B reviews → C executes
-- Structured handoff with file references
-
-**Not planned:**
-- Parallel mode (multi-agent simultaneous execution) — conflicts > benefits
-- Unified conversation format across agents — too complex, HANDOFF.md suffices
-- Auto agent selection — user prefers manual switching
-
-### Key Design Decisions
-- Use Git branch (`multi-agent`) instead of folder copy — saves disk, shares dependencies
-- `main` branch stays Pi-only (stable, production) on port `31508`
-- `multi-agent` branch runs on port `31509` for side-by-side testing
-- Merge/cherry-pick between branches when multi-agent stabilizes
-
-### Running Both Branches Side-by-Side
-
-```bash
-# Terminal 1 — main (Pi-only)
-git checkout main
-npm run dev                          # port 31508
-
-# Terminal 2 — multi-agent
-git checkout multi-agent
-PORT=31509 npm run dev               # port 31509
-```
-
-Next.js picks up the `PORT` env var (or set `next.config.ts` with a conditional default).
-
 ## Changelog
+
+### 2026-06-11 — Workspace-Scoped Conversations, Pi-Only Mode
+
+**Refactoring:**
+- Extracted `useConversations` hook — conversations scoped by workspace path
+- Extracted `useSettings` hook — theme, language, font scale, resizable panels
+- `page.tsx` 584→444 lines; `ChatPanel` 1418→875 lines
+- Removed agent switcher — Pi-only mode (`activeAgent = "pi"`)
+
+**New features:**
+- Resizable sidebar and right panel
+- Pi version check + update modal
+- Language support (EN/ZH)
+- Conversation rename with manualTitle flag
+- Workspace-scoped conversation list
 
 ### 2026-06-10 — Token Fix, Stop Preserve, Sidebar Cards, Copy Button
 
 **Bug fixes:**
-- Pi-reported token values (`input_tokens`/`output_tokens`) not being read: `spawn.ts` used wrong field names (camelCase vs snake_case). Now correctly reads both Pi's `input`/`output` format and Anthropic's `input_tokens`/`output_tokens`.
-- Stopping a streaming response lost partial content: `handleStop` now captures partial text/blocks/tokens before clearing refs and saves them as a partial assistant message.
-- `0 || undefined` swallowed valid zero token values: replaced with `!= null ? val : undefined`.
+- Pi-reported token values (`input`/`output`) now read correctly from both Pi and Anthropic formats
+- Stopping a stream preserves partial content as assistant message
+- `0 || undefined` replaced with `!= null` check for zero token values
 
-**UI improvements:**
-- Copy button: removed border, added hover glow (`box-shadow`) and active press feedback (`scale-90` + border flash).
-- Sidebar conversation list: redesigned as clickable cards with rounded corners. Selected state shows left accent border + colored title. Hover/selected states are now visually distinct.
-- Sidebar token display: shows `↑input ↓output ⚡cache` breakdown using Pi's reported values instead of `content.length / 4` estimation.
+**UI:**
+- Copy button: border removed, hover glow, press feedback (`scale-90`)
+- Sidebar: clickable conversation cards, left accent border on selected
+- Token display: `↑input ↓output ⚡cache` breakdown from real Pi values
 
 **Refactoring:**
-- Tool call event IDs: `toolcall_start`/`toolcall_delta` now extract real tool name/ID from `partial.content`; `toolcall_end` uses real `toolCall.id`. All events in the chain share the same ID, fixing `Action {}` stuck-running issue.
-- `useConversations` now separately tracks `inputTokens`, `outputTokens`, `cacheTokens` per conversation.
-- `Sidebar.ConvInfo` interface extended with `inputTokens`, `outputTokens`, `cacheTokens`.
+- Tool call IDs unified across `toolcall_start/delta/end` chain
+- `useConversations` tracks `inputTokens`/`outputTokens`/`cacheTokens` per conversation
 
 ### 2026-06-10 — IME, Scroll, Layout, Line Breaks, File Tree
 
 **Bug fixes:**
-- Tool call `Action {}` stuck running: `toolcall_start` now extracts real tool name/ID from `partial.content`; `toolcall_end` uses real `toolCall.id` instead of fabricated `call_{contentIndex}`. All events in the chain now share the same ID.
-- IME composition (Chinese pinyin) Enter sent message prematurely: added `composingRef` + `onCompositionStart/End` to skip send during composition.
-- Agent content didn't fill right side of container: removed `max-w-[820px]` from agent message wrapper.
-- Couldn't scroll up during streaming: auto-scroll only fires when user is within 150px of bottom.
-- Line breaks in user messages collapsed: added `remark-breaks` plugin so single `\n` renders as `<br>`.
-- Markdown ordered/unordered list numbers hidden by Tailwind preflight: added `list-style: decimal` / `disc` on `.md-body ol` / `.md-body ul`.
-- File tree didn't refresh after agent created files: added 5s auto-polling interval.
+- IME composition (pinyin) no longer sends on Enter during composition
+- Agent content fills full width (removed `max-w-[820px]`)
+- Auto-scroll pauses when user scrolls up (150px threshold)
+- Single `\n` renders as `<br>` via `remark-breaks`
+- List numbers restored (`list-style: decimal/disc`)
+- File tree auto-refreshes every 5s
 
-### 2026-06-10 — Package Mgmt + Session Tree + Major Refactor
+### 2026-06-10 — Package Mgmt + Session Tree
 
 **New features:**
-- Package management UI (Settings → 包) — install/remove/update Pi packages
-- Session tree viewer — hierarchical view of Pi session branches
+- Package management UI (Settings → 包): install, remove, update Pi packages
+- Session tree viewer: hierarchical branch view from `.jsonl` files
 
 **Refactoring:**
-- `ChatPanel` 1418→875 lines — extracted `ChatInput` component (textarea, attachments, brief mode, @mentions, input history)
-- Extracted `useConversations` and `useSettings` hooks from `page.tsx` (584→444 lines)
-- Shared Prism config (`lib/utils/prism.ts`) — Editor now has syntax highlight preview
+- `ChatInput` extracted from `ChatPanel` (textarea, attachments, @mentions, input history)
+- Shared Prism config for syntax highlight preview
 
 **Bug fixes:**
-- Tool execution events were silently dropped: `done` event in `factory.ts` + `route.ts` both cut the stream before `tool_execution_*` events arrived
-- Tool call blocks duplicated: `toolcall_end` and `tool_execution_start` used different IDs
-- Token count double-counted: every message counted as both input AND output
+- Tool execution events no longer dropped — `done` event no longer cuts stream early
+- Tool call blocks no longer duplicated (unified IDs)
+- Token count no longer double-counted
 
 **Other:**
 - E2E tests rewritten for Pi-only
-- Removed `@lobehub/icons`, `simple-git` deps; cleaned dead code
+- Removed `@lobehub/icons`, `simple-git` deps
 - Agent description i18n (EN/ZH)
-- React.memo on ThinkingBlock/ToolCallBlock/ToolResultBlock
-
+- `React.memo` on `ThinkingBlock`/`ToolCallBlock`/`ToolResultBlock`
 ## Environment
 
 - `AGENTS_WEB_WORKSPACE` sets the default workspace path.
