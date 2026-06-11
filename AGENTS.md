@@ -186,3 +186,46 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 ## Environment
 
 - `AGENTS_WEB_WORKSPACE` sets the default workspace path.
+
+## Electron Roadmap
+
+Once the Pi Workspace UI stabilizes, package as an Electron desktop app.
+
+### Why Electron
+
+- Native window management (menus, dock, title bar, system tray)
+- Eliminates browser tab dependency
+- Direct `node:` module access without Next.js SSR restrictions
+- Tighter Pi CLI integration via child process management
+- System notifications, global shortcuts, clipboard monitoring
+
+### Design Principles (apply to all future changes)
+
+1. **Server/client split must persist** — Electron wraps the Next.js production server (`next start`), it doesn't replace it. The UI remains a webapp; Electron is just the shell.
+2. **No Electron-specific APIs in the web layer** — All IPC goes through HTTP APIs. If Electron needs a native feature (e.g., file dialog, notification), add an API route, don't call Electron APIs from React components.
+3. **Pi discovery stays filesystem-based** — `discovery.ts` finds the Pi binary via `which` / `where`. Electron doesn't change this.
+4. **Session storage stays in `localStorage` + Pi `.jsonl` files** — No SQLite, no IndexedDB. Keep the portable file-based approach.
+5. **Keep the build portable** — Avoid native Node.js addons. Pi is the only native dependency.
+
+### Migration Path
+
+```text
+Phase 1  — Electron shell that loads http://localhost:31508
+Phase 2  — Bundle Next.js production server inside Electron (single binary)
+Phase 3  — Native features: system tray, auto-update, deep links
+```
+
+### What to avoid
+
+- Don't replace Next.js with a custom bundler
+- Don't add a build step that compiles different code for Electron vs browser
+- Don't use Electron-specific modules in shared code
+
+### Checklist for every change
+
+> Will this change make the Electron migration harder or easier?
+
+- ✅ Favor API routes over client-side Node.js imports
+- ✅ Keep filesystem operations behind API routes, not in React components
+- ❌ Avoid `window.require` or browser-side `node:` imports
+- ❌ Don't add desktop-only features until Phase 2
