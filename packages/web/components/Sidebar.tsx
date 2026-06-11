@@ -321,22 +321,28 @@ export function Sidebar({
                           <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 pt-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex shrink-0 items-center gap-0.5">
                         <button
                           onClick={(e) => { e.stopPropagation(); startConversationEdit(c); }}
-                          className="px-1.5 py-0.5 text-[10px] font-medium"
-                          style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+                          className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                          style={{ color: "var(--text-secondary)" }}
                           title={zh ? "编辑" : "Edit"}
                         >
-                          {zh ? "编辑" : "Edit"}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          </svg>
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
-                          className="px-1.5 py-0.5 text-[10px] font-medium"
-                          style={{ color: "var(--error)", border: "1px solid oklch(55% 0.22 20 / 0.25)" }}
+                          className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 transition-opacity"
+                          style={{ color: "var(--error)" }}
                           title={zh ? "删除" : "Delete"}
                         >
-                          {zh ? "删除" : "Delete"}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
                         </button>
                       </div>
                     </div>

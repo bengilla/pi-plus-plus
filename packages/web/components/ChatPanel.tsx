@@ -915,16 +915,16 @@ export function ChatPanel({
                       <span>{formatTokens(msg.inputTokens ?? Math.round(msg.content.length / 2))} in</span>
                       <span>·</span>
                       <span>{formatTokens(msg.outputTokens ?? Math.round(msg.content.length / 4))} out</span>
-                      {msg.durationSeconds != null && (
-                        <>
-                          <span>·</span>
-                          <span>{formatDuration(msg.durationSeconds)}</span>
-                        </>
-                      )}
                       {msg.cacheTokens != null && msg.cacheTokens > 0 && (
                         <>
                           <span>·</span>
-                          <span>{formatTokens(msg.cacheTokens)} cache</span>
+                          <span style={{ textDecoration: "underline", textUnderlineOffset: "2px" }}>{formatTokens(msg.cacheTokens)} cache</span>
+                        </>
+                      )}
+                      {msg.durationSeconds != null && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: "var(--accent)" }}>{formatDuration(msg.durationSeconds)}</span>
                         </>
                       )}
                     </span>
@@ -941,9 +941,6 @@ export function ChatPanel({
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
                       </button>
-                      <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                        {formatTime(msg.createdAt)}
-                      </span>
                     </span>
                   </div>
                 )}
