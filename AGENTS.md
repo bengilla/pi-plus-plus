@@ -312,3 +312,21 @@ Phase 3  — Native features: system tray, auto-update, deep links
 - ✅ Keep filesystem operations behind API routes, not in React components
 - ❌ Avoid `window.require` or browser-side `node:` imports
 - ❌ Don't add desktop-only features until Phase 2
+
+## Pitfalls (v0.2.x)
+
+### Race: syncPiSessions snapshot vs concurrent writes
+`syncPiSessions` called `loadConvs()` (snapshot), then `await fetch(...)`, then merge + `saveConvs` + `setIndexes`. During the fetch, user could send a message → `onMessagesChange` writes to localStorage. The merge used the stale snapshot → overwrote the new conversation.
+**Fix**: use `setIndexes((prev) => ...)` functional update — `prev` is React's latest committed state.
+
+### Race: handleStop abort clears refs before capture
+`handleStop` called `abort()` first, which synchronously triggered `handleSend`'s `finally` clearing all refs, THEN captured `streamContentRef.current` (already empty).
+**Fix**: capture refs FIRST, then abort.
+
+### Workspace mismatch: /tmp vs homedir
+No Project mode: chat route defaulted to `/tmp` but sync/full APIs mapped empty workspace to `homedir()`. Pi sessions landed in `--tmp--/` but sync looked in `--Users-xxx--/`.
+**Fix**: all three routes (chat, files, settings) default to `homedir()`.
+
+### localStorage key migration
+Renamed `agents-web-*` to `pi-plus-plus-*`. On first load with new keys, `loadConvs()` returned `[]` → auto-sync populated only Pi sessions → web-only convs lost.
+**Fix**: `loadConvs` checks old key if new key is empty, copies data over.
