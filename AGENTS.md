@@ -122,6 +122,66 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 
 ## Changelog
 
+### 2026-06-12 — Sidebar Sort, Pi Block Sync, On-Demand Messages, "No Project" Mapping
+
+**Sidebar sort by time:**
+- `useConversations` sorts by `createdAt` (session start time), matches Settings → 会话
+- Sidebar card time uses `createdAt`; formatRelativeTime unchanged
+- Tracking field `lastActivityAt` kept for future use but no longer drives sort/display
+
+**Pi block sync (complete):**
+- `extractConvs` (sync) was discarding `blocks` (thinking, toolCall, tool_result) — only kept plain text
+- Root cause: Pi uses `type: "toolCall"` (not Anthropic `tool_use`); field names differ (`arguments` vs `input`, `thinking` vs `content`)
+- Fix: refactored into `parseSessionFile`; maps each part to `ContentBlock[]` with type union
+  - `thinking` block from `part.thinking`
+  - `text` block from `part.text`
+  - `tool_use` block from `part.type="toolCall"`, status `"running"`
+  - `tool_result` event patches the matching `tool_use` block (via `toolCallId`) and appends a `tool_result` block
+- Tool-call status is `running` until the standalone `toolResult` event flips it to `completed` / `error`
+- Orphan `toolResult` events (no matching `tool_use`) are dropped silently
+
+**On-demand message loading (data-flow refactor):**
+- Problem: Sync returned full messages (15.7 MB for 81 sessions) — exceeded localStorage 5-10 MB cap
+- Fix: localStorage stores lightweight index only; messages are loaded on demand
+- New `GET /api/pi/sessions/full?id=X&workspace=Y` returns full messages + blocks for a single Pi session
+- `useConversations` adds:
+  - `messagesCache: Map<id, ChatMessageSnapshot[]>` (in-memory, not persisted)
+  - `loadConvMessages(id)` — fetches /full, writes to cache
+  - `loadingConvId: string | null` — tracks which conv is loading
+- `ChatPanel` receives `loadingMessages` + `onRequestLoadMessages` props:
+  - On `conversationId` / `sessionId` change, if `initialMessages` empty + has `sessionId` → trigger load
+  - Shows "Loading conversation…" spinner (Q2-2a) instead of WelcomeScreen
+- `activeConv` = index + cached messages; sidebar token numbers from cache if loaded, else from `piTotalInputTokens` etc. (Q3-3c)
+- Web UI–only conversations also don't persist messages (Q1-1a) — closed browser = messages lost, title kept
+
+**Sync API changes:**
+- Workspace parameter now respected: `workspace=""` scans all dirs; `workspace=X` scans only that one
+- `summary` flag (default `true`): returns index + token totals only (no `messages` field)
+- 81-session sync payload: 15.7 MB → 29 KB
+- SessionsTab: passes `summary: true` + `workspace` to sync; catches errors with `console.error` + `alert`
+
+**"No Project" workspace mapping:**
+- Pi stores "No Project" sessions under `~/.pi/agent/sessions/--Users-bengilla--/`
+- But session event's `cwd` is `/Users/bengilla` (the home dir)
+- Sync + full APIs map `cwd === homedir()` → `workspace = ""` so the session surfaces under "No Project" filter in sidebar
+- 11 home-dir sessions now correctly appear in `- No Project -` filter (was 0)
+
+**Bug fix — perpetual loading spinner:**
+- `loadingMessages={loadingConvId === activeConvId}` returned `true` when both were `null` (`null === null`)
+- Sidebar fix: `loadingMessages={loadingConvId !== null && loadingConvId === activeConvId}`
+- New users (empty localStorage) no longer see a permanent spinner after reload
+
+**Other:**
+- `mtime` is **seconds** on macOS (`stat.mtimeMs` returns seconds, not ms) — must use ISO timestamp from session event for `createdAt` (otherwise 1000x smaller than `Date.now()`, sorted to bottom)
+- `extractContentText` helper for `toolResult.content` (array of `{type:"text", text:"..."}` → joined string)
+
+**Communication protocol (added):**
+- 1. State what's wrong / what's wanted
+- 2. List: file · function · why
+- 3. Wait for "可以" before editing
+- 4. Report what was changed (1-2 lines per file)
+- 5. Do NOT do unrequested "while I'm here" work — even if related
+
 ### 2026-06-11 — Pi CLI Sync, Triple-Link Data Flow
 
 **Architecture: Pi CLI is the source of truth.**
