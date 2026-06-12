@@ -108,9 +108,9 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
   }
 
   return (
-    <div>
-      {/* File/dir list */}
-      <div className="py-1">
+    <div className="flex flex-col">
+      {/* File/dir list — scrollable */}
+      <div className="overflow-y-auto" style={{ maxHeight: "28vh" }}>
         {tree.map((node) => (
           renaming === node.path ? (
             <div key={node.path} className="flex items-center gap-2 px-2 py-1">

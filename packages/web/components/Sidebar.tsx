@@ -221,7 +221,6 @@ export function Sidebar({
         {explorerOpen && (
           workspace ? (
             <div
-              className="max-h-[34vh] overflow-y-auto"
               style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
             >
               <FileTree workspace={workspace} onNavigate={onWorkspaceChange} onFileClick={onFileClick} language={language} />

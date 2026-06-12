@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
     } catch { /* session not found, use as-is */ }
   }
 
-  const workspace = (reqWorkspace && reqWorkspace !== "__none__") ? reqWorkspace : (process.env.PI_PLUS_PLUS_WORKSPACE || "/tmp");
+  // No Project mode: use home directory so Pi sessions land in the same place sync looks.
+  const workspace = (reqWorkspace && reqWorkspace !== "__none__")
+    ? reqWorkspace
+    : (process.env.PI_PLUS_PLUS_WORKSPACE || require("os").homedir());
   const encoder = new TextEncoder();
 
   // Use TransformStream so writer.write() flushes each event immediately.

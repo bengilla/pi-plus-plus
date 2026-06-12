@@ -62,7 +62,7 @@ export default function Home() {
   // Workspace
   const [workspace, setWorkspace] = useState("");
   useEffect(() => {
-    const saved = localStorage.getItem(WORKSPACE_KEY);
+    const saved = localStorage.getItem(WORKSPACE_KEY) || localStorage.getItem("agents-web-workspace");
     if (saved) setWorkspace(saved);
   }, []);
 

@@ -137,6 +137,8 @@ export function ChatPanel({
   const [currentModel, setCurrentModel] = useState("");
   const [currentProvider, setCurrentProvider] = useState("");
   const [piSessionId, setPiSessionId] = useState<string | null>(sessionId || null);
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
   const [availableModels, setAvailableModels] = useState<{ id: string; name: string; provider: string; thinking?: boolean }[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -256,6 +258,13 @@ export function ChatPanel({
   }, [modelVersion]);
 
   const handleStop = useCallback(() => {
+    // Capture partial content BEFORE abort — abort triggers finally which clears refs
+    const partialContent = streamContentRef.current;
+    const partialBlocks = [...streamBlocksRef.current];
+    const partialInputTokens = streamInputTokensRef.current;
+    const partialOutputTokens = streamOutputTokensRef.current;
+    const partialCacheTokens = streamCacheTokensRef.current;
+
     abortRef.current?.abort();
     abortRef.current = null;
     fetch("/api/agent/stop", {
@@ -264,23 +273,29 @@ export function ChatPanel({
       body: JSON.stringify({ agent: activeAgent }),
     }).catch(() => {});
 
-    // Capture partial content before clearing refs
-    const partialContent = streamContentRef.current;
-    const partialBlocks = [...streamBlocksRef.current];
-    const partialInputTokens = streamInputTokensRef.current;
-    const partialOutputTokens = streamOutputTokensRef.current;
-    const partialCacheTokens = streamCacheTokensRef.current;
-
     setStreaming(false);
     if (partialContent.trim() || partialBlocks.length > 0) {
       const blocks: ContentBlock[] = [...partialBlocks];
       if (partialContent.trim()) {
         blocks.push({ type: "text", content: partialContent });
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
+      setMessages((prev) => {
+        // Safety: ensure we're appending to existing messages, not replacing them
+        if (prev.length === 0 && messages.length > 0) {
+          console.warn("[pi++] handleStop: prev was empty but component had messages, using current state");
+          return [...messages, {
+            role: "assistant" as const,
+            content: partialContent,
+            id: Date.now().toString(),
+            createdAt: Date.now(),
+            blocks: blocks.length > 0 ? blocks : undefined,
+            inputTokens: partialInputTokens || undefined,
+            outputTokens: partialOutputTokens || undefined,
+            cacheTokens: partialCacheTokens || undefined,
+          }];
+        }
+        return [...prev, {
+          role: "assistant" as const,
           content: partialContent,
           id: Date.now().toString(),
           createdAt: Date.now(),
@@ -288,8 +303,8 @@ export function ChatPanel({
           inputTokens: partialInputTokens || undefined,
           outputTokens: partialOutputTokens || undefined,
           cacheTokens: partialCacheTokens || undefined,
-        },
-      ]);
+        }];
+      });
     }
 
     streamContentRef.current = "";
@@ -305,7 +320,7 @@ export function ChatPanel({
     streamSessionRef.current = "";
   }, [activeAgent, setMessages]);
 
-  const handleSend = useCallback(async (text: string, attachments: Attachment[]) => {
+  const handleSend = useCallback(async (text: string, attachments: Attachment[], opts?: { skipUserMsg?: boolean }) => {
     // Build prompt with attachment references
     let prompt = text;
     const attList = [...attachments];
@@ -321,7 +336,9 @@ export function ChatPanel({
       createdAt: Date.now(),
       attachments: attList.length > 0 ? attList : undefined,
     };
-    setMessages((prev) => [...prev, userMsg]);
+    if (!opts?.skipUserMsg) {
+      setMessages((prev) => [...prev, userMsg]);
+    }
     setStreaming(true);
     setQueueItems([]);
     streamContentRef.current = "";
@@ -937,6 +954,41 @@ export function ChatPanel({
                         ));
                       });
                     })()
+                  ) : editingMsgId === msg.id ? (
+                    <textarea
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          const newText = editingText.trim();
+                          if (!newText || streaming) return;
+                          setEditingMsgId(null);
+                          // Truncate messages after this one, update this message
+                          setMessages((prev) => {
+                            const idx = prev.findIndex((m) => m.id === msg.id);
+                            if (idx === -1) return prev;
+                            const updated = [...prev];
+                            updated[idx] = { ...prev[idx], content: newText };
+                            return updated.slice(0, idx + 1);
+                          });
+                          // Resend the edited message
+                          handleSend(newText, [], { skipUserMsg: true });
+                        }
+                        if (e.key === "Escape") {
+                          setEditingMsgId(null);
+                        }
+                      }}
+                      className="w-full resize-none p-2 text-sm outline-none"
+                      style={{
+                        background: "var(--bg-input)",
+                        color: "var(--text)",
+                        border: "1px solid var(--accent)",
+                        minHeight: 40,
+                      }}
+                      rows={2}
+                      autoFocus
+                    />
                   ) : (
                     <MarkdownBody content={msg.content} />
                   )}
@@ -959,6 +1011,17 @@ export function ChatPanel({
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => { setEditingMsgId(msg.id); setEditingText(msg.content); }}
+                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
+                      style={{ color: "oklch(68% 0.13 250)", background: "transparent", border: "none", opacity: 0.6 }}
+                      title="Edit"
+                      aria-label="Edit message"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
                       </svg>
                     </button>
                   </div>

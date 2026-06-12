@@ -45,12 +45,22 @@ export interface ConvInfo {
 }
 
 const STORAGE_KEY = "pi-plus-plus-conversations";
+const OLD_STORAGE_KEY = "agents-web-conversations";
 
 // ── Persistence helpers ──────────────────────────────────────
 
 function loadConvs(defaultWorkspace = ""): ConvIndex[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]") as ConvIndex[];
+    let raw = localStorage.getItem(STORAGE_KEY);
+    // Migration: if new key is empty but old key has data, copy it over
+    if (!raw) {
+      const old = localStorage.getItem(OLD_STORAGE_KEY);
+      if (old) {
+        localStorage.setItem(STORAGE_KEY, old);
+        raw = old;
+      }
+    }
+    const parsed = JSON.parse(raw || "[]") as ConvIndex[];
     return parsed.map((c) => ({
       ...c,
       workspace: c.workspace ?? defaultWorkspace,
@@ -352,23 +362,24 @@ export function useConversations(workspace: string, activeAgent: string) {
       const data = await r.json();
       if (!data.conversations?.length) return;
 
-      const all = loadConvs();
-      const keyOf = (c: { piSessionId?: string; id: string }) => c.piSessionId || c.id;
-      const merged = new Map<string, ConvIndex>();
-      for (const c of all) merged.set(keyOf(c), c);
-      for (const c of data.conversations) {
-        const key = keyOf(c);
-        const prev = merged.get(key);
-        if (prev) {
-          // Keep manualTitle, refresh Pi-derived fields
-          merged.set(key, { ...c, title: prev.manualTitle ? prev.title : c.title, manualTitle: prev.manualTitle });
-        } else {
-          merged.set(key, c);
+      // Use functional update to read LATEST state — avoids race with concurrent writes
+      setIndexes((prev) => {
+        const keyOf = (c: { piSessionId?: string; id: string }) => c.piSessionId || c.id;
+        const merged = new Map<string, ConvIndex>();
+        for (const c of prev) merged.set(keyOf(c), c);
+        for (const c of data.conversations as ConvIndex[]) {
+          const key = keyOf(c);
+          const existing = merged.get(key);
+          if (existing) {
+            merged.set(key, { ...c, title: existing.manualTitle ? existing.title : c.title, manualTitle: existing.manualTitle });
+          } else {
+            merged.set(key, c);
+          }
         }
-      }
-      const updated = Array.from(merged.values());
-      saveConvs(updated);
-      setIndexes(updated);
+        const updated = Array.from(merged.values());
+        saveConvs(updated);
+        return updated;
+      });
     } catch (e) {
       console.error("[pi++] Auto-sync failed:", e);
     }

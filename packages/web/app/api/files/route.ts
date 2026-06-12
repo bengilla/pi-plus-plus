@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
+import { homedir } from "node:os";
 
 function getWorkspace(req: NextRequest): string {
   const url = new URL(req.url);
-  return url.searchParams.get("workspace") || process.env.PI_PLUS_PLUS_WORKSPACE || process.cwd();
+  return url.searchParams.get("workspace") || process.env.PI_PLUS_PLUS_WORKSPACE || homedir();
 }
 
 function safeResolve(ws: string, filePath: string): string | null {

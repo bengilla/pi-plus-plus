@@ -60,7 +60,8 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
       e.preventDefault();
       // Invert: dragging UP (decreasing Y) should make panel taller
       const dh = dragRef.current.startY - e.clientY;
-      setPanelHeight(Math.max(180, dragRef.current.startH + dh));
+      const maxH = Math.round(window.innerHeight * 0.5);
+      setPanelHeight(Math.max(180, Math.min(maxH, dragRef.current.startH + dh)));
     };
     const onMouseUp = () => { dragRef.current = null; };
     window.addEventListener("mousemove", onMouseMove);
