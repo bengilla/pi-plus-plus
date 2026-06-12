@@ -37,11 +37,20 @@ function parseCapabilities(cols: string[]): Capability[] {
   return caps;
 }
 
+/** Build the full "provider/model" ID from settings for UI comparison */
+function buildModelId(settings: SettingsConfig): string | null {
+  const m = settings.defaultModel;
+  if (!m) return null;
+  if (m.includes("/")) return m;
+  const p = settings.defaultProvider;
+  return p ? `${p}/${m}` : m;
+}
+
 // GET /api/pi/models — all models with capabilities + scoped status
 export async function GET() {
   const settings = readSettings();
   const enabledSet = new Set(settings?.enabledModels ?? []);
-  const defaultModel = settings?.defaultModel ?? null;
+  const defaultModel = buildModelId(settings ?? {});
   const models: {
     id: string; name: string; provider: string;
     enabled: boolean; capabilities: Capability[];
@@ -105,9 +114,12 @@ export async function POST(req: Request) {
     }
 
     if (body.model) {
-      // Set default model
-      const [provider] = body.model.split("/");
-      settings.defaultModel = body.model;
+      // Set default model — pi CLI expects model name only in settings.json,
+      // provider goes in defaultProvider.  The UI sends "provider/model" format.
+      const slashIdx = body.model.indexOf("/");
+      const provider = slashIdx !== -1 ? body.model.slice(0, slashIdx) : settings.defaultProvider || "";
+      const modelName = slashIdx !== -1 ? body.model.slice(slashIdx + 1) : body.model;
+      settings.defaultModel = modelName;
       settings.defaultProvider = provider;
       writeSettings(settings);
       return NextResponse.json({ ok: true, defaultModel: body.model, defaultProvider: provider });

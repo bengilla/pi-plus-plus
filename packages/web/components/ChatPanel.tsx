@@ -691,7 +691,14 @@ export function ChatPanel({
                     }
                     return [...grouped.entries()].map(([provider, providerModels]) => (
                       <div key={provider}>
-                        <div className="text-[9px] px-2 py-1 font-semibold uppercase" style={{ color: "var(--accent)" }}>
+                        <div
+                          className="text-[9px] px-2 py-1 font-semibold uppercase tracking-wider"
+                          style={{
+                            color: "var(--accent)",
+                            background: "color-mix(in oklch, var(--accent) 8%, transparent)",
+                            borderBottom: "1px solid color-mix(in oklch, var(--accent) 20%, transparent)",
+                          }}
+                        >
                           {provider}
                         </div>
                         {providerModels.map((m) => {
@@ -710,13 +717,28 @@ export function ChatPanel({
                                   body: JSON.stringify({ model: m.id }),
                                 }).catch(() => {});
                               }}
-                              className="w-full text-left px-2 py-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
-                              style={{ color: isActive ? "var(--accent)" : "var(--text-secondary)", fontFamily: "var(--font-mono)" }}
+                              className="w-full text-left py-1 text-[10px] transition-colors flex items-center gap-1.5"
+                              style={{
+                                color: isActive ? "var(--accent)" : "var(--text-secondary)",
+                                fontFamily: "var(--font-mono)",
+                                fontWeight: isActive ? 600 : 400,
+                                background: isActive ? "color-mix(in oklch, var(--accent) 12%, transparent)" : "transparent",
+                                borderLeft: isActive ? "2px solid var(--accent)" : "2px solid transparent",
+                                paddingLeft: "8px",
+                                paddingRight: "8px",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isActive) e.currentTarget.style.background = "transparent";
+                              }}
                             >
-                              {m.name.includes('pro') && <span className="mr-1 text-[10px]" style={{ color: "var(--accent)" }}>•</span>}
-                              {m.name}
-                              {m.thinking && <span className="ml-1 text-[8px]" style={{ color: "var(--text-tertiary)" }}>🧠</span>}
-                              {isActive && <span className="ml-1">✓</span>}
+                              <span className="w-2.5 text-center shrink-0" style={{ color: "var(--accent)" }}>
+                                {isActive ? "✓" : ""}
+                              </span>
+                              <span className="flex-1 truncate">{m.name}</span>
+                              {m.thinking && <span className="text-[8px] shrink-0" style={{ color: "var(--text-tertiary)" }}>🧠</span>}
                             </button>
                           );
                         })}

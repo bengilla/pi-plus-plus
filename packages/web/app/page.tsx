@@ -196,6 +196,19 @@ export default function Home() {
   const currentAgent = agents.find((a) => a.id === activeAgent);
   const currentAgentDefinition = getPiDefinition();
 
+  // Load thinking level from Pi settings.json on mount
+  useEffect(() => {
+    fetch("/api/pi/settings")
+      .then((r) => r.json())
+      .then((data: { global?: { defaultThinkingLevel?: string } }) => {
+        const saved = data.global?.defaultThinkingLevel;
+        if (saved && typeof saved === "string") {
+          setThinkingLevel(saved);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const levels = currentAgentDefinition?.thinkingLevels ?? [];
     if (levels.length > 0 && !levels.some((level) => level.value === thinkingLevel)) {
