@@ -8,7 +8,7 @@ export async function GET() {
     const agents = getAvailableAgents();
 
     return NextResponse.json({
-      workspace: process.env.AGENTS_WEB_WORKSPACE ?? process.cwd(),
+      workspace: process.env.PI_PLUS_PLUS_WORKSPACE ?? process.cwd(),
       agents,
       features: {
         fileBrowser: true,

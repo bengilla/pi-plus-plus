@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* agents-web design tokens: quiet desktop workspace. */
+/* pi++ design tokens: quiet desktop workspace. */
 
 /* ── Design Tokens ──────────────────────────────────────────── */
 /* Dark theme is the default (SSR-safe, no white flash). */
@@ -401,7 +401,7 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
-/* ── Pi splash animation ──────────────────────────────────── */
+/* ── pi++ splash animation ──────────────────────────────────── */
 @keyframes pi-pulse {
   0%, 100% { opacity: 0.4; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.15); }

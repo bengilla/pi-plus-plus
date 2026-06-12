@@ -44,7 +44,7 @@ export interface ConvInfo {
   cacheTokens?: number;
 }
 
-const STORAGE_KEY = "agents-web-conversations";
+const STORAGE_KEY = "pi-plus-plus-conversations";
 
 // ── Persistence helpers ──────────────────────────────────────
 
@@ -222,7 +222,7 @@ export function useConversations(workspace: string, activeAgent: string) {
         const ws = conv.workspace || "";
         fetch(`/api/pi/sessions?id=${encodeURIComponent(conv.piSessionId)}&workspace=${encodeURIComponent(ws)}`, {
           method: "DELETE",
-        }).catch(() => {});
+        }).catch((e: unknown) => { console.error("[pi++] Failed to delete Pi session:", e); });
       }
       return updated;
     });
@@ -248,7 +248,7 @@ export function useConversations(workspace: string, activeAgent: string) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "rename", sessionId: conv.piSessionId, name: title }),
-        }).catch(() => {});
+        }).catch((e: unknown) => { console.error("[pi++] Failed to rename Pi session:", e); });
       }
       return updated;
     });
@@ -341,6 +341,39 @@ export function useConversations(workspace: string, activeAgent: string) {
     });
   }, []);
 
+  /** Auto-sync Pi CLI sessions into the conversation index on startup. */
+  const syncPiSessions = useCallback(async () => {
+    try {
+      const r = await fetch("/api/pi/sessions/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspace: "", summary: true }),
+      });
+      const data = await r.json();
+      if (!data.conversations?.length) return;
+
+      const all = loadConvs();
+      const keyOf = (c: { piSessionId?: string; id: string }) => c.piSessionId || c.id;
+      const merged = new Map<string, ConvIndex>();
+      for (const c of all) merged.set(keyOf(c), c);
+      for (const c of data.conversations) {
+        const key = keyOf(c);
+        const prev = merged.get(key);
+        if (prev) {
+          // Keep manualTitle, refresh Pi-derived fields
+          merged.set(key, { ...c, title: prev.manualTitle ? prev.title : c.title, manualTitle: prev.manualTitle });
+        } else {
+          merged.set(key, c);
+        }
+      }
+      const updated = Array.from(merged.values());
+      saveConvs(updated);
+      setIndexes(updated);
+    } catch (e) {
+      console.error("[pi++] Auto-sync failed:", e);
+    }
+  }, []);
+
   return {
     indexes,
     activeConvId,
@@ -352,6 +385,7 @@ export function useConversations(workspace: string, activeAgent: string) {
     selectConversation,
     deleteConversation,
     renameConversation,
+    syncPiSessions,
     onMessagesChange,
     deleteConversationsBySession,
   };

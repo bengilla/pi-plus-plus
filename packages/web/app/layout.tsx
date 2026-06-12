@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pi Workspace",
+  title: "pi++",
   description: "Pi coding agent workspace — code, explore, and build with your local AI",
   icons: "/favicon.svg",
 };
@@ -32,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Script>
         <Script id="splash-hide" strategy="lazyOnload">
           {`(function() {
-            var el = document.getElementById('pi-splash');
+            var el = document.getElementById('pi-plus-plus-splash');
             if (el) {
               el.style.opacity = '0';
               el.style.transition = 'opacity 0.4s ease';
@@ -44,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-screen overflow-hidden antialiased" style={{ display: "flex", flexDirection: "column" }}>
         {/* Splash screen — shown until React mounts */}
         <div
-          id="pi-splash"
+          id="pi-plus-plus-splash"
           style={{
             position: "fixed",
             inset: 0,
@@ -69,7 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             π
           </span>
         </div>
+        <ErrorBoundary>
         {children}
+        </ErrorBoundary>
       </body>
     </html>
   );

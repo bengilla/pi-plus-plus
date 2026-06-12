@@ -1,6 +1,6 @@
-# Pi Workspace
+# pi++
 
-Pi coding agent web workspace — code, explore, and build with your local AI.
+pi++ coding agent web workspace — code, explore, and build with your local AI.
 
 ## Stack
 
@@ -68,9 +68,9 @@ npm run start         # Production server
 
 ## Persistent Server
 
-- launchd config: `~/Library/LaunchAgents/com.agents-web.server.plist`
+- launchd config: `~/Library/LaunchAgents/com.pi-plus-plus.server.plist`
 - port: `31508`
-- logs: `~/.local/log/agents-web.log` and `~/.local/log/agents-web.err.log`
+- logs: `~/.local/log/pi-plus-plus.log` and `~/.local/log/pi-plus-plus.err.log`
 - after production changes: `npm run build`, then restart launchd service.
 
 ## Missing Pi CLI Features (TODOs)
@@ -268,7 +268,7 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 - `React.memo` on `ThinkingBlock`/`ToolCallBlock`/`ToolResultBlock`
 ## Environment
 
-- `AGENTS_WEB_WORKSPACE` sets the default workspace path.
+- `PI_PLUS_PLUS_WORKSPACE` sets the default workspace path.
 
 ## Electron Roadmap
 

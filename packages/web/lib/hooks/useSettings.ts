@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-const SIDEBAR_WIDTH_KEY = "agents-web-sidebar-width";
-const RIGHT_PANEL_WIDTH_KEY = "agents-web-right-panel-width";
+const SIDEBAR_WIDTH_KEY = "pi-plus-plus-sidebar-width";
+const RIGHT_PANEL_WIDTH_KEY = "pi-plus-plus-right-panel-width";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -31,7 +31,7 @@ export function useSettings() {
     }
 
     const savedSidebar = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    if (savedSidebar) setSidebarWidth(clamp(parseInt(savedSidebar, 10), 220, 420));
+    if (savedSidebar) setSidebarWidth(clamp(parseInt(savedSidebar, 10), 240, 420));
 
     const savedRightPanel = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
     if (savedRightPanel) setRightPanelWidth(clamp(parseInt(savedRightPanel, 10), 320, 760));

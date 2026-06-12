@@ -1,8 +1,8 @@
 {
-  "name": "agents-web",
+  "name": "pi-plus-plus",
   "version": "0.1.0",
   "private": true,
-  "description": "Multi-agent web workspace — Claude Code, Codex, Pi in your browser",
+  "description": "pi++ — Pi coding agent web workspace",
   "license": "MIT",
   "workspaces": [
     "packages/*"

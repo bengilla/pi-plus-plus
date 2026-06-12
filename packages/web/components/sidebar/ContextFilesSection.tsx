@@ -22,7 +22,7 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
     fetch(`/api/pi/context-files?workspace=${encodeURIComponent(workspace)}`)
       .then((r) => r.json())
       .then((data) => { if (!cancelled) setContextFiles(data.files ?? []); })
-      .catch(() => {});
+      .catch((e: unknown) => { console.error("[pi++] Failed to load context files:", e); });
     return () => { cancelled = true; };
   }, [workspace]);
 

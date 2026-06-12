@@ -8,9 +8,9 @@ export function init(): string[] {
   const ids = initAgents();
   initialized = true;
   if (ids.length > 0) {
-    console.log(`[agents-web] Discovered: ${ids.join(", ")}`);
+    console.log(`[pi++] Discovered: ${ids.join(", ")}`);
   } else {
-    console.log("[agents-web] No agents discovered on this device");
+    console.log("[pi++] No agents discovered on this device");
   }
   return ids;
 }

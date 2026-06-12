@@ -10,7 +10,7 @@ export interface SpawnOptions {
   args: string[];
   cwd: string;
   env?: Record<string, string>;
-  timeout?: number; // ms, default 5 min
+  timeout?: number; // ms, default 30 min
 }
 
 export interface SpawnSession {
@@ -33,6 +33,7 @@ export function spawnAgent(opts: SpawnOptions): SpawnSession {
   let killed = false;
 
   const kill = () => {
+    if (killed) return;
     killed = true;
     child.kill("SIGTERM");
     // Force kill after 3s
@@ -42,7 +43,7 @@ export function spawnAgent(opts: SpawnOptions): SpawnSession {
   };
 
   // Timeout
-  const timeoutMs = opts.timeout ?? 300_000; // 5 min default
+  const timeoutMs = opts.timeout ?? 1_800_000; // 30 min default
   const timer = setTimeout(() => {
     if (!killed) kill();
   }, timeoutMs);

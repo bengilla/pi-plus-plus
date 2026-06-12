@@ -1,13 +1,14 @@
-# agents-web
+# pi++
 
-Multi-agent web workspace — Claude Code, Codex, Pi in your browser.
+Pi coding agent web workspace — code, explore, and build with your local AI.
 
 ## Features
 
-- **File browser** — browse and edit files from any workspace (local, NAS, GitHub)
-- **Chat interface** — talk to AI agents with SSE streaming
-- **Multi-agent** — switch between Pi, Claude Code, and Codex
-- **Skills** — install and manage agent skills
+- **File browser** — browse and edit files from any workspace
+- **Chat interface** — talk to Pi with SSE streaming
+- **Full Pi CLI sync** — sessions, settings, packages, models all in sync with `~/.pi/`
+- **Session viewer** — browse, search, branch, and export Pi CLI conversations
+- **Settings hub** — manage models, packages, thinking levels, and Pi config
 - **Cross-device** — works on Mac, iPad, any browser
 
 ## Quick Start
@@ -19,20 +20,18 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3005
+Open http://localhost:31508
 
 Set workspace via environment variable:
 ```bash
-AGENTS_WEB_WORKSPACE=/path/to/your/projects npm run dev
+PI_PLUS_PLUS_WORKSPACE=/path/to/your/projects npm run dev
 ```
 
 ## Architecture
 
 ```
 packages/
-├── web/            # Next.js frontend
-├── agent-bridge/   # Unified agent abstraction (Pi / Claude Code / Codex)
-└── filesystem/     # Multi-source file system (local / GitHub / NAS)
+└── web/            # Next.js frontend (SSE streaming, Pi CLI integration)
 ```
 
 ## License

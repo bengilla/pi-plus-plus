@@ -31,7 +31,7 @@ SyntaxHighlighter.registerLanguage("tsx", tsx);
 SyntaxHighlighter.registerLanguage("typescript", typescript);
 SyntaxHighlighter.registerLanguage("yaml", yaml);
 
-// Custom dark theme that matches Pi Workspace design tokens
+// Custom dark theme that matches pi++ design tokens
 const piDarkTheme = {
   ...oneDark,
   'pre[class*="language-"]': {

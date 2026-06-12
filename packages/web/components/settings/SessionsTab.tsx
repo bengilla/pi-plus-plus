@@ -14,9 +14,6 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
   const [viewingTree, setViewingTree] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const savedScrollTop = useRef(0);
-  const [syncModal, setSyncModal] = useState<"confirm" | "done" | null>(null);
-  const [syncCount, setSyncCount] = useState(0);
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     fetch(`/api/pi/sessions?workspace=${encodeURIComponent(workspace)}`)
@@ -99,13 +96,6 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
         <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
           {zh ? `当前项目的 Pi CLI 会话 (${sessions.length})` : `Pi CLI sessions for this project (${sessions.length})`}
         </div>
-        <button
-          onClick={() => setSyncModal("confirm")}
-          className="text-[10px] px-2 py-1 transition-colors hover:opacity-70"
-          style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
-        >
-          {zh ? "同步" : "Sync"}
-        </button>
       </div>
       {sessions.length === 0 ? (
         <div className="px-3 py-4 text-center text-xs" style={{ color: "var(--text-secondary)", border: "1px dashed var(--border)" }}>
@@ -126,35 +116,12 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
               key={s.id}
               className="px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-[var(--bg-hover)]"
               style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}
-              onClick={async () => {
+              onClick={() => {
                 savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
                 // Switch workspace if needed
                 if (s.workspace && s.workspace !== workspace) {
-                  localStorage.setItem("agents-web-workspace", s.workspace || "");
+                  localStorage.setItem("pi-plus-plus-workspace", s.workspace || "");
                 }
-                // Sync conversation into localStorage
-                try {
-                  const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace: s.workspace || workspace, summary: true }) });
-                  const data = await r.json();
-                  if (data.conversations) {
-                    const existing: any[] = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
-                    const keyOf = (c: any) => c.piSessionId || c.id;
-                    const merged = new Map<string, any>();
-                    for (const c of existing) merged.set(keyOf(c), c);
-                    for (const c of data.conversations) {
-                      const key = keyOf(c);
-                      const prev = merged.get(key);
-                      if (prev) {
-                        // Pi-matched: refresh index fields, keep manualTitle
-                        const title = prev.manualTitle ? prev.title : c.title;
-                        merged.set(key, { ...c, title, manualTitle: !!prev.manualTitle });
-                      } else {
-                        merged.set(key, c);
-                      }
-                    }
-                    localStorage.setItem("agents-web-conversations", JSON.stringify(Array.from(merged.values())));
-                  }
-                } catch {}
                 location.reload();
               }}
             >
@@ -216,110 +183,6 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
     );
   })}
       </div>
-      )}
-
-      {/* Sync modal */}
-      {syncModal && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(2px)" }}
-          onClick={() => !syncing && setSyncModal(null)}
-        >
-          <div
-            className="w-full max-w-sm p-5 fade-in"
-            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {syncModal === "confirm" ? (
-              <>
-                <div className="text-center mb-4">
-                  <div className="text-lg mb-2">🔄</div>
-                  <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                    {zh ? "同步 Pi 会话" : "Sync Pi Sessions"}
-                  </div>
-                  <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                    {zh ? "将 Pi CLI 的所有对话记录同步到 agents-web 的对话列表。" : "Import all Pi CLI sessions into the agents-web conversation list."}
-                  </div>
-                </div>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setSyncModal(null)}
-                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                    style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
-                    disabled={syncing}
-                  >
-                    {zh ? "取消" : "Cancel"}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setSyncing(true);
-                      try {
-                        const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace, summary: true }) });
-                        const data = await r.json();
-                        if (data.count != null) {
-                          // Merge: add new; for existing pi-matched convs, refresh index fields
-                          // (summary: no messages, just title/createdAt/lastActivityAt/totals),
-                          // but keep manualTitle.
-                          const existing: any[] = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
-                          const keyOf = (c: any) => c.piSessionId || c.id;
-                          const merged = new Map<string, any>();
-                          for (const c of existing) merged.set(keyOf(c), c);
-                          let added = 0;
-                          for (const c of data.conversations) {
-                            const key = keyOf(c);
-                            const prev = merged.get(key);
-                            if (prev) {
-                              const title = prev.manualTitle ? prev.title : c.title;
-                              merged.set(key, { ...c, title, manualTitle: !!prev.manualTitle });
-                            } else {
-                              merged.set(key, c);
-                              added++;
-                            }
-                          }
-                          localStorage.setItem("agents-web-conversations", JSON.stringify(Array.from(merged.values())));
-                          setSyncCount(added);
-                          setSyncModal("done");
-                        } else {
-                          setSyncModal(null);
-                        }
-                      } catch {
-                        setSyncModal(null);
-                      } finally {
-                        setSyncing(false);
-                      }
-                    }}
-                    disabled={syncing}
-                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80 disabled:opacity-50"
-                    style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
-                  >
-                    {syncing ? (zh ? "同步中..." : "Syncing...") : (zh ? "开始同步" : "Sync Now")}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-center mb-4">
-                  <div className="text-lg mb-2">✅</div>
-                  <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
-                    {zh ? "同步完成" : "Sync Complete"}
-                  </div>
-                  <div className="mt-2 text-xs" style={{ color: "var(--text-secondary)" }}>
-                    {syncCount > 0 ? (zh ? `已同步 ${syncCount} 个新对话。刷新页面即可看到。` : `Synced ${syncCount} new conversations. Refresh to see them.`) : (zh ? "没有新对话" : "No new conversations")}
-                  </div>
-                </div>
-                <div className="flex justify-center">
-                  <button
-                    onClick={() => { if (syncCount > 0) location.reload(); else setSyncModal(null); }}
-                    className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
-                    style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}
-                  >
-                    {syncCount > 0 ? (zh ? "刷新页面" : "Refresh") : (zh ? "关闭" : "Close")}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );

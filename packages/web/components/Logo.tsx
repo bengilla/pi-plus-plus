@@ -1,23 +1,22 @@
 "use client";
 
-/** Compact DSCII monogram for agents-web */
+/** pi++ logo — π in a circle */
 export function Logo() {
-  // Single-line block-character logo
-  const art = "▗▄▄▄▖▗▖ ▗▖";
-
   return (
     <span
-      className="inline-block select-none shrink-0 animate-shimmer"
+      className="inline-flex items-center justify-center rounded-full shrink-0 select-none"
       style={{
-        fontFamily: "ui-monospace, SFMono-Regular, monospace",
-        fontSize: "12px",
+        width: 22,
+        height: 22,
+        background: "var(--accent)",
+        color: "var(--bg)",
+        fontSize: 13,
+        fontWeight: 600,
         lineHeight: 1,
-        whiteSpace: "pre",
-        color: "var(--color-accent)",
       }}
-      title="agents-web"
+      title="pi++"
     >
-      {art}
+      π
     </span>
   );
 }

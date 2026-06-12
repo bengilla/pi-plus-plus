@@ -4,7 +4,7 @@ import path from "node:path";
 
 function getWorkspace(req: NextRequest): string {
   const url = new URL(req.url);
-  return url.searchParams.get("workspace") || process.env.AGENTS_WEB_WORKSPACE || process.cwd();
+  return url.searchParams.get("workspace") || process.env.PI_PLUS_PLUS_WORKSPACE || process.cwd();
 }
 
 function safeResolve(ws: string, filePath: string): string | null {

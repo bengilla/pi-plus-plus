@@ -36,7 +36,7 @@ function getDroppedPath(e: DragEvent): string | null {
   return null;
 }
 
-const WORKSPACE_KEY = "agents-web-workspace";
+const WORKSPACE_KEY = "pi-plus-plus-workspace";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -72,6 +72,7 @@ export default function Home() {
     loadingConvId, loadConvMessages,
     newConversation, selectConversation,
     deleteConversation, renameConversation,
+    syncPiSessions,
     onMessagesChange,
     deleteConversationsBySession,
   } = useConversations(workspace, activeAgent);
@@ -109,7 +110,7 @@ export default function Home() {
 
   useEffect(() => {
     refreshAgents()
-      .catch(() => { setAgents([]); })
+      .catch(() => { setAgents([]); console.error("[pi++] Failed to refresh agents"); })
       .finally(() => setAgentsLoading(false));
     // Check Pi version for updates
     fetch("/api/pi/version")
@@ -118,8 +119,13 @@ export default function Home() {
         setVersionCheck(data);
         if (data.updateAvailable) setShowUpdateModal(true);
       })
-      .catch(() => {});
+      .catch((e: unknown) => { console.error("[pi++] Failed to check version:", e); });
   }, [refreshAgents]);
+
+  // Auto-sync Pi CLI sessions on first load
+  useEffect(() => {
+    syncPiSessions();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const navigateTo = useCallback((newPath: string) => {
     setWorkspace(newPath);
@@ -146,11 +152,11 @@ export default function Home() {
     const startX = e.clientX;
     const startWidth = sidebarWidth;
     const onMove = (moveEvent: MouseEvent) => {
-      const next = clamp(startWidth + moveEvent.clientX - startX, 220, 420);
+      const next = clamp(startWidth + moveEvent.clientX - startX, 240, 420);
       setSidebarWidth(next);
     };
     const onUp = (upEvent: MouseEvent) => {
-      const next = clamp(startWidth + upEvent.clientX - startX, 220, 420);
+      const next = clamp(startWidth + upEvent.clientX - startX, 240, 420);
       setSidebarWidth(next);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
@@ -207,7 +213,7 @@ export default function Home() {
           setThinkingLevel(saved);
         }
       })
-      .catch(() => {});
+      .catch((e: unknown) => { console.error("[pi++] Failed to load settings:", e); });
   }, []);
 
   useEffect(() => {
@@ -223,7 +229,7 @@ export default function Home() {
       <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
         <div className="text-center max-w-sm px-6 fade-in">
           <div className="text-5xl mb-4">🤖</div>
-          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Pi Workspace</h1>
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>pi++</h1>
           <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
             {language === "zh" ? "安装 Pi 编码智能体即可开始。" : "Install the Pi coding agent to get started."}
           </p>
@@ -443,7 +449,9 @@ export default function Home() {
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ agentId: "pi", action: "upgrade" }),
                     });
-                  } catch { /* ignore */ }
+                  } catch (e: unknown) {
+                    console.error("[pi++] Upgrade failed:", e);
+                  }
                   setUpdating(false);
                   setShowUpdateModal(false);
                 }}

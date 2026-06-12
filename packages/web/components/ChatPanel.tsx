@@ -659,7 +659,7 @@ export function ChatPanel({
             return (
               <button
                 key={level.value}
-                onClick={() => { onThinkingLevelChange(level.value); fetch("/api/pi/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "global", updates: { defaultThinkingLevel: level.value } }) }).catch(() => {}); }}
+                onClick={() => { onThinkingLevelChange(level.value); fetch("/api/pi/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope: "global", updates: { defaultThinkingLevel: level.value } }) }).catch((e: unknown) => { console.error("[pi++] Failed to save thinking level:", e); }); }}
                 disabled={streaming}
                 className="px-1.5 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50"
                 style={{
@@ -736,7 +736,7 @@ export function ChatPanel({
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ model: m.id }),
-                                }).catch(() => {});
+                                }).catch((e: unknown) => { console.error("[pi++] Failed to save model:", e); });
                               }}
                               className="w-full text-left py-1 text-[10px] transition-colors flex items-center gap-1.5"
                               style={{

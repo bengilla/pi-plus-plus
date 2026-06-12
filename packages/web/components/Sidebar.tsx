@@ -13,7 +13,6 @@ export interface ConvInfo {
   totalTokens?: number;
   inputTokens?: number;
   outputTokens?: number;
-  cacheTokens?: number;
 }
 
 interface AgentInfo {
@@ -108,8 +107,19 @@ export function Sidebar({
       {/* ── Pi header ───────────────────────────────────── */}
       <div className="flex items-center px-2 h-[42px] border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1.5">
-          <span className="text-lg leading-none -mt-0.5">π</span>
-          <span className="text-xs font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi</span>
+          <span
+            className="inline-flex items-center justify-center rounded-full"
+            style={{
+              width: 26,
+              height: 26,
+              background: "var(--accent)",
+              color: "var(--bg)",
+              fontSize: 16,
+              fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >π</span>
+          <span className="text-xs font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi++</span>
         </div>
         <button
           onClick={onAgentInfoClick}
@@ -317,9 +327,6 @@ export function Sidebar({
                           <span style={{ fontFamily: "var(--font-mono)" }}>
                             <span style={{ color: "var(--accent)" }}>↑</span>{((c.inputTokens ?? 0) >= 1000 ? `${((c.inputTokens ?? 0) / 1000).toFixed(1)}k` : (c.inputTokens ?? 0))}
                             {' '}<span style={{ color: "var(--accent)" }}>↓</span>{((c.outputTokens ?? 0) >= 1000 ? `${((c.outputTokens ?? 0) / 1000).toFixed(1)}k` : (c.outputTokens ?? 0))}
-                            {(c.cacheTokens ?? 0) > 0 && <>
-                              {' '}<span style={{ color: "var(--accent)" }}>⚡</span>{((c.cacheTokens ?? 0) >= 1000 ? `${((c.cacheTokens ?? 0) / 1000).toFixed(1)}k` : (c.cacheTokens ?? 0))}
-                            </>}
                           </span>
                           <span>·</span>
                           <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
@@ -384,7 +391,7 @@ export function Sidebar({
               {zh ? "删除" : "Delete"} "<span className="font-semibold">{deleteTarget.title}</span>"?
             </p>
             <p className="text-[11px] mb-5" style={{ color: "var(--text-secondary)" }}>
-              {zh ? "同时删除两侧的对话记录" : "Deletes from both agents-web and Pi CLI"}
+              {zh ? "同时删除 pi++ 和 Pi CLI 两侧的对话记录" : "Deletes from both pi++ and Pi CLI"}
             </p>
             <div className="flex justify-center gap-3">
               <button

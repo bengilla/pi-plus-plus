@@ -166,6 +166,8 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
   // ── Handlers ────────────────────────────────────────────────
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Don't handle arrow keys during IME composition (Chinese pinyin, Japanese, etc.)
+    if (composingRef.current) return;
     // Input history: up/down arrows
     if (e.key === "ArrowUp" && !e.shiftKey) {
       const history = inputHistoryRef.current;
@@ -202,9 +204,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
       }, 0);
       return;
     }
-    // Don't send on Enter during IME composition (Chinese pinyin, Japanese, etc.)
     if (e.key === "Enter" && !e.shiftKey) {
-      if (composingRef.current) return;
       e.preventDefault();
       handleSend();
     }
@@ -572,7 +572,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                       setMentionResults(flat.slice(0, 8));
                       setMentionOpen(flat.length > 0);
                     })
-                    .catch(() => {});
+                    .catch((e: unknown) => { console.error("[pi++] Mention file search failed:", e); });
                 }
               } else {
                 setMentionOpen(false);
