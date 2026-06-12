@@ -69,6 +69,7 @@ export default function Home() {
   // Conversations from hook
   const {
     activeConvId, activeConv, convList,
+    loadingConvId, loadConvMessages,
     newConversation, selectConversation,
     deleteConversation, renameConversation,
     onMessagesChange,
@@ -329,6 +330,8 @@ export default function Home() {
             workspace={workspace}
             initialMessages={activeConv?.messages}
             onMessagesChange={onMessagesChange}
+            loadingMessages={loadingConvId !== null && loadingConvId === activeConvId}
+            onRequestLoadMessages={loadConvMessages}
             thinkingLevel={thinkingLevel}
             thinkingLevels={currentAgentDefinition?.thinkingLevels ?? []}
             onThinkingLevelChange={setThinkingLevel}

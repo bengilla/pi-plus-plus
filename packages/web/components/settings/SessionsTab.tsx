@@ -134,13 +134,25 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
                 }
                 // Sync conversation into localStorage
                 try {
-                  const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                  const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace: s.workspace || workspace, summary: true }) });
                   const data = await r.json();
                   if (data.conversations) {
-                    const existing = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
-                    const existingIds = new Set(existing.map((c: {id: string}) => c.id));
-                    const newConvs = data.conversations.filter((c: {id: string}) => !existingIds.has(c.id));
-                    localStorage.setItem("agents-web-conversations", JSON.stringify([...existing, ...newConvs]));
+                    const existing: any[] = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
+                    const keyOf = (c: any) => c.piSessionId || c.id;
+                    const merged = new Map<string, any>();
+                    for (const c of existing) merged.set(keyOf(c), c);
+                    for (const c of data.conversations) {
+                      const key = keyOf(c);
+                      const prev = merged.get(key);
+                      if (prev) {
+                        // Pi-matched: refresh index fields, keep manualTitle
+                        const title = prev.manualTitle ? prev.title : c.title;
+                        merged.set(key, { ...c, title, manualTitle: !!prev.manualTitle });
+                      } else {
+                        merged.set(key, c);
+                      }
+                    }
+                    localStorage.setItem("agents-web-conversations", JSON.stringify(Array.from(merged.values())));
                   }
                 } catch {}
                 location.reload();
@@ -242,15 +254,30 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
                     onClick={async () => {
                       setSyncing(true);
                       try {
-                        const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+                        const r = await fetch("/api/pi/sessions/sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace, summary: true }) });
                         const data = await r.json();
                         if (data.count != null) {
-                          // Merge with existing conversations (don't overwrite)
-                          const existing = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
-                          const existingIds = new Set(existing.map((c: {id: string}) => c.id));
-                          const newConvs = data.conversations.filter((c: {id: string}) => !existingIds.has(c.id));
-                          localStorage.setItem("agents-web-conversations", JSON.stringify([...existing, ...newConvs]));
-                          setSyncCount(newConvs.length);
+                          // Merge: add new; for existing pi-matched convs, refresh index fields
+                          // (summary: no messages, just title/createdAt/lastActivityAt/totals),
+                          // but keep manualTitle.
+                          const existing: any[] = JSON.parse(localStorage.getItem("agents-web-conversations") || "[]");
+                          const keyOf = (c: any) => c.piSessionId || c.id;
+                          const merged = new Map<string, any>();
+                          for (const c of existing) merged.set(keyOf(c), c);
+                          let added = 0;
+                          for (const c of data.conversations) {
+                            const key = keyOf(c);
+                            const prev = merged.get(key);
+                            if (prev) {
+                              const title = prev.manualTitle ? prev.title : c.title;
+                              merged.set(key, { ...c, title, manualTitle: !!prev.manualTitle });
+                            } else {
+                              merged.set(key, c);
+                              added++;
+                            }
+                          }
+                          localStorage.setItem("agents-web-conversations", JSON.stringify(Array.from(merged.values())));
+                          setSyncCount(added);
                           setSyncModal("done");
                         } else {
                           setSyncModal(null);

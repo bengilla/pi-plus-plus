@@ -9,6 +9,7 @@ export interface ConvInfo {
   title: string;
   agentId: string;
   createdAt: number;
+  lastActivityAt?: number;
   totalTokens?: number;
   inputTokens?: number;
   outputTokens?: number;

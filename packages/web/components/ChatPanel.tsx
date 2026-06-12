@@ -61,6 +61,10 @@ interface Props {
   workspace: string;
   initialMessages?: ChatMessageSnapshot[];
   onMessagesChange?: (messages: ChatMessageSnapshot[]) => void;
+  // When the active conv is a Pi-synced one and messages haven't been loaded yet,
+  // show a loading state and trigger a fetch.
+  loadingMessages?: boolean;
+  onRequestLoadMessages?: (convId: string) => Promise<ChatMessageSnapshot[]>;
   thinkingLevel?: string;
   thinkingLevels?: { value: string; label: string }[];
   onThinkingLevelChange?: (level: string) => void;
@@ -93,6 +97,8 @@ export function ChatPanel({
   workspace,
   initialMessages,
   onMessagesChange,
+  loadingMessages = false,
+  onRequestLoadMessages,
   thinkingLevel = "auto",
   thinkingLevels = [],
   onThinkingLevelChange,
@@ -144,6 +150,21 @@ export function ChatPanel({
   useEffect(() => {
     setMessages(toMessages(initialMessages));
     setPiSessionId(sessionId || null);
+    // If this conv has no initial messages but has a sessionId (Pi-synced) and
+    // a loader is provided, request the full messages on demand.
+    if (
+      conversationId &&
+      (!initialMessages || initialMessages.length === 0) &&
+      sessionId &&
+      onRequestLoadMessages
+    ) {
+      onRequestLoadMessages(conversationId).then((loaded) => {
+        // Only apply if we're still on the same conv
+        if (loaded && loaded.length > 0) {
+          setMessages(toMessages(loaded));
+        }
+      });
+    }
   }, [conversationId, sessionId]);
 
   // Report messages back to parent for conversation persistence
@@ -805,13 +826,20 @@ export function ChatPanel({
       <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={updateNearBottom} style={{ background: "var(--bg)" }}>
         <div className="mx-auto flex min-h-full w-full max-w-[880px] flex-col gap-5 px-5 py-5">
           {messages.length === 0 && !streaming && (
-            <WelcomeScreen
-              agentName={displayName}
-              agentDescription={agentDescription}
-              agentVersion={agentVersion}
-              language={language}
-              onStarterClick={() => {}}
-            />
+            loadingMessages ? (
+              <div className="flex flex-1 items-center justify-center py-12 text-xs" style={{ color: "var(--text-tertiary)" }}>
+                <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                {language === "zh" ? "加载会话中…" : "Loading conversation…"}
+              </div>
+            ) : (
+              <WelcomeScreen
+                agentName={displayName}
+                agentDescription={agentDescription}
+                agentVersion={agentVersion}
+                language={language}
+                onStarterClick={() => {}}
+              />
+            )
           )}
 
           {messages.map((msg, index) => {
@@ -968,6 +996,11 @@ export function ChatPanel({
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
                       </button>
+                      {msg.createdAt > 0 && (
+                        <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                          {formatTime(msg.createdAt)}
+                        </span>
+                      )}
                     </span>
                   </div>
                 )}
