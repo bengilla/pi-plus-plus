@@ -6,3 +6,9 @@ dist/
 *.log
 .DS_Store
 test-results/
+.pi/
+*.jsonl
+release/
+*.dmg
+*.dmg.blockmap
+builder-debug.yml

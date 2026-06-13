@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   // Hide the Next.js dev tools overlay
   devIndicators: false,
   // Fix workspace root detection (avoid picking ~/package-lock.json)

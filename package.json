@@ -11,6 +11,9 @@
     "dev": "npm run dev --workspace=packages/web",
     "typecheck": "npm run typecheck --workspace=packages/web",
     "build": "npm run build --workspace=packages/web",
-    "start": "npm run start --workspace=packages/web"
+    "start": "npm run start --workspace=packages/web",
+    "app:dev": "cd packages/electron && npx electron .",
+    "app:build": "npm run build && cd packages/electron && npx electron-builder",
+    "electron:install": "npm install --workspace=packages/electron"
   }
 }

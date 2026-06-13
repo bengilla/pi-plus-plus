@@ -1,0 +1,71 @@
+{
+  "name": "@pi-plus-plus/electron",
+  "version": "0.1.0",
+  "private": true,
+  "author": "pi++",
+  "description": "pi++ desktop app — Electron shell for the Pi coding agent workspace",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.pi-plus-plus.app",
+    "productName": "pi++",
+    "npmRebuild": false,
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "pi-installer.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/.next/standalone",
+        "to": "server"
+      },
+      {
+        "from": "../web/.next/static",
+        "to": "server/packages/web/.next/static"
+      },
+      {
+        "from": "../web/public",
+        "to": "server/packages/web/public"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {}
+}

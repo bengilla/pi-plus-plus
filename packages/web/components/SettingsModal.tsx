@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ModelsTab } from "./settings/ModelsTab";
+import { AuthTab } from "./settings/AuthTab";
 import { SessionsTab } from "./settings/SessionsTab";
 import { SkillsTab } from "./settings/SkillsTab";
 import { PackagesTab } from "./PackagesTab";
@@ -44,7 +45,7 @@ interface Props {
   onDeleteSession?: (sessionId: string) => void;
 }
 
-type Tab = "models" | "sessions" | "skills" | "packages" | "config" | "general";
+type Tab = "auth" | "models" | "sessions" | "skills" | "packages" | "config" | "general";
 
 export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, language = "en", onLanguageChange, workspace = "", onDeleteSession }: Props) {
   const [tab, setTab] = useState<Tab>("models");
@@ -90,7 +91,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
 
         {/* Tabs */}
         <div className="flex gap-0 px-5 border-b shrink-0" style={{ borderColor: "var(--color-border)" }}>
-          {(["models", "sessions", "skills", "packages", "config", "general"] as Tab[]).map((t) => (
+          {(["auth", "models", "sessions", "skills", "packages", "config", "general"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -102,7 +103,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
               }}
             >
               {zh
-                ? (t === "models" ? "模型" : t === "sessions" ? "会话" : t === "skills" ? "技能" : t === "packages" ? "包" : t === "config" ? "配置" : "通用")
+                ? (t === "auth" ? "认证" : t === "models" ? "模型" : t === "sessions" ? "会话" : t === "skills" ? "技能" : t === "packages" ? "包" : t === "config" ? "配置" : "通用")
                 : t}
             </button>
           ))}
@@ -110,6 +111,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
+          {tab === "auth" && <AuthTab language={language} />}
           {tab === "models" && <ModelsTab language={language} />}
           {tab === "sessions" && <SessionsTab language={language} workspace={workspace} onDeleteSession={onDeleteSession} />}
           {tab === "skills" && <SkillsTab language={language} />}
