@@ -8,6 +8,7 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { ToolResultBlock } from "./ToolResultBlock";
 import { ChatInput } from "./ChatInput";
+import { ContextFilesIndicator } from "./ContextFilesIndicator";
 import { WelcomeScreen } from "./WelcomeScreen";
 
 interface Attachment {
@@ -858,6 +859,8 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: "var(--bg)" }}>
+      {/* Context files indicator */}
+      <ContextFilesIndicator workspace={workspace} language={language} />
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={updateNearBottom} style={{ background: "var(--bg)" }}>
         <div className="mx-auto flex min-h-full w-full max-w-[880px] flex-col gap-5 px-5 py-5">

@@ -86,11 +86,11 @@ Pi's `/tree`, `/fork`, `/clone` let you navigate a tree of conversation branches
 - `SessionTreeView` component: collapsible tree with role-colored dots, leaf highlight, Branch button on hover
 - Integrated into Settings → 会话 → View button
 
-### 2. Compaction (Context Compression)
-`/compact` summarizes older messages when the context window fills up. Pi also does auto-compaction on overflow. agents-web has no compaction — long conversations hit token limits.
+### 2. ✅ Compaction (Context Compression)
+`/compact` summarizes older messages when the context window fills up. Pi also does auto-compaction on overflow.
 
 **Pi events:** `compaction_start` / `compaction_end` with reason (`manual`, `threshold`, `overflow`) and result.
-**What's needed:** Manual compact button + auto-trigger based on token budget.
+**Implemented:** Manual compact button (messages ≥4, sends `/compact`), auto-trigger token % display (60%+ yellow, 80%+ red), compaction events shown as spinner/toast.
 
 ### 3. Message Queue (Steering / Follow-up)
 Pi emits `queue_update` with pending `steering[]` and `followUp[]` message queues. agents-web ignores these entirely.
@@ -102,10 +102,10 @@ Pi has `~/.pi/agent/settings.json` (global) and `.pi/settings.json` (project-lev
 
 **What's needed:** API to read/write settings.json, UI for provider config, tool toggles, default model, trust settings.
 
-### 5. Context Files (AGENTS.md / CLAUDE.md)
-Pi loads `AGENTS.md` / `CLAUDE.md` from `~/.pi/agent/` (global), parent directories, and cwd. agents-web has no way to preview or edit these.
+### 5. ✅ Context Files (AGENTS.md / CLAUDE.md)
+Pi loads `AGENTS.md` / `CLAUDE.md` from `~/.pi/agent/` (global), parent directories, and cwd.
 
-**What's needed:** File tree integration for context files, preview/edit panel, indicator showing which files are loaded.
+**Implemented:** `GET /api/pi/context-files?workspace=X` scans global + project + parent dirs. `ContextFilesIndicator` component shows collapsible list above chat with file preview modal.
 
 ### 6. ✅ Package Management
 Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, themes, prompt templates, and skills.

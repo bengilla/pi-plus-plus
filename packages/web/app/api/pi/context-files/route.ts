@@ -1,82 +1,102 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, access } from "node:fs/promises";
-import { join, dirname, resolve } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { constants } from "node:fs";
+import { join, dirname, relative, resolve } from "node:path";
 
-const GLOBAL_DIR = join(homedir(), ".pi", "agent");
-
-// Scan for AGENTS.md / CLAUDE.md from workspace up to root,
-// and in ~/.pi/agent/
-async function scanContextFiles(workspace: string): Promise<{
-  files: { path: string; name: string; scope: "global" | "project" | "parent" | "cwd"; content?: string }[];
-}> {
-  const results: { path: string; name: string; scope: "global" | "project" | "parent" | "cwd"; content?: string }[] = [];
-
-  // 1. Global context files (~/.pi/agent/)
-  for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-    const p = join(GLOBAL_DIR, name);
-    try { await access(p, constants.R_OK); results.push({ path: p, name, scope: "global" }); } catch { /* not found */ }
-  }
-
-  // 2. Workspace cwd
-  for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-    const p = join(workspace, name);
-    try { await access(p, constants.R_OK); results.push({ path: p, name, scope: "cwd" }); } catch { /* not found */ }
-  }
-
-  // 3. Project-level (.pi/AGENTS.md / .pi/CLAUDE.md)
-  for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-    const p = join(workspace, ".pi", name);
-    try { await access(p, constants.R_OK); results.push({ path: p, name, scope: "project" }); } catch { /* not found */ }
-  }
-
-  // 4. Parent directories (walk up to root)
-  let current = dirname(resolve(workspace));
-  const root = dirname(current); // stop before root
-  while (current && current !== root) {
-    for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-      const p = join(current, name);
-      try {
-        await access(p, constants.R_OK);
-        // Check not already found in cwd
-        if (!results.some((r) => r.path === p)) {
-          results.push({ path: p, name, scope: "parent" });
-        }
-      } catch { /* not found */ }
-    }
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-
-  return { files: results };
+interface ContextFile {
+  path: string;
+  displayPath: string;
+  size: number;
+  exists: boolean;
+  level: "global" | "project" | "parent";
+  content?: string;
 }
 
-// GET /api/pi/context-files?workspace=X&read=1
+const FILE_NAMES = ["AGENTS.md", "CLAUDE.md"];
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const workspace = searchParams.get("workspace") || process.cwd();
-    const shouldRead = searchParams.has("read");
+    const workspace = searchParams.get("workspace") || homedir();
+    const preview = searchParams.get("preview");
+    const files: ContextFile[] = [];
+    const seen = new Set<string>();
 
-    const { files } = await scanContextFiles(workspace);
+    // 1. Global: ~/.pi/agent/
+    const globalDir = join(homedir(), ".pi", "agent");
+    for (const name of FILE_NAMES) {
+      const p = join(globalDir, name);
+      const key = resolve(p);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const exists = existsSync(p);
+      files.push({
+        path: p,
+        displayPath: `~/.pi/agent/${name}`,
+        size: exists ? statSync(p).size : 0,
+        exists,
+        level: "global",
+      });
+    }
 
-    // Optionally read content if ?read=1
-    if (shouldRead) {
-      for (const file of files) {
-        try {
-          file.content = await readFile(file.path, "utf-8");
-        } catch {
-          file.content = "(unreadable)";
+    // 2. Project: workspace itself
+    const ws = resolve(workspace);
+    for (const name of FILE_NAMES) {
+      const p = join(ws, name);
+      const key = resolve(p);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const exists = existsSync(p);
+      files.push({
+        path: p,
+        displayPath: `./${name}`,
+        size: exists ? statSync(p).size : 0,
+        exists,
+        level: "project",
+      });
+    }
+
+    // 3. Parent directories (up to root, excluding workspace itself)
+    let dir = dirname(ws);
+    const root = resolve("/");
+    let depth = 0;
+    while (dir !== root && depth < 20) {
+      for (const name of FILE_NAMES) {
+        const p = join(dir, name);
+        const key = resolve(p);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const exists = existsSync(p);
+        if (exists) {
+          files.push({
+            path: p,
+            displayPath: relative(ws, p) || p,
+            size: statSync(p).size,
+            exists: true,
+            level: "parent",
+          });
         }
+      }
+      dir = dirname(dir);
+      depth++;
+    }
+
+    // If previewing a specific file, include its content
+    if (preview) {
+      const target = files.find(
+        (f) => f.path === preview || f.path.endsWith(preview) || f.displayPath === preview,
+      );
+      if (target && target.exists) {
+        target.content = readFileSync(target.path, "utf-8");
       }
     }
 
-    return NextResponse.json({ files, workspace });
+    const totalLoaded = files.filter((f) => f.exists).length;
+
+    return NextResponse.json({ files, totalLoaded });
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to scan context files" },
+      { error: e instanceof Error ? e.message : "Failed" },
       { status: 500 },
     );
   }
