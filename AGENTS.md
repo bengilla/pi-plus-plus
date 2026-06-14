@@ -73,7 +73,14 @@ npm run start         # Production server
 - logs: `~/.local/log/pi-plus-plus.log` and `~/.local/log/pi-plus-plus.err.log`
 - after production changes: `npm run build`, then restart launchd service.
 
-## Missing Pi CLI Features (TODOs)
+## GitHub TODO
+
+- [ ] GitHub Actions CI — auto `npx tsc --noEmit` + `npm run build` on PR
+- [ ] Branch protection — require PR review before merge to main
+- [ ] Enable Discussions tab — community Q&A
+- [ ] Project board — track feature requests and roadmap
+
+## Pi CLI Features (all done ✅)
 
 Pi CLI has features that agents-web doesn't implement yet. Listed by priority:
 
