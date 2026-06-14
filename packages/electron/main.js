@@ -156,6 +156,8 @@ function showInstallWindow() {
 // the user's shell profile so spawned processes can reach external APIs.
 function readProxyFromShell() {
   const proxyVars = {};
+  // Only these env vars should be inherited (avoid leaking NODE_OPTIONS etc.)
+  const PROXY_KEYS = new Set(["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "NO_PROXY", "no_proxy"]);
   try {
     const shell = process.env.SHELL || "/bin/zsh";
     // macOS: zsh -l -c only reads .zprofile, NOT .zshrc.
@@ -167,7 +169,7 @@ function readProxyFromShell() {
       if (eqIdx === -1) continue;
       const k = line.slice(0, eqIdx);
       const v = line.slice(eqIdx + 1);
-      if (k && v && !process.env[k]) {
+      if (k && v && !process.env[k] && PROXY_KEYS.has(k)) {
         proxyVars[k] = v;
       }
     }
