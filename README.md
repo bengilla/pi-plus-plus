@@ -20,7 +20,7 @@ No separate database. No vendor lock-in. Your data stays in `~/.pi/agent/`.
 ## Quick Start (user)
 
 ```bash
-git clone https://github.com/bengilla/agents-web.git pi++
+git clone https://github.com/bengilla/pi-plus-plus.git pi++
 cd pi++
 npm install
 npm run app:build
