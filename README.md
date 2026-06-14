@@ -9,11 +9,15 @@ Pi coding agent desktop workspace — a native macOS app wrapping Pi CLI with a 
 Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 
 - **Three-panel layout**: sidebar (conversations), chat, settings/context panel
-- **Bidirectional state**: app reads/writes Pi's native files (`auth.json`, `settings.json`, sessions `.jsonl`)
-- **OAuth login**: ChatGPT Plus/Pro, Anthropic Claude, GitHub Copilot — click Login, browser opens
+- **Bidirectional state**: app reads/writes Pi's native files (`auth.json`, `settings.json`, sessions `.jsonl`), no separate database
+- **OAuth login**: ChatGPT Plus/Pro, Anthropic Claude — click Login, browser opens
 - **Model management**: filter models by auth, toggle enabled/disabled, set default
-- **Session tree**: navigate conversation branches from `.jsonl` files
-- **Electron shell**: native macOS app with menus, dock icon, system tray
+- **Compaction**: manual compact button + auto-trigger token usage warning
+- **Pi settings editor**: structured toggles/inputs for compaction, retry, trust, telemetry
+- **Context files preview**: see which AGENTS.md/CLAUDE.md files Pi loaded
+- **Session tree**: navigate conversation branches, fork sessions
+- **Session export**: download conversations as HTML
+- **Electron shell**: native macOS app with menus, dock icon
 
 No separate database. No vendor lock-in. Your data stays in `~/.pi/agent/`.
 
@@ -90,10 +94,13 @@ packages/
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/pi/auth` | GET/POST | Provider keys (masked), OAuth login |
-| `/api/pi/models` | GET | Filtered model list |
+| `/api/pi/auth` | GET/POST | Provider keys (masked), OAuth login, key validation |
+| `/api/pi/models` | GET/POST | Filtered model list + default model |
+| `/api/pi/settings` | GET/POST | Read/write `~/.pi/agent/settings.json` |
+| `/api/pi/context-files` | GET | Scan AGENTS.md/CLAUDE.md (global + project + parents) |
 | `/api/pi/sessions` | GET/DELETE/POST | Session CRUD, branch fork |
 | `/api/pi/sessions/sync` | POST | Sync Pi sessions → localStorage |
+| `/api/pi/session/export` | GET | Export session as HTML via `pi --export` |
 | `/api/agent/chat` | POST | SSE stream from Pi CLI |
 | `/api/agent/stop` | POST | Stop running agent |
 
@@ -110,11 +117,12 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 Good first issues are tagged `good-first-issue`. Areas where contributions are especially welcome:
 
 - **Cross-platform**: Windows/Linux support (Electron packaging)
-- **Compaction UI**: expose Pi's `/compact` feature in the app
-- **Queue display**: show pending steering/follow-up messages
-- **Session export**: HTML export via Pi's `--export`
-- **Sidebar filters**: search, date range, tag system
 - **Themes**: more color schemes beyond light/dark
+- **Sidebar filters**: search, date range, tag system
+- **Thinking block visualization**: collapsible/expandable reasoning display
+- **Tool call UX**: inline tool execution preview, cancel running tools
+- **Session reconnection**: resume interrupted Pi sessions
+- **Tests**: E2E, integration, visual regression
 
 ## License
 
