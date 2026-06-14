@@ -115,10 +115,10 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 - `POST /api/pi/packages` — install/remove/update via `pi install/remove/update` CLI
 - Settings → 包 Tab: install form, package list, update/remove buttons, global update
 
-### 7. Session Export
-`pi --export <id> [out]` exports a session to HTML. agents-web has no export feature.
+### 7. ✅ Session Export
+`pi --export <id> [out]` exports a session to HTML.
 
-**What's needed:** Export button that calls `pi --export` and serves the HTML file.
+**Implemented:** `GET /api/pi/session/export?id=X&workspace=Y` calls `pi --export`, returns HTML blob. Export button in chat header (next to compact) + SessionsTab.
 
 ## Changelog
 

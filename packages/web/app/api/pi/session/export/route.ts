@@ -1,83 +1,87 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "node:child_process";
-import { access, readFile, mkdtemp, unlink, rmdir, readdir } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir, homedir } from "node:os";
-import { constants } from "node:fs";
+import { execFile } from "node:child_process";
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, basename } from "node:path";
+import { tmpdir } from "node:os";
 
-const PI_SESSION_DIR = join(homedir(), ".pi", "agent", "sessions");
-
-// Search for a session file by ID across all session subdirectories
-async function findSessionFile(sessionId: string): Promise<string | null> {
-  const dirs: string[] = [];
-  try { 
-    const entries = await readdir(PI_SESSION_DIR, { withFileTypes: true });
-    for (const e of entries) {
-      if (e.isDirectory()) dirs.push(join(PI_SESSION_DIR, e.name));
-    }
-  } catch { return null; }
-
-  for (const dir of dirs) {
-    const files = await readdir(dir);
-    const match = files.find((f) => f.includes(sessionId));
-    if (match) return join(dir, match);
-  }
-  return null;
-}
-
-// GET /api/pi/session/export?id=X
-// Calls `pi --export <sessionFile>` and returns the HTML.
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("id");
+    const workspace = searchParams.get("workspace") ?? "";
+    const download = searchParams.get("download") === "1";
 
     if (!sessionId) {
-      return NextResponse.json({ error: "Missing session id" }, { status: 400 });
+      return NextResponse.json({ error: "Session ID required" }, { status: 400 });
     }
 
-    // Find the session file by scanning ~/.pi/agent/sessions/
-    const sessionFile = await findSessionFile(sessionId);
-    if (!sessionFile) {
-      return NextResponse.json({ error: `Session file not found: ${sessionId}` }, { status: 404 });
-    }
-
-    // Create a temp file for the output
-    const tmpDir = await mkdtemp(join(tmpdir(), "pi-export-"));
-    const outPath = join(tmpDir, "session.html");
+    // Resolve session ID to .jsonl file path (same logic as sessions route)
+    const sessionsBase = join(homedir(), ".pi", "agent", "sessions");
+    let jsonlPath: string | null = null;
 
     try {
-      execSync(
-        `pi --export "${sessionFile}" "${outPath}"`,
+      const dirs = readdirSync(sessionsBase);
+      for (const dir of dirs) {
+        const dirPath = join(sessionsBase, dir);
+        if (!statSync(dirPath).isDirectory()) continue;
+        const files = readdirSync(dirPath);
+        for (const file of files) {
+          if (file.includes(sessionId) && file.endsWith(".jsonl")) {
+            jsonlPath = join(dirPath, file);
+            break;
+          }
+        }
+        if (jsonlPath) break;
+      }
+    } catch { /* sessions dir missing */ }
+
+    if (!jsonlPath || !existsSync(jsonlPath)) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    // Export to temp file
+    const exportPath = join(tmpdir(), `pi-export-${Date.now()}.html`);
+
+    const html = await new Promise<string>((resolve, reject) => {
+      execFile(
+        "pi",
+        ["--export", jsonlPath!, exportPath],
         {
           timeout: 30_000,
-          env: { ...process.env, PATH: `${process.env.HOME}/.local/bin:/opt/homebrew/bin:${process.env.PATH || ""}` },
+          env: { ...process.env, PATH: `/opt/homebrew/bin:${process.env.PATH || ""}` },
+        },
+        (err) => {
+          if (err) {
+            // Clean up temp file
+            try { unlinkSync(exportPath); } catch { /* gone */ }
+            reject(err);
+            return;
+          }
+          try {
+            const content = readFileSync(exportPath, "utf-8");
+            try { unlinkSync(exportPath); } catch { /* gone */ }
+            resolve(content);
+          } catch (e) {
+            reject(e);
+          }
         },
       );
+    });
 
-      // Read the exported HTML
-      await access(outPath, constants.R_OK);
-      const html = await readFile(outPath, "utf-8");
+    const filename = basename(jsonlPath).replace(/\.jsonl$/, ".html");
 
-      // Cleanup
-      try { await unlink(outPath); } catch { /* ignore */ }
-      try { await rmdir(tmpDir); } catch { /* ignore */ }
-
-      // Return as HTML
+    if (download || !searchParams.has("download")) {
+      // Return HTML directly for download or default
       return new NextResponse(html, {
         headers: {
           "Content-Type": "text/html; charset=utf-8",
-          "Content-Disposition": `attachment; filename="session-${sessionId.slice(0, 8)}.html"`,
+          "Content-Disposition": `attachment; filename="${filename}"`,
         },
       });
-    } catch (execError) {
-      // Cleanup
-      try { await unlink(outPath); } catch { /* ignore */ }
-      try { await rmdir(tmpDir); } catch { /* ignore */ }
-
-      const message = execError instanceof Error ? execError.message : "Export failed";
-      return NextResponse.json({ error: message }, { status: 500 });
     }
+
+    return NextResponse.json({ html, filename });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Export failed" },

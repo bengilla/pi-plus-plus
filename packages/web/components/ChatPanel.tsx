@@ -681,6 +681,21 @@ export function ChatPanel({
     handleSend("/compact", []);
   }, [handleSend]);
 
+  const handleExport = useCallback(async () => {
+    if (!piSessionId) return;
+    try {
+      const r = await fetch(`/api/pi/session/export?id=${encodeURIComponent(piSessionId)}&workspace=${encodeURIComponent(workspace)}`);
+      if (!r.ok) return;
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `session-${piSessionId.slice(0, 8)}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  }, [piSessionId, workspace]);
+
   // ── Model selector footer extras ───────────────────────────
 
   const modelSelector = (
@@ -852,6 +867,25 @@ export function ChatPanel({
           </>
         );
       })()}
+      {/* Export button — shows when session has Pi session ID */}
+      {!streaming && piSessionId && (
+        <>
+          <span className="shrink-0 w-px h-3 mx-1" style={{ background: "oklch(68% 0.13 250 / 0.4)" }} />
+          <button
+            onClick={handleExport}
+            className="shrink-0 text-[10px] px-1 py-0.5 transition-colors hover:opacity-70 inline-flex items-center gap-1"
+            style={{ color: "oklch(68% 0.13 250)" }}
+            title={zh ? "导出 HTML" : "Export HTML"}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {zh ? "导出" : "Export"}
+          </button>
+        </>
+      )}
     </>
   );
 
