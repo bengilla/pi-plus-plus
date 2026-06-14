@@ -11,12 +11,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const { agent, prompt: rawPrompt, workspace: reqWorkspace, thinkingLevel, model, sessionId } = body as Record<string, string | undefined>;
-
-  // Detect input language: if user types Chinese, tell Pi to reply in Chinese.
-  // Pi in --mode json may default to English, unlike interactive CLI mode.
-  const hasCJK = typeof rawPrompt === "string" && /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(rawPrompt);
-  const prompt = hasCJK ? `请用中文回复。\n\n${rawPrompt}` : rawPrompt;
+  const { agent, prompt, workspace: reqWorkspace, thinkingLevel, model, sessionId } = body as Record<string, string | undefined>;
 
   if (!agent || !prompt) {
     return Response.json({ error: "agent and prompt required" }, { status: 400 });

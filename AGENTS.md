@@ -122,6 +122,28 @@ Pi supports `pi install`, `pi remove`, `pi update`, `pi list` for extensions, th
 
 ## Changelog
 
+### 2026-06-14 — `/skill` Command, Skill Install from URL, Project-Level Skills
+
+**Skill install from GitHub URL:**
+- Settings → 技能 → 输入 GitHub URL → Install → `git clone --depth=1` to `~/.pi/agent/skills/`
+- Only full repo URLs (`github.com/user/repo`) trigger clone; sub-paths and non-URLs reject with clear error
+
+**`/skill` command in chat:**
+- Type `/skill` in ChatInput → dropdown of installed skills → select to enable/disable for current project
+- Active skills shown as ⚡ tags below input; click × to remove
+- Writes full paths to `.pi/settings.json` skills array (bidirectional with pi CLI)
+
+**Settings → 技能 redesign:**
+- Removed Pi badge and global toggle switch
+- `已安装 | 市场` tabs: installed shows URL install + list with 🔄 update / 🗑 delete (hover), marketplace shows verified installable skills
+- Delete: spinner animation, error alert on failure
+
+**Bidirectional fix: project skills paths** — app now writes `~/.pi/agent/skills/<id>` full paths to `.pi/settings.json`, reads both paths and bare IDs. pi CLI recognizes full paths.
+
+**Marketplace cleanup:** removed stub-only items (superpowers/community/subdirectory URLs), kept only standalone repos that actually clone.
+
+**Design principle #6: App ↔ CLI bidirectional** — app reads/writes Pi's native files, never maintains separate registry.
+
 ### 2026-06-12 — Sidebar Sort, Pi Block Sync, On-Demand Messages, "No Project" Mapping
 
 **Sidebar sort by time:**
@@ -289,6 +311,7 @@ Once the Pi Workspace UI stabilizes, package as an Electron desktop app.
 3. **Pi discovery stays filesystem-based** — `discovery.ts` finds the Pi binary via `which` / `where`. Electron doesn't change this.
 4. **Session storage stays in `localStorage` + Pi `.jsonl` files** — No SQLite, no IndexedDB. Keep the portable file-based approach.
 5. **Keep the build portable** — Avoid native Node.js addons. Pi is the only native dependency.
+6. **App ↔ CLI bidirectional** — The app and Pi CLI share the same filesystem state. Anything installed, configured, or modified via CLI must be visible in the app, and vice versa. App never maintains its own separate registry. Applies to: skills (`~/.pi/agent/skills/`), packages (`~/.pi/agent/settings.json`), settings (`.pi/settings.json`), sessions (`.jsonl` files), models, themes, prompt templates. The app reads and writes Pi's native files; it does not wrap or abstract them.
 
 ### Migration Path
 

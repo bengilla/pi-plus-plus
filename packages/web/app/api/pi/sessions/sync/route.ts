@@ -49,8 +49,16 @@ function extractConvs(sessionsDir: string, opts: { summary?: boolean } = {}): an
     const home = homedir();
     const sessionWorkspace = rawWorkspace === home ? "" : rawWorkspace;
     const firstUser = messages.find((m) => m.role === "user");
-    let title = firstUser ? [...firstUser.content].slice(0, 36).join("") : "Session";
-    if (firstUser && [...firstUser.content].length > 36) title += "…";
+    // Strip Pi-injected system prefixes from titles
+    const cleanContent = firstUser
+      ? [...firstUser.content]
+          .join("")
+          .replace(/^(请用中文回复[.。]?\s*)+/i, "")
+          .replace(/^(Please respond in Chinese[.!]?\s*)+/i, "")
+          .trim()
+      : "";
+    let title = cleanContent ? [...cleanContent].slice(0, 36).join("") : "Session";
+    if (cleanContent && [...cleanContent].length > 36) title += "…";
     // createdAt: session 开始时间(mtime 在 macOS 是秒级,且会随每次写入变化,不可靠)
     // lastActivityAt: 最后一条 message 的时间戳,真正反映"最后活动"
     const createdAt = startedAt ?? lastActivityAt ?? Date.now();

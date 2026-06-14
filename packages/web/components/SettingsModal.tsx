@@ -114,7 +114,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
           {tab === "auth" && <AuthTab language={language} />}
           {tab === "models" && <ModelsTab language={language} />}
           {tab === "sessions" && <SessionsTab language={language} workspace={workspace} onDeleteSession={onDeleteSession} />}
-          {tab === "skills" && <SkillsTab language={language} />}
+          {tab === "skills" && <SkillsTab language={language} workspace={workspace} />}
           {tab === "packages" && <PackagesTab language={language} />}
           {tab === "config" && <ConfigTab language={language} workspace={workspace} />}
           {tab === "general" && (

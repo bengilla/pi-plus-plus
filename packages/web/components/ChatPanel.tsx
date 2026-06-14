@@ -113,6 +113,9 @@ export function ChatPanel({
   const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const streamStartRef = useRef(0);
+  const prevConvRef = useRef<string | null | undefined>(conversationId);
+  // Track whether we've ever initialized messages from props
+  const initializedConvRef = useRef<string | null | undefined>(undefined);
   // Ref-backed to bypass React 18 batching — SSE loop writes ref, rAF polls it
   const streamContentRef = useRef("");
   const streamOutputTokensRef = useRef(0);
@@ -150,6 +153,22 @@ export function ChatPanel({
   const scrollThreshold = 150; // px from bottom to consider "near bottom"
 
   useEffect(() => {
+    const prevConv = prevConvRef.current;
+    prevConvRef.current = conversationId;
+
+    // Determine if we should reset messages from initialMessages:
+    // 1. First mount: always load
+    // 2. Conversation change (not auto-create during streaming): load new conv
+    // 3. Auto-create during streaming: skip — stream handler owns messages
+    const isAutoCreate = !prevConv && conversationId && streaming;
+    const isConvSwitch = prevConv && prevConv !== conversationId && !streaming;
+    const isFirstLoad = initializedConvRef.current === undefined;
+
+    initializedConvRef.current = conversationId;
+
+    if (isAutoCreate) return; // mid-stream auto-create, don't touch messages
+    if (!isFirstLoad && !isConvSwitch) return; // same conv, no action needed
+
     setMessages(toMessages(initialMessages));
     setPiSessionId(sessionId || null);
     // If this conv has no initial messages but has a sessionId (Pi-synced) and

@@ -45,6 +45,13 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [inputDragOver, setInputDragOver] = useState(false);
   const [panelHeight, setPanelHeight] = useState<number | null>(null);
+
+  // ── /skill command ──────────────────────────
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [skillResults, setSkillResults] = useState<{ id: string; name: string; description: string }[]>([]);
+  const [skillSelected, setSkillSelected] = useState(0);
+  const [activeSkills, setActiveSkills] = useState<{ id: string; name: string }[]>([]);
+  const [skillLoading, setSkillLoading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputHistoryRef = useRef<string[]>([]);
@@ -163,6 +170,61 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
       ta.focus();
     }, 0);
   };
+
+  // ── /skill handlers ─────────────────────────
+  const toggleSkillForProject = async (skillId: string, skillName: string) => {
+    const isActive = activeSkills.some((s) => s.id === skillId);
+    try {
+      await fetch("/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "project-toggle", skillId, workspace, enabled: !isActive }),
+      });
+    } catch { /* ignore */ }
+
+    if (isActive) {
+      setActiveSkills((prev) => prev.filter((s) => s.id !== skillId));
+    } else {
+      setActiveSkills((prev) => [...prev, { id: skillId, name: skillName }]);
+    }
+    setSkillOpen(false);
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const cursor = ta.selectionStart;
+    const before = input.slice(0, cursor);
+    const after = input.slice(cursor);
+    const slashIdx = before.lastIndexOf("/skill");
+    if (slashIdx !== -1) {
+      const newInput = before.slice(0, slashIdx) + after;
+      setInput(newInput);
+      setTimeout(() => {
+        ta.setSelectionRange(slashIdx, slashIdx);
+        ta.focus();
+      }, 0);
+    }
+  };
+
+  const removeProjectSkill = async (skillId: string) => {
+    try {
+      await fetch("/api/skills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "project-toggle", skillId, workspace, enabled: false }),
+      });
+    } catch { /* ignore */ }
+    setActiveSkills((prev) => prev.filter((s) => s.id !== skillId));
+  };
+
+  useEffect(() => {
+    if (!workspace || workspace === "~") return;
+    fetch(`/api/skills?workspace=${encodeURIComponent(workspace)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const enabled = (data.skills ?? []).filter((s: { projectEnabled: boolean }) => s.projectEnabled);
+        setActiveSkills(enabled.map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })));
+      })
+      .catch(() => {});
+  }, [workspace]);
 
   // ── Handlers ────────────────────────────────────────────────
 
@@ -358,6 +420,74 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                   onClick={() => removeAttachment(a.name)}
                   className="px-1 hover:opacity-70"
                   style={{ color: "var(--color-text-secondary)" }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* /skill dropdown */}
+        {skillOpen && skillResults.length > 0 && (
+          <div
+            className="mb-1 border overflow-hidden"
+            style={{
+              background: "var(--bg-elevated)",
+              borderColor: "var(--border)",
+              boxShadow: "var(--shadow-overlay)",
+            }}
+          >
+            {skillLoading && (
+              <div className="px-3 py-1.5 text-[10px]" style={{ color: "var(--text-secondary)" }}>
+                {zh ? "加载中..." : "Loading..."}
+              </div>
+            )}
+            {skillResults.map((s, i) => {
+              const isActive = activeSkills.some((a) => a.id === s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggleSkillForProject(s.id, s.name)}
+                  onMouseEnter={() => setSkillSelected(i)}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors"
+                  style={{
+                    color: "var(--text)",
+                    background: i === skillSelected ? "var(--bg-selected)" : "transparent",
+                  }}
+                >
+                  <span className="shrink-0">{isActive ? "✅" : "➕"}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="ml-2 text-[10px] truncate" style={{ color: "var(--text-secondary)" }}>
+                      {s.description.slice(0, 60)}
+                    </span>
+                  </div>
+                  {isActive && (
+                    <span className="text-[9px] px-1" style={{ color: "var(--accent)", border: "1px solid var(--accent)" }}>
+                      {zh ? "已启用" : "active"}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Active skills tags */}
+        {activeSkills.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {activeSkills.map((s) => (
+              <span
+                key={s.id}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-1 text-xs"
+                style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+              >
+                ⚡ {s.name}
+                <button
+                  onClick={() => removeProjectSkill(s.id)}
+                  className="px-1 hover:opacity-70"
+                  style={{ color: "var(--text-secondary)" }}
                 >
                   ×
                 </button>
@@ -578,6 +708,31 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
               } else {
                 setMentionOpen(false);
               }
+
+              // /skill detection — show all installed skills regardless of workspace
+              const skillMatch = textBefore.match(/\/skill(\S*)$/);
+              if (skillMatch) {
+                const sq = skillMatch[1].toLowerCase();
+                setSkillSelected(0);
+                setSkillLoading(true);
+                fetch(`/api/skills${workspace ? `?workspace=${encodeURIComponent(workspace)}` : ""}`)
+                  .then((r) => r.json())
+                  .then((data) => {
+                    const list = (data.skills ?? []).filter(
+                      (s: { enabled: boolean; name: string; id: string; description: string }) =>
+                        s.enabled && (
+                          s.name.toLowerCase().includes(sq) ||
+                          s.id.toLowerCase().includes(sq)
+                        )
+                    );
+                    setSkillResults(list);
+                    setSkillOpen(list.length > 0);
+                  })
+                  .catch(() => {})
+                  .finally(() => setSkillLoading(false));
+              } else {
+                setSkillOpen(false);
+              }
             }}
             onCompositionStart={() => { composingRef.current = true; }}
             onCompositionEnd={() => { composingRef.current = false; }}
@@ -608,6 +763,28 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
               }, 0);
             }}
             onKeyDown={(e) => {
+              if (skillOpen) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSkillSelected((s) => Math.min(s + 1, skillResults.length - 1));
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSkillSelected((s) => Math.max(s - 1, 0));
+                  return;
+                }
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  const sel = skillResults[skillSelected];
+                  if (sel) toggleSkillForProject(sel.id, sel.name);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  setSkillOpen(false);
+                  return;
+                }
+              }
               if (mentionOpen) {
                 if (e.key === "ArrowDown") {
                   e.preventDefault();

@@ -5,8 +5,9 @@ import { homedir } from "node:os";
 import { execFileSync } from "node:child_process";
 
 function encodeWorkspace(w: string): string {
-  // Pi encodes workspace paths by replacing / with -, wrapped in --
-  // e.g., /Users/foo/bar → --Users-foo-bar--
+  // Pi stores "No Project" sessions under the homedir-encoded directory.
+  // Empty workspace string maps to homedir, same as sync route's sessionsDirFor.
+  if (!w) return "--" + homedir().replace(/^\/+|\/+$/g, "").replace(/\//g, "-") + "--";
   const cleaned = w.replace(/^\/+/, "").replace(/\/+$/, "");
   return "--" + cleaned.replace(/\//g, "-") + "--";
 }
