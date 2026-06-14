@@ -192,9 +192,18 @@ function startServer() {
     if (isDev) {
       const nodeBin = findNode();
       if (!nodeBin) throw new Error("Node.js not found");
+
+      // Filter out API keys from env
+      const devEnv = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v == null) continue;
+        if (k.endsWith("_API_KEY") || k.endsWith("_API_SECRET")) continue;
+        devEnv[k] = v;
+      }
+
       serverProcess = spawn(nodeBin, [serverScript, "dev", "-p", String(PORT)], {
         cwd: path.join(__dirname, "..", "web"),
-        env: { ...process.env, NODE_ENV: "development" },
+        env: { ...devEnv, NODE_ENV: "development" },
         stdio: ["ignore", "pipe", "pipe"],
       });
     } else {
@@ -203,10 +212,19 @@ function startServer() {
       if (!nodeBin) throw new Error("Node.js not found");
       const cwd = path.join(resourcesPath, "packages", "web");
       console.log(`[electron] CWD: ${cwd}, server.js exists: ${fs.existsSync(path.join(cwd, "server.js"))}`);
+      // Filter out API keys and proxy from env (pi handles its own config)
+      const cleanEnv = {};
+      for (const [k, v] of Object.entries(process.env)) {
+        if (v == null) continue;
+        if (k.endsWith("_API_KEY") || k.endsWith("_API_SECRET")) continue;
+        if (k === "NODE_OPTIONS" && v.includes("proxy-preload")) continue;
+        cleanEnv[k] = v;
+      }
+
       serverProcess = spawn(nodeBin, ["server.js"], {
         cwd,
         env: {
-          ...process.env,
+          ...cleanEnv,
           NODE_ENV: "production",
           PORT: String(PORT),
           PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin`,

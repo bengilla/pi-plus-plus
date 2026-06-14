@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
+import { providerHasAuth } from "@/lib/auth";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,6 +72,8 @@ export async function GET() {
       const provider = cols[0];
       const modelName = cols[1];
       const id = `${provider}/${modelName}`;
+      // Only include models from providers with valid auth (auth.json or env var)
+      if (!providerHasAuth(provider)) continue;
       const caps = parseCapabilities(cols);
       models.push({
         id,

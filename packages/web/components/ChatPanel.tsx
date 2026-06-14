@@ -264,7 +264,7 @@ export function ChatPanel({
     ])
       .then(([modelData, modelsData]: [
         { provider?: string; model?: string },
-        { models: { id: string; name: string; provider: string; enabled: boolean; thinking?: boolean }[]; defaultModel: string | null },
+        { models: { id: string; name: string; provider: string; enabled: boolean; hasAuth?: boolean; thinking?: boolean }[]; defaultModel: string | null },
       ]) => {
         if (modelData.model) {
           setCurrentModel(modelData.model);
