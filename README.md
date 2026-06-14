@@ -59,7 +59,7 @@ npm run app:build    # Production .dmg → release/
 │  │ Next.js UI (three panels)      │  │
 │  │ Sidebar │ Chat │ Right Panel   │  │
 │  └──────────┬─────────────────────┘  │
-│             │ HTTP APIs (SSE stream)  │
+│             │ HTTP APIs (SSE stream) │
 │  ┌──────────▼─────────────────────┐  │
 │  │ Pi CLI (spawned via spawn())   │  │
 │  └──────────┬─────────────────────┘  │
