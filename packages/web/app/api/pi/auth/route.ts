@@ -116,10 +116,30 @@ async function handleSave(auth: AuthFile, provider: string, key: string, baseURL
   if (!key.trim()) return NextResponse.json({ error: "key required" }, { status: 400 });
 
   const validation = await validateKey(provider, key.trim(), baseURL);
-  if (!validation.valid) return NextResponse.json({ error: validation.error }, { status: 400 });
 
+  // Always save the key — validation is a best-effort check.
+  // Network issues (proxy, firewall) can cause false negatives.
+  // The key will be tested when actually used in a chat.
   auth[provider] = { ...auth[provider], type: "api_key", key: key.trim(), ...(baseURL ? { baseURL } : {}) };
   await writeAuth(auth);
+
+  if (!validation.valid) {
+    // Network errors (timeout, connection refused) are not the user's fault —
+    // save silently. Only warn for actual auth failures (401, 403, 429).
+    if (validation.type === "network") {
+      return NextResponse.json({
+        ok: true, provider, keyPreview: maskKey(key.trim()),
+        validated: false,
+        message: "Key saved (will be tested on first use)",
+      });
+    }
+    return NextResponse.json({
+      ok: true, provider, keyPreview: maskKey(key.trim()),
+      validated: false,
+      warning: validation.error,
+      message: `Key saved (validation: ${validation.error})`,
+    });
+  }
 
   return NextResponse.json({ ok: true, provider, keyPreview: maskKey(key.trim()), validated: true, message: validation.message });
 }
@@ -146,7 +166,7 @@ async function handleOAuthLogin(provider: string) {
 
 // ── Key Validation ────────────────────────────────────────────
 
-async function validateKey(provider: string, key: string, baseURL?: string): Promise<{ valid: boolean; error?: string; message?: string }> {
+async function validateKey(provider: string, key: string, baseURL?: string): Promise<{ valid: boolean; type?: "network" | "invalid"; error?: string; message?: string }> {
   const base = baseURL || PROVIDER_BASE_URLS[provider];
   if (!base) return { valid: true, message: "Saved (no validation endpoint)" };
 
@@ -159,7 +179,7 @@ async function validateKey(provider: string, key: string, baseURL?: string): Pro
     if (["openai", "deepseek", "groq", "openrouter", "mistral", "xai", "fireworks", "together", "cerebras", "nvidia", "minimax", "minimax-cn", "zai"].includes(provider)) {
       headers["Authorization"] = `Bearer ${key}`;
     } else if (provider === "google") {
-      const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`, { signal: controller.signal });
+      const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(key), { signal: controller.signal });
       clearTimeout(timeout);
       return resp.ok ? { valid: true, message: "Key validated" } : parseError(resp.status, await resp.json().catch(() => ({})));
     } else if (provider === "anthropic") {
@@ -171,20 +191,20 @@ async function validateKey(provider: string, key: string, baseURL?: string): Pro
     clearTimeout(timeout);
     return resp.ok ? { valid: true, message: "Key validated" } : parseError(resp.status, await resp.json().catch(() => ({})));
   } catch (e: unknown) {
-    if (e instanceof DOMException && e.name === "AbortError") return { valid: false, error: "Connection timeout" };
-    return { valid: false, error: `Connection failed: ${e instanceof Error ? e.message : "Unknown"}` };
+    if (e instanceof DOMException && e.name === "AbortError") return { valid: false, type: "network", error: "Connection timeout" };
+    return { valid: false, type: "network", error: `Connection failed: ${e instanceof Error ? e.message : "Unknown"}` };
   }
 }
 
-function parseError(status: number, body: Record<string, unknown>): { valid: false; error: string } {
+function parseError(status: number, body: Record<string, unknown>): { valid: false; type: "invalid"; error: string } {
   const detail = body.error as Record<string, unknown> | undefined;
-  if (status === 401) return { valid: false, error: "Invalid API key" };
+  if (status === 401) return { valid: false, type: "invalid", error: "Invalid API key" };
   if (status === 403) {
     const msg = detail?.message ? String(detail.message) : "";
-    if (msg.includes("billing") || msg.includes("quota") || msg.includes("insufficient")) return { valid: false, error: "Billing issue — insufficient balance or quota exceeded" };
-    if (msg.includes("region") || msg.includes("country")) return { valid: false, error: "Region restriction" };
-    return { valid: false, error: "Access denied — check account permissions" };
+    if (msg.includes("billing") || msg.includes("quota") || msg.includes("insufficient")) return { valid: false, type: "invalid", error: "Billing issue — insufficient balance or quota exceeded" };
+    if (msg.includes("region") || msg.includes("country")) return { valid: false, type: "invalid", error: "Region restriction" };
+    return { valid: false, type: "invalid", error: "Access denied — check account permissions" };
   }
-  if (status === 429) return { valid: false, error: "Rate limited — try again later" };
-  return { valid: false, error: detail?.message ? String(detail.message) : `API error (${status})` };
+  if (status === 429) return { valid: false, type: "invalid", error: "Rate limited — try again later" };
+  return { valid: false, type: "invalid", error: detail?.message ? String(detail.message) : `API error (${status})` };
 }

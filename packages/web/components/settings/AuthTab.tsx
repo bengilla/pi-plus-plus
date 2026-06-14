@@ -74,11 +74,18 @@ export function AuthTab({ language }: { language: "en" | "zh" }) {
         setError(data.error || "Save failed");
         return;
       }
-      setSuccess(data.message || (zh ? "已保存！" : "Saved!"));
+      // Show warning if validation failed (e.g. network timeout), 
+      // but the key was still saved — this is not a blocking error.
+      if (data.warning) {
+        setError(data.warning);
+        setSuccess(data.message || (zh ? "已保存！" : "Saved!"));
+      } else {
+        setSuccess(data.message || (zh ? "已保存！" : "Saved!"));
+      }
       setApiKey("");
       setShowAdd(false);
       await loadAuth();
-      setTimeout(() => setSuccess(null), 4000);
+      setTimeout(() => { setSuccess(null); setError(null); }, 6000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally { setSaving(false); setValidating(false); }

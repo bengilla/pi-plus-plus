@@ -150,6 +150,31 @@ function showInstallWindow() {
   });
 }
 
+// ── Proxy Environment ────────────────────────────────────
+// When the app is launched from Finder/Dock, it doesn't inherit
+// HTTP_PROXY/HTTPS_PROXY from the terminal shell. Read them from
+// the user's shell profile so spawned processes can reach external APIs.
+function readProxyFromShell() {
+  const proxyVars = {};
+  try {
+    const shell = process.env.SHELL || "/bin/zsh";
+    // macOS: zsh -l -c only reads .zprofile, NOT .zshrc.
+    // Source .zshrc explicitly to get proxy vars set there.
+    const cmd = `${shell} -c 'source ~/.zshrc 2>/dev/null; printf "HTTP_PROXY=%s\n" "$HTTP_PROXY"; printf "HTTPS_PROXY=%s\n" "$HTTPS_PROXY"; printf "http_proxy=%s\n" "$http_proxy"; printf "https_proxy=%s\n" "$https_proxy"; printf "NO_PROXY=%s\n" "$NO_PROXY"; printf "no_proxy=%s\n" "$no_proxy"'`;
+    const out = execSync(cmd, { encoding: "utf8", timeout: 3000 });
+    for (const line of out.trim().split("\n")) {
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) continue;
+      const k = line.slice(0, eqIdx);
+      const v = line.slice(eqIdx + 1);
+      if (k && v && !process.env[k]) {
+        proxyVars[k] = v;
+      }
+    }
+  } catch { /* shell profile not available */ }
+  return proxyVars;
+}
+
 // ── Find Node.js ─────────────────────────────────────────
 function findNode() {
   // Try shell PATH first (inherits user's shell profile)
@@ -200,6 +225,9 @@ function startServer() {
         if (k.endsWith("_API_KEY") || k.endsWith("_API_SECRET")) continue;
         devEnv[k] = v;
       }
+      // Inherit proxy from shell (needed when launched from Finder)
+      const shellProxyDev = readProxyFromShell();
+      Object.assign(devEnv, shellProxyDev);
 
       serverProcess = spawn(nodeBin, [serverScript, "dev", "-p", String(PORT)], {
         cwd: path.join(__dirname, "..", "web"),
@@ -212,7 +240,7 @@ function startServer() {
       if (!nodeBin) throw new Error("Node.js not found");
       const cwd = path.join(resourcesPath, "packages", "web");
       console.log(`[electron] CWD: ${cwd}, server.js exists: ${fs.existsSync(path.join(cwd, "server.js"))}`);
-      // Filter out API keys and proxy from env (pi handles its own config)
+      // Preserve process.env but filter out secrets
       const cleanEnv = {};
       for (const [k, v] of Object.entries(process.env)) {
         if (v == null) continue;
@@ -220,6 +248,9 @@ function startServer() {
         if (k === "NODE_OPTIONS" && v.includes("proxy-preload")) continue;
         cleanEnv[k] = v;
       }
+      // Inherit proxy from shell (needed when launched from Finder)
+      const shellProxy = readProxyFromShell();
+      Object.assign(cleanEnv, shellProxy);
 
       serverProcess = spawn(nodeBin, ["server.js"], {
         cwd,
