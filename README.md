@@ -13,6 +13,8 @@ Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 - **Three-panel layout**: sidebar (conversations), chat, settings/context panel
 - **Bidirectional state**: app reads/writes Pi's native files (`auth.json`, `settings.json`, sessions `.jsonl`), no separate database
 - **OAuth login**: ChatGPT Plus/Pro, Anthropic Claude — click Login, browser opens
+- **VPN/proxy aware**: auto-detects proxy settings from shell profile when launched from Finder
+- **Key validation**: non-blocking — saves even if network is down, tests on first use
 - **Model management**: filter models by auth, toggle enabled/disabled, set default
 - **Compaction**: manual compact button + auto-trigger token usage warning
 - **Pi settings editor**: structured toggles/inputs for compaction, retry, trust, telemetry

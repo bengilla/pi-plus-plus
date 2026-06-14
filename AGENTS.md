@@ -63,6 +63,17 @@ packages/
 ## Environment
 
 - `PI_PLUS_PLUS_WORKSPACE` sets default workspace path
+- When launched from Finder/Dock (not terminal), the Electron app doesn't inherit `HTTP_PROXY`/`HTTPS_PROXY`. `readProxyFromShell()` in `main.js` explicitly sources `~/.zshrc` to inject proxy vars into the server process. Whitelist-only: only proxy keys are passed, not `NODE_OPTIONS`.
+
+## Auth Validation
+
+- Key validation is non-blocking — network errors (timeout, connection refused) save silently with `type: "network"`; only API auth rejections (401/403/429) show a warning with `type: "invalid"`
+- AuthTab shows warning as yellow notice + green success, not a red error
+
+## Context Files
+
+- API only returns files that actually exist on disk (`exists: true` filter)
+- API response uses `name` and `scope` fields (not `displayPath`/`level`) to match the frontend interface
 
 ## GitHub TODO
 
