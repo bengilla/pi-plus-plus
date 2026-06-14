@@ -221,6 +221,15 @@ export function useConversations(workspace: string, activeAgent: string) {
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
+    // Determine next active conv BEFORE updating state
+    const isDeletingActive = activeConvId === id;
+    let nextConvId: string | null = null;
+    if (isDeletingActive) {
+      const current = projectConvs(indexes, workspace);
+      const remaining = current.filter((c) => c.id !== id);
+      nextConvId = remaining.length > 0 ? remaining[0].id : null;
+    }
+
     setIndexes((prev) => {
       const idx = prev.findIndex((c) => c.id === id);
       if (idx === -1) return prev;
@@ -242,7 +251,9 @@ export function useConversations(workspace: string, activeAgent: string) {
       next.delete(id);
       return next;
     });
-    setActiveConvId((prev) => (prev === id ? null : prev));
+    if (isDeletingActive) {
+      setActiveConvId(nextConvId);
+    }
   }, []);
 
   const renameConversation = useCallback((id: string, title: string) => {
