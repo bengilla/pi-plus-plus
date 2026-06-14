@@ -122,10 +122,10 @@ export default function Home() {
       .catch((e: unknown) => { console.error("[pi++] Failed to check version:", e); });
   }, [refreshAgents]);
 
-  // Auto-sync Pi CLI sessions on first load
+  // Auto-sync Pi CLI sessions on load and workspace change
   useEffect(() => {
     syncPiSessions();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workspace, syncPiSessions]);
 
   const navigateTo = useCallback((newPath: string) => {
     setWorkspace(newPath);

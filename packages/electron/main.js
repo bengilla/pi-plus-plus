@@ -118,12 +118,12 @@ function showInstallWindow() {
       const btn = document.getElementById("installBtn");
       const status = document.getElementById("status");
       btn.disabled = true;
-      status.innerHTML = '<span class="progress"><span class="spinner">⏳</span> 正在安装 pi-coding-agent...</span>';
+      status.innerHTML = '<span class="progress"><span class="spinner">⏳</span> 正在安装 @earendil-works/pi-coding-agent...</span>';
 
-      exec("npm install -g pi-coding-agent", (err, stdout, stderr) => {
+      exec("npm install -g @earendil-works/pi-coding-agent", (err, stdout, stderr) => {
         if (err) {
           status.innerHTML = '<span class="error">❌ 安装失败<br>' +
-            '请手动运行: <code style="background:#333;padding:2px 6px;border-radius:3px">npm install -g pi-coding-agent</code><br>' +
+            '请手动运行: <code style="background:#333;padding:2px 6px;border-radius:3px">npm install -g @earendil-works/pi-coding-agent</code><br>' +
             stderr.toString().substring(stderr.length - 200) + '</span>';
           btn.disabled = false;
           btn.textContent = '🔁 重试';

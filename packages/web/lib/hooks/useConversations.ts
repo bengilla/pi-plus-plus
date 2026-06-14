@@ -254,7 +254,7 @@ export function useConversations(workspace: string, activeAgent: string) {
     if (isDeletingActive) {
       setActiveConvId(nextConvId);
     }
-  }, []);
+  }, [activeConvId, indexes, workspace]);
 
   const renameConversation = useCallback((id: string, title: string) => {
     setIndexes((prev) => {
@@ -282,16 +282,20 @@ export function useConversations(workspace: string, activeAgent: string) {
     (messages: ChatMessageSnapshot[]) => {
       const firstUser = messages.find((m) => m.role === "user");
       const cid = activeConvId;
+      const parsedPiSessionId = messages.find((m) => m.piSessionId)?.piSessionId;
+      const nextId = parsedPiSessionId ? parsedPiSessionId.slice(0, 20) : cid;
 
       // Always update the in-memory messages cache for the active conv.
       if (cid) {
         setMessagesCache((prev) => {
-          if (!prev.has(cid)) {
-            const next = new Map(prev);
-            next.set(cid, messages);
-            return next;
+          const next = new Map(prev);
+          if (nextId && nextId !== cid) {
+            next.delete(cid);
           }
-          return prev;
+          if (nextId) {
+            next.set(nextId, messages);
+          }
+          return next;
         });
       }
 
@@ -302,9 +306,10 @@ export function useConversations(workspace: string, activeAgent: string) {
             if (c.id !== cid) return c;
             return {
               ...c,
+              id: nextId || c.id,
               workspace,
               lastActivityAt: lastTs,
-              piSessionId: firstUser?.piSessionId || c.piSessionId,
+              piSessionId: parsedPiSessionId || c.piSessionId,
               title: c.manualTitle
                 ? c.title
                 : firstUser
@@ -315,9 +320,12 @@ export function useConversations(workspace: string, activeAgent: string) {
           saveConvs(updated);
           return updated;
         });
+        if (nextId && nextId !== cid) {
+          setActiveConvId(nextId);
+        }
       } else if (messages.length > 0) {
         const now = Date.now();
-        const newId = now.toString();
+        const newId = parsedPiSessionId ? parsedPiSessionId.slice(0, 20) : now.toString();
         const newConv: ConvIndex = {
           id: newId,
           title: firstUser ? truncateTitle(firstUser.content) : "New conversation",
@@ -325,7 +333,7 @@ export function useConversations(workspace: string, activeAgent: string) {
           workspace,
           createdAt: now,
           lastActivityAt: now,
-          piSessionId: firstUser?.piSessionId,
+          piSessionId: parsedPiSessionId,
         };
         setIndexes((prev) => {
           const updated = [newConv, ...prev];

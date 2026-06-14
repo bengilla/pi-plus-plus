@@ -19,7 +19,10 @@ function extractContentText(content: any): string {
 }
 
 function sessionsDirFor(workspace: string): string {
-  if (!workspace) return join(homedir(), ".pi/agent/sessions/--Users-bengilla--");
+  if (!workspace) {
+    const homeClean = homedir().replace(/^\/+|\/+$/g, "").replace(/\//g, "-");
+    return join(homedir(), ".pi/agent/sessions", `--${homeClean}--`);
+  }
   const dirname = "--" + workspace.replace(/^\/+|\/+$/g, "").replace(/\//g, "-") + "--";
   return join(homedir(), ".pi/agent/sessions", dirname);
 }

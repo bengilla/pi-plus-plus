@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { homedir } from "node:os";
 
 const execFileAsync = promisify(execFile);
 
@@ -11,7 +12,7 @@ export async function GET() {
     const piBin = process.env.PI_BIN || "pi";
     const { stdout: versionOut } = await execFileAsync(piBin, ["--version"], {
       timeout: 10_000,
-      env: { ...process.env, PATH: `/opt/homebrew/bin:/Users/bengilla/.local/bin:${process.env.PATH || ""}` },
+      env: { ...process.env, PATH: `/opt/homebrew/bin:${homedir()}/.local/bin:${process.env.PATH || ""}` },
     });
     const currentVersion = versionOut.trim();
 

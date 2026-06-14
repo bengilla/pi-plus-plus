@@ -86,6 +86,7 @@ function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
     outputTokens: m.outputTokens,
     cacheTokens: m.cacheTokens,
     durationSeconds: m.durationSeconds,
+    piSessionId: m.piSessionId,
   }));
 }
 
@@ -162,7 +163,7 @@ export function ChatPanel({
     // 2. Conversation change (not auto-create during streaming): load new conv
     // 3. Auto-create during streaming: skip — stream handler owns messages
     const isAutoCreate = !prevConv && conversationId && streaming;
-    const isConvSwitch = prevConv && prevConv !== conversationId && !streaming;
+    const isConvSwitch = prevConv !== conversationId && !streaming;
     const isFirstLoad = initializedConvRef.current === undefined;
 
     initializedConvRef.current = conversationId;
@@ -204,9 +205,9 @@ export function ChatPanel({
       outputTokens: m.outputTokens,
       cacheTokens: m.cacheTokens,
       durationSeconds: m.durationSeconds,
-      piSessionId: piSessionId || undefined,
+      piSessionId: m.piSessionId || piSessionId || undefined,
     })));
-  }, [messages]);
+  }, [messages, piSessionId]);
 
   // Elapsed timer during streaming
   useEffect(() => {
@@ -652,6 +653,7 @@ export function ChatPanel({
           outputTokens: finalOutputTokens,
           cacheTokens: finalCacheTokens,
           durationSeconds: (Date.now() - responseStartedAt) / 1000,
+          piSessionId: piSessionId || undefined,
         },
       ]);
   } catch (e: unknown) {
