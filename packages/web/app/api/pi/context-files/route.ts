@@ -91,9 +91,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const totalLoaded = files.filter((f) => f.exists).length;
-
-    return NextResponse.json({ files, totalLoaded });
+    // Only return files that actually exist on disk
+    const existingFiles = files.filter((f) => f.exists);
+    return NextResponse.json({ files: existingFiles, totalLoaded: existingFiles.length });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed" },
