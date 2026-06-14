@@ -97,10 +97,10 @@ Pi emits `queue_update` with pending `steering[]` and `followUp[]` message queue
 
 **What's needed:** Listen to `queue_update` events, show pending follow-up actions, let user approve/reject.
 
-### 4. Pi Settings Management
-Pi has `~/.pi/agent/settings.json` (global) and `.pi/settings.json` (project-level) for provider, tools, model cycling, trust, telemetry, etc. agents-web's SettingsModal doesn't read or write Pi's settings.json.
+### 4. ✅ Pi Settings Management
+Pi has `~/.pi/agent/settings.json` (global) and `.pi/settings.json` (project-level) for provider, tools, model cycling, trust, telemetry, etc.
 
-**What's needed:** API to read/write settings.json, UI for provider config, tool toggles, default model, trust settings.
+**Implemented:** `GET/POST /api/pi/settings` reads/writes both files with nested key support. `PiSettingsTab` (Settings → 配置) shows structured toggles/inputs for compaction, retry, trust, warnings, steering, telemetry + collapsible raw JSON editor.
 
 ### 5. ✅ Context Files (AGENTS.md / CLAUDE.md)
 Pi loads `AGENTS.md` / `CLAUDE.md` from `~/.pi/agent/` (global), parent directories, and cwd.

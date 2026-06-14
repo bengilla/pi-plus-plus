@@ -6,7 +6,7 @@ import { AuthTab } from "./settings/AuthTab";
 import { SessionsTab } from "./settings/SessionsTab";
 import { SkillsTab } from "./settings/SkillsTab";
 import { PackagesTab } from "./PackagesTab";
-import { ConfigTab } from "./settings/ConfigTab";
+import { PiSettingsTab } from "./settings/PiSettingsTab";
 import { GeneralTab } from "./settings/GeneralTab";
 
 interface AgentInfo {
@@ -116,7 +116,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
           {tab === "sessions" && <SessionsTab language={language} workspace={workspace} onDeleteSession={onDeleteSession} />}
           {tab === "skills" && <SkillsTab language={language} workspace={workspace} />}
           {tab === "packages" && <PackagesTab language={language} />}
-          {tab === "config" && <ConfigTab language={language} workspace={workspace} />}
+          {tab === "config" && <PiSettingsTab language={language} workspace={workspace} />}
           {tab === "general" && (
             <GeneralTab fontScale={fontScale} onFontScaleChange={onFontScaleChange} language={language} onLanguageChange={onLanguageChange} />
           )}
