@@ -5,10 +5,11 @@ import { join, dirname, relative, resolve } from "node:path";
 
 interface ContextFile {
   path: string;
+  name: string;
   displayPath: string;
   size: number;
   exists: boolean;
-  level: "global" | "project" | "parent";
+  scope: "global" | "project" | "parent" | "cwd";
   content?: string;
 }
 
@@ -32,10 +33,11 @@ export async function GET(req: NextRequest) {
       const exists = existsSync(p);
       files.push({
         path: p,
+        name,
         displayPath: `~/.pi/agent/${name}`,
         size: exists ? statSync(p).size : 0,
         exists,
-        level: "global",
+        scope: "global",
       });
     }
 
@@ -49,10 +51,11 @@ export async function GET(req: NextRequest) {
       const exists = existsSync(p);
       files.push({
         path: p,
+        name,
         displayPath: `./${name}`,
         size: exists ? statSync(p).size : 0,
         exists,
-        level: "project",
+        scope: "project",
       });
     }
 
@@ -70,10 +73,11 @@ export async function GET(req: NextRequest) {
         if (exists) {
           files.push({
             path: p,
+            name,
             displayPath: relative(ws, p) || p,
             size: statSync(p).size,
             exists: true,
-            level: "parent",
+            scope: "parent",
           });
         }
       }
