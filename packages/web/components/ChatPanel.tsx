@@ -803,10 +803,10 @@ export function ChatPanel({
                                 paddingRight: "8px",
                               }}
                               onMouseEnter={(e) => {
-                                if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
+                                  if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
                               }}
                               onMouseLeave={(e) => {
-                                if (!isActive) e.currentTarget.style.background = "transparent";
+                                  if (!isActive) e.currentTarget.style.background = "transparent";
                               }}
                             >
                               <span className="w-2.5 text-center shrink-0" style={{ color: "var(--accent)" }}>
@@ -1061,8 +1061,8 @@ export function ChatPanel({
                     )}
                     <button
                       onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                      className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
-                      style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
+                      className="inline-flex h-5 w-5 items-center justify-center active:scale-90 transition-opacity duration-150 opacity-50 hover:opacity-100"
+                      style={{ color: "var(--accent)", background: "transparent", border: "none" }}
                       title="Copy"
                       aria-label="Copy message"
                     >
@@ -1107,8 +1107,8 @@ export function ChatPanel({
                     <span className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => navigator.clipboard.writeText(msg.content).catch(() => {})}
-                        className="inline-flex h-5 w-5 items-center justify-center hover:opacity-70 hover:shadow-[0_0_6px_var(--accent)] active:opacity-100 active:scale-90 active:shadow-[0_0_0_1px_var(--accent),0_0_6px_var(--accent)] transition-all duration-75"
-                        style={{ color: "var(--accent)", background: "transparent", border: "none", opacity: 0.6 }}
+                        className="inline-flex h-5 w-5 items-center justify-center active:scale-90 transition-opacity duration-150 opacity-50 hover:opacity-100"
+                        style={{ color: "var(--accent)", background: "transparent", border: "none" }}
                         title="Copy"
                         aria-label="Copy message"
                       >

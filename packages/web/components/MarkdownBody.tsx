@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -46,6 +47,45 @@ interface Props {
   content: string;
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="absolute right-2 top-2 p-1.5 transition-opacity duration-150 flex items-center justify-center cursor-pointer opacity-50 hover:opacity-100 active:scale-95"
+      style={{
+        color: copied ? "var(--success)" : "var(--accent)",
+        background: "transparent",
+        border: "none",
+      }}
+      title={copied ? "Copied!" : "Copy code"}
+      aria-label={copied ? "Copied!" : "Copy code"}
+    >
+      {copied ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export function MarkdownBody({ content }: Props) {
   return (
     <div className="md-body">
@@ -55,22 +95,27 @@ export function MarkdownBody({ content }: Props) {
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             const codeString = String(children).replace(/\n$/, "");
+            const isBlock = match || (className && className.includes("language-")) || codeString.includes("\n");
 
-            // Block code with language
-            if (match) {
+            // Block code
+            if (isBlock) {
               return (
-                <SyntaxHighlighter
-                  style={oneDark}
-                  language={match[1]}
-                  PreTag="div"
-                  customStyle={{
-                    margin: "0.5rem 0",
-                    borderRadius: "0.5rem",
-                    fontSize: "0.8125rem",
-                  }}
-                >
-                  {codeString}
-                </SyntaxHighlighter>
+                <div className="relative group my-2">
+                  <SyntaxHighlighter
+                    style={oneDark}
+                    language={match ? match[1] : "text"}
+                    PreTag="div"
+                    customStyle={{
+                      margin: 0,
+                      borderRadius: "0.5rem",
+                      fontSize: "0.8125rem",
+                      paddingRight: "2.5rem",
+                    }}
+                  >
+                    {codeString}
+                  </SyntaxHighlighter>
+                  <CopyButton text={codeString} />
+                </div>
               );
             }
 

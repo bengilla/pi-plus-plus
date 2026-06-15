@@ -69,7 +69,7 @@ export function SettingsModal({ open, onClose, fontScale, onFontScaleChange, lan
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden fade-in"
+        className="w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden fade-in"
         style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
         onClick={(e) => e.stopPropagation()}
       >

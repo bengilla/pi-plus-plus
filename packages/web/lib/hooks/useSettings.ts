@@ -13,7 +13,7 @@ function clamp(n: number, min: number, max: number): number {
 
 export function useSettings() {
   const [theme, setThemeState] = useState<"light" | "dark">("dark");
-  const [fontScale, setFontScaleState] = useState(1.1);
+  const [fontScale, setFontScaleState] = useState(1.0);
   const [language, setLanguageState] = useState<"en" | "zh">("en");
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [rightPanelWidth, setRightPanelWidth] = useState(520);
