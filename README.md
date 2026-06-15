@@ -1,6 +1,7 @@
 # pi++
 
-<img width="1000" height="584" alt="pi++_ready" src="https://github.com/user-attachments/assets/f71726ce-6e6b-450c-9cd2-4bddbb012979" />
+<img width="1552" height="900" alt="截屏2026-06-15 09 35 20" src="https://github.com/user-attachments/assets/dfdd22f0-04cf-452e-b687-a5c2f4d9be42" />
+<img width="1552" height="899" alt="截屏2026-06-15 09 35 37" src="https://github.com/user-attachments/assets/88b297b2-90a9-46e8-a85f-995bb8d867b1" />
 
 Pi coding agent desktop workspace — a native macOS app wrapping Pi CLI with a three-panel chat UI.
 
