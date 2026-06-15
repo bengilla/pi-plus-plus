@@ -7,8 +7,10 @@ dist/
 .DS_Store
 test-results/
 .pi/
+.loop-*.md
 *.jsonl
 release/
 *.dmg
 *.dmg.blockmap
 builder-debug.yml
+.loop-*.json

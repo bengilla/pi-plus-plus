@@ -30,6 +30,12 @@ No separate database. No vendor lock-in. Your data stays in `~/.pi/agent/`.
 
 ## Quick Start (user)
 
+**Option A: Download pre-built app (no terminal needed)**
+
+Download the latest `.dmg` from [Releases](../../releases), open it, drag pi++ to Applications.
+
+**Option B: Build from source**
+
 ```bash
 git clone https://github.com/bengilla/pi-plus-plus.git pi++
 cd pi++
@@ -41,6 +47,48 @@ open release/mac-arm64/pi++.app
 **Prerequisites:** Node.js 20+, npm 10+, macOS 14+ (Apple Silicon).
 
 Requires Pi CLI (`npm install -g pi-coding-agent`). The app guides you through installation on first launch.
+
+## Loop — Auto-Fix
+
+Loop 是一键自动修复机制：输入目标，AI 自动编写代码 → 运行验证 → 修正错误 → 独立审核，循环直到通过。
+
+**位置：** Chat / Brief 切换栏右侧的 Loop 按钮。
+
+**使用：**
+1. 点击 Loop → 输入目标（如"修复所有类型错误"）→ 回车
+2. Loop 自动运行，进度条实时显示当前阶段和轮数
+3. 完成后弹出报告卡：策略、轮数、耗时、可展开日志
+
+**工作流程：**
+
+```
+Phase 1: 直接修复 (3轮)
+  ├─ pi 分析错误 → 修改代码 → 运行验证命令
+  ├─ 通过 → ✅ 报告
+  └─ 失败 → 升级
+
+Phase 2: Maker + Checker (3轮)
+  ├─ Maker: 编写代码
+  ├─ Checker: 独立审查（不同会话，防止自评）
+  ├─ PASS → ✅ 报告
+  └─ FAIL → 下一轮
+
+Phase 3: 人工介入
+  └─ ⛔ 显示详细日志，请人工检查
+```
+
+**验证命令：** Loop 自动检测项目类型并生成 `.pi/verify.sh`：
+
+| 项目类型 | 自动生成 |
+|----------|----------|
+| `package.json` 有 `typecheck` | `npm run typecheck` |
+| `package.json` 有 `build` | `npm run build` |
+| `go.mod` | `go build ./...` |
+| `Cargo.toml` | `cargo build` |
+
+也可以手动创建 `.pi/verify.sh` 自定义验证逻辑。
+
+**无需额外安装。** Loop 完全由 pi++ 内置的 API 端点驱动，使用项目已有的 pi CLI。
 
 ## Development
 
@@ -110,6 +158,7 @@ packages/
 | `/api/pi/session/export` | GET | Export session as HTML via `pi --export` |
 | `/api/agent/chat` | POST | SSE stream from Pi CLI |
 | `/api/agent/stop` | POST | Stop running agent |
+| `/api/loop` | POST | SSE stream: auto-fix loop with maker/checker phases |
 
 ### Design Tokens
 

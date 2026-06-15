@@ -1,0 +1,257 @@
+#!/bin/bash
+# loop — 智能循环修复，自动升级策略
+# 用法: loop "任务描述"
+#       loop "任务描述" "验证命令"
+#       loop "任务描述" --max 5
+
+set -e
+
+# ═══════════════════════════════════════════════════════════════
+# 参数解析
+# ═══════════════════════════════════════════════════════════════
+
+TASK=""
+VERIFY=""
+MAX_TURNS=8
+LEVEL1_TURNS=3
+LEVEL2_TURNS=3
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --max) MAX_TURNS="$2"; shift 2 ;;
+    --verify|-v) VERIFY="$2"; shift 2 ;;
+    *) TASK="$1"; shift ;;
+  esac
+done
+
+if [ -z "$TASK" ]; then
+  echo "用法: loop \"任务描述\" [--max N] [--verify 验证命令]"
+  echo ""
+  echo "示例:"
+  echo "  loop \"修复所有类型错误\""
+  echo "  loop \"让测试通过\" --max 5"
+  echo "  loop \"修复 lint\" --verify \"npx eslint src/\""
+  exit 1
+fi
+
+# 自动发现验证命令
+if [ -z "$VERIFY" ]; then
+  if [ -f ".pi/verify.sh" ]; then
+    VERIFY="bash .pi/verify.sh"
+  elif [ -f "package.json" ] && grep -q '"test"' package.json; then
+    VERIFY="npm test"
+  elif [ -f "Cargo.toml" ]; then
+    VERIFY="cargo test"
+  elif [ -f "go.mod" ]; then
+    VERIFY="go build ./..."
+  elif [ -f "Makefile" ]; then
+    VERIFY="make check 2>/dev/null || make test 2>/dev/null || make build"
+  else
+    echo "❌ 无法自动发现验证命令，请用 --verify 指定"
+    exit 1
+  fi
+fi
+
+STATE_FILE=".loop-$(date +%Y%m%d-%H%M%S).md"
+START=$(date +%s)
+TURN=0
+
+# ── 辅助函数 ──────────────────────────────────────────────────
+
+log() {
+  echo "" >> "$STATE_FILE"
+  echo "$1" >> "$STATE_FILE"
+}
+
+check() {
+  if eval "$VERIFY" 2>&1; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+write_header() {
+  cat > "$STATE_FILE" <<EOF
+# Loop Report
+- **目标**: $TASK
+- **项目**: $(pwd)
+- **验证**: \`$VERIFY\`
+- **开始**: $(date)
+
+EOF
+}
+
+write_done() {
+  local level="$1"
+  local turns="$2"
+  local elapsed=$(( $(date +%s) - START ))
+  cat >> "$STATE_FILE" <<EOF
+
+---
+## ✅ 成功
+- **策略**: $level
+- **轮数**: $turns
+- **耗时**: ${elapsed}s
+- **结束**: $(date)
+EOF
+
+  echo ""
+  echo "╔══════════════════════════════════════╗"
+  echo "║  ✅ 搞定 — $(printf '%-24s' "$level") ║"
+  echo "║  ${turns} 轮 / ${elapsed}s                          ║"
+  echo "╚══════════════════════════════════════╝"
+  echo ""
+  echo "📄 报告: $STATE_FILE"
+}
+
+write_fail() {
+  local turns="$1"
+  local elapsed=$(( $(date +%s) - START ))
+  cat >> "$STATE_FILE" <<EOF
+
+---
+## ⛔ 未能自动修复
+- **总轮数**: $turns
+- **耗时**: ${elapsed}s
+- **结束**: $(date)
+
+### 最后状态
+\`\`\`
+$VERIFY 仍然失败。
+\`\`\`
+
+### 建议
+请人工检查上述报告中的错误信息。
+EOF
+
+  echo ""
+  echo "╔══════════════════════════════════════╗"
+  echo "║  ⛔ $turns 轮未能自动修复               ║"
+  echo "╚══════════════════════════════════════╝"
+  echo ""
+  echo "📄 报告: $STATE_FILE"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# 主循环
+# ═══════════════════════════════════════════════════════════════
+
+write_header
+
+# ── 快速检查：如果已经通过，直接结束 ──────────────────────────
+
+if check; then
+  write_done "无需修复" 0
+  exit 0
+fi
+
+echo ""
+echo "🔁 Loop 启动 — $(date +%H:%M:%S)"
+echo "   目标: $TASK"
+echo "   验证: $VERIFY"
+echo ""
+
+# ── Phase 1: 直接修复 ────────────────────────────────────────
+
+log "## Phase 1: 直接修复"
+log ""
+
+for i in $(seq 1 $LEVEL1_TURNS); do
+  TURN=$((TURN + 1))
+  if [ $TURN -gt $MAX_TURNS ]; then write_fail $TURN; exit 1; fi
+
+  log "### Turn $TURN (直接修复 $i/$LEVEL1_TURNS)"
+  printf "  🔧 Turn %s — 直接修... " "$TURN"
+
+  CMD="pi -p \"$TASK。改动要最小化。\""
+  if [ $TURN -gt 1 ]; then
+    CMD="pi -p \"验证失败。请读取错误信息，只修改必要的文件来修复问题。\" --continue"
+  fi
+
+  eval "$CMD" 2>&1 | tail -20 >> "$STATE_FILE"
+
+  if check; then
+    echo "✅"
+    write_done "Phase 1 直接修复" $TURN
+    exit 0
+  fi
+  echo "❌"
+  sleep 1
+done
+
+log "Phase 1 未能修复，升级到 Phase 2"
+echo ""
+echo "  ⬆️  升级到审核模式"
+
+# ── Phase 2: Maker + Checker ──────────────────────────────────
+
+log ""
+log "## Phase 2: Maker + Checker 审核模式"
+log ""
+
+for i in $(seq 1 $LEVEL2_TURNS); do
+  TURN=$((TURN + 1))
+  if [ $TURN -gt $MAX_TURNS ]; then write_fail $TURN; exit 1; fi
+
+  # ── Maker ──
+  log "### Turn $TURN — Maker ($i/$LEVEL2_TURNS)"
+  printf "  🔨 Maker  $TURN... "
+
+  pi -p "你是代码编写者。任务：$TASK。改动要最小化。完成后运行 $VERIFY 确认。" \
+    --continue 2>&1 | tail -20 >> "$STATE_FILE"
+
+  if ! check; then
+    echo "❌ (验证未通过)"
+    log "Maker 的改动未通过验证"
+    continue
+  fi
+
+  echo "📝"
+
+  # ── Checker ──
+  log "### Turn $TURN — Checker"
+  printf "  🔍 Checker $TURN... "
+
+  REVIEW=$(pi -p \
+    "你是代码审核者。用 git diff 审查所有改动。
+
+标准：
+1. 改动是否最小化（没有多余的修改）？
+2. 是否有逻辑错误？
+3. 是否有类型安全问题？
+4. 是否符合项目现有风格？
+
+只回答 PASS 或 FAIL，并给出简要理由。" \
+    --no-session -p 2>&1)
+
+  echo "$REVIEW" >> "$STATE_FILE"
+
+  if echo "$REVIEW" | grep -qi "PASS"; then
+    echo "✅"
+    write_done "Phase 2 Maker+Checker" $TURN
+    exit 0
+  fi
+
+  echo "❌"
+  log "Checker 拒绝本次改动"
+  log ""
+
+  # 将审核反馈喂给下一轮 Maker
+  TASK="上次改动被审核拒绝。审核意见：$REVIEW。请根据这些反馈重新修改代码，然后运行 $VERIFY 确认。"
+done
+
+# ── Phase 3: 放弃，报告 ───────────────────────────────────────
+
+log ""
+log "## Phase 3: 人工介入"
+log ""
+log "自动修复未能成功。请查看上方错误日志和审核记录。"
+log ""
+log "建议运行的命令："
+log "\`\`\`bash"
+log "$VERIFY"
+log "\`\`\`"
+
+write_fail $TURN
+exit 1

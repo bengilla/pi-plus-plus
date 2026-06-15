@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type DragEvent } from "react";
 import { flattenFiles } from "@/lib/utils/chat";
+import { LoopButton, type LoopState } from "./LoopButton";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ interface Props {
 
 export function ChatInput({ agentName, workspace, language: lang, streaming, onSend, onStop, footerExtras }: Props) {
   const zh = lang === "zh";
+
+  const [loopState, setLoopState] = useState<LoopState>({ running: false, progress: null, report: null });
 
   const [input, setInput] = useState("");
   const [briefMode, setBriefMode] = useState(false);
@@ -535,45 +538,81 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
           </div>
         )}
 
-        {/* Chat / Brief toggle */}
+        {/* Chat / Brief toggle + Loop */}
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div
-            className="inline-flex overflow-hidden p-0.5 text-xs"
+          <div className="flex items-center gap-2">
+            <div
+              className="inline-flex overflow-hidden p-0.5 text-xs"
+              style={{
+                background: "var(--bg)",
+                border: "1px solid var(--border-light)",
+              }}
+            >
+              {[
+                { value: false, label: zh ? "对话" : "Chat" },
+                { value: true, label: zh ? "计划" : "Brief" },
+              ].map((mode) => (
+                <button
+                  key={String(mode.value)}
+                  onClick={() => setBriefMode(mode.value)}
+                  className="px-2.5 py-1 transition-colors"
+                  style={{
+                    background:
+                      briefMode === mode.value
+                        ? "var(--bg-selected)"
+                        : "transparent",
+                    color:
+                      briefMode === mode.value
+                        ? "var(--text)"
+                        : "var(--text-secondary)",
+                  }}
+                  disabled={streaming}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            {briefMode && (
+              <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                {zh ? "整理目标、步骤、链接和素材" : "Organize goals, steps, links, and assets"}
+              </span>
+            )}
+          </div>
+          <LoopButton workspace={workspace} language={lang} onStateChange={setLoopState} />
+        </div>
+
+        {/* Loop progress bar */}
+        {loopState.running && loopState.progress && (
+          <div className="mb-2 flex items-center gap-3 px-3 py-1.5 text-[11px]"
             style={{
               background: "var(--bg)",
-              border: "1px solid var(--border-light)",
+              border: "1px solid var(--accent)",
+              color: "var(--text)",
             }}
           >
-            {[
-              { value: false, label: zh ? "对话" : "Chat" },
-              { value: true, label: zh ? "计划" : "Brief" },
-            ].map((mode) => (
-              <button
-                key={String(mode.value)}
-                onClick={() => setBriefMode(mode.value)}
-                className="px-2.5 py-1 transition-colors"
-                style={{
-                  background:
-                    briefMode === mode.value
-                      ? "var(--bg-selected)"
-                      : "transparent",
-                  color:
-                    briefMode === mode.value
-                      ? "var(--text)"
-                      : "var(--text-secondary)",
-                }}
-                disabled={streaming}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-          {briefMode && (
-            <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-              {zh ? "把想法、步骤、链接和素材整理后交给 agent 执行" : "Organize goals, steps, links, and assets before the agent starts"}
+            <span className="inline-block w-2.5 h-2.5 rounded-full animate-spin"
+              style={{
+                border: "2px solid var(--accent)",
+                borderTopColor: "transparent",
+              }}
+            />
+            <span style={{ color: "var(--accent)" }}>
+              {loopState.progress.phase}
             </span>
-          )}
-        </div>
+            {loopState.progress.turn > 0 && (
+              <span style={{ color: "var(--text-tertiary)" }}>
+                Turn {loopState.progress.turn}/{loopState.progress.maxTurns}
+              </span>
+            )}
+            {loopState.progress.message && (
+              <span style={{ color: "var(--text-secondary)" }}>
+                {loopState.progress.message}
+              </span>
+            )}
+            {loopState.progress.status === "pass" && <span style={{ color: "var(--accent)" }}>✅</span>}
+            {loopState.progress.status === "fail" && <span style={{ color: "var(--error)" }}>❌</span>}
+          </div>
+        )}
 
         {/* Input: Brief mode */}
         {briefMode ? (
