@@ -21,6 +21,8 @@ Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 - **Context files preview**: see which AGENTS.md/CLAUDE.md files Pi loaded
 - **Session tree**: navigate conversation branches, fork sessions
 - **Session export**: download conversations as HTML
+- **Quick Copy**: copy code blocks, terminal commands, or full messages in one click
+- **Responsive Sizing**: font-scale settings that dynamically adjust the entire UI typography
 - **Electron shell**: native macOS app with menus, dock icon
 
 No separate database. No vendor lock-in. Your data stays in `~/.pi/agent/`.
