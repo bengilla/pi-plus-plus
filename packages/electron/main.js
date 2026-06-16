@@ -1,13 +1,28 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, Notification } = require("electron");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const fs = require("fs");
+const https = require("https");
 
 const PORT = 31508;
 const SERVER_URL = `http://localhost:${PORT}`;
+const REPO_OWNER = "bengilla";
+const REPO_NAME = "pi-plus-plus";
 let serverProcess = null;
 let mainWindow = null;
 let installWindow = null;
+let updateCheckTimer = null;
+
+function getCurrentVersion() {
+  try {
+    const pkgPath = path.join(__dirname, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      return pkg.version || "0.1.0";
+    }
+  } catch {}
+  return "0.1.0";
+}
 
 // ── Paths ────────────────────────────────────────────────
 const isDev = !app.isPackaged;
@@ -206,6 +221,89 @@ function findNode() {
   return null;
 }
 
+// ── Version Comparison ───────────────────────────────────
+function compareVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+}
+
+// ── Update Checker ───────────────────────────────────────
+function checkForUpdates(silent = false) {
+  const options = {
+    hostname: "api.github.com",
+    path: `/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`,
+    method: "GET",
+    headers: {
+      "User-Agent": "pi++-update-checker",
+      Accept: "application/vnd.github.v3+json",
+    },
+    timeout: 10000,
+  };
+
+  const req = https.get(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => { data += chunk; });
+    res.on("end", () => {
+      try {
+        const release = JSON.parse(data);
+        const latestVersion = release.tag_name?.replace(/^v/, "");
+        if (!latestVersion) return;
+
+        if (compareVersions(latestVersion, currentVersion) > 0) {
+          const dmgAsset = release.assets?.find(a => a.name?.endsWith(".dmg"));
+          const downloadUrl = dmgAsset?.browser_download_url || release.html_url;
+          showUpdateDialog(latestVersion, currentVersion, downloadUrl);
+        } else if (!silent) {
+          console.log(`[update] pi++ ${currentVersion} is up to date`);
+        }
+      } catch (e) {
+        console.error("[update] Failed to parse release:", e.message);
+      }
+    });
+  });
+
+  req.on("error", (e) => {
+    if (!silent) console.error("[update] Check failed:", e.message);
+  });
+
+  req.on("timeout", () => {
+    req.destroy();
+    if (!silent) console.error("[update] Check timed out");
+  });
+}
+
+function showUpdateDialog(latest, current, downloadUrl) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type: "info",
+    buttons: ["下载更新", "稍后提醒"],
+    defaultId: 0,
+    cancelId: 1,
+    title: "pi++ 更新",
+    message: `发现新版本 v${latest}`,
+    detail: `当前版本: v${current}\n\n是否下载最新版本？`,
+  });
+
+  if (choice === 0) {
+    shell.openExternal(downloadUrl);
+  }
+}
+
+function scheduleUpdateChecks() {
+  // Check 10s after startup
+  setTimeout(() => checkForUpdates(false), 10000);
+  // Then check every 24 hours
+  updateCheckTimer = setInterval(() => checkForUpdates(true), 24 * 60 * 60 * 1000);
+}
+
 // ── Start Next.js Server ─────────────────────────────────
 function startServer() {
   return new Promise((resolve, reject) => {
@@ -377,6 +475,9 @@ async function bootstrap(piPath) {
   }
 
   createMainWindow();
+
+  // Start update checker
+  scheduleUpdateChecks();
 }
 
 // ── IPC Handlers ─────────────────────────────────────────
@@ -389,6 +490,12 @@ ipcMain.on("pi-installed", async () => {
 });
 
 ipcMain.handle("get-pi-path", () => findPi());
+
+ipcMain.handle("check-for-updates", () => {
+  checkForUpdates(false);
+});
+
+ipcMain.handle("get-version", () => getCurrentVersion());
 
 ipcMain.handle("open-folder-dialog", async () => {
   if (!mainWindow) return null;
@@ -410,6 +517,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;

@@ -11,4 +11,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Platform info
   platform: process.platform,
   isElectron: true,
+
+  // Version & updates
+  getVersion: () => ipcRenderer.invoke("get-version"),
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
 });
