@@ -229,7 +229,6 @@ export function Sidebar({
                             style={{
                               paddingLeft: c.id === activeConvId ? "8px" : "10px",
                               paddingRight: "2px",
-                              background: c.id === activeConvId ? "var(--bg-selected)" : undefined,
                               borderLeft: c.id === activeConvId ? "2px solid var(--accent)" : "2px solid transparent",
                             }}
                           >
@@ -259,9 +258,6 @@ export function Sidebar({
                                     style={{ color: c.id === activeConvId ? "var(--accent)" : "var(--text-secondary)" }}
                                   >
                                     {c.title}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                                    <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
