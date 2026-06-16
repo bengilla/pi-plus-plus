@@ -26,7 +26,7 @@ npm run app:build     # Production .dmg → release/
 packages/
 ├── web/                  # Next.js app
 │   ├── app/api/          # API routes
-│   ├── components/       # ChatPanel, Sidebar, SettingsModal
+│   ├── components/       # ChatPanel, Sidebar, SettingsModal, AppIcon
 │   ├── lib/agents/       # Pi discovery, spawn adapter
 │   ├── lib/auth/         # Provider auth helpers
 │   ├── lib/skills/       # Skill scanner
@@ -76,7 +76,32 @@ packages/
 - API only returns files that actually exist on disk (`exists: true` filter)
 - API response uses `name` and `scope` fields (not `displayPath`/`level`) to match the frontend interface
 
-## GitHub TODO
+## AppIcon System
+
+- `AppIcon.tsx` — 24 SVG icons (`IconName` union type), single-file, no deps, `currentColor`
+- `FileTypeIcon` — file extension→color+glyph mapping (TS→blue, JS→yellow, etc.), folder with open/closed state
+- Replaces all inline emoji/SVG across ChatPanel, ChatInput, Sidebar, FileTree, SettingsModal, WelcomeScreen
+- Icons: chevron-right/down, check, arrow-up, bug, compass, copy, download, edit, external, file, folder, info, message-plus, paperclip, plus, refresh, save, search, settings, stop, trash, x, zap
+
+## Logo Assets
+
+- Source: `images/pi_green_transparent.png` (1024px, green on transparent)
+- Electron icon: `packages/electron/assets/icon.png` (512px, green logo on `#101514` bg)
+- Public web icons: `favicon.svg`, `favicon.ico`, `favicon-32x32.png`, `apple-touch-icon.png`, `icon-192x192.png`, `icon-512x512.png`
+- Inline logos: `logo.png`, `logo-44.png`, `logo-64.png`, `logo-80.png` (all green, transparent)
+- `AgentIcon` and `Logo` components use `logo-44.png` (2x retina, displayed at variable size)
+- Splash screen uses `logo.png` (80px, pulse animation)
+
+## Auto Update (Electron)
+
+- `checkForUpdates()` — hits GitHub Releases API (`/repos/:owner/:repo/releases/latest`), compares semver with `getCurrentVersion()` from `package.json`
+- Runs 10s after startup, then every 24h (silent); also exposed via IPC + preload (`checkForUpdates`, `getVersion`)
+- `showUpdateDialog()` — native macOS dialog with [立即更新] / [稍后提醒]
+- `downloadAndInstall()` — opens progress window, streams DMG download with percent+MB display
+- `installFromDMG()` — mounts DMG via `hdiutil attach`, writes detached shell script to replace .app + restart
+- Update script template: kill old → `rm -rf` old bundle → `cp -R` from DMG → detach DMG → `open` new app
+
+## GitHub
 
 - [ ] GitHub Actions CI — auto `npx tsc --noEmit` + `npm run build` on PR
 - [ ] Branch protection — require PR review before merge to main
