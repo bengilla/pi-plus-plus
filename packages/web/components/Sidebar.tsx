@@ -84,7 +84,7 @@ export function Sidebar({
       .catch(() => {});
     fetch("/api/pi/version")
       .then((r) => r.json())
-      .then((d: { currentVersion?: string }) => setPiVersion(d.currentVersion || null))
+      .then((d: { currentVersion?: string }) => setPiVersion(d.currentVersion?.replace(/^v/, "") || null))
       .catch(() => {});
   }, []);
 
@@ -316,7 +316,7 @@ export function Sidebar({
         <div className="px-2 py-1.5 border-t shrink-0 space-y-1" style={{ borderColor: "var(--border)" }}>
           {appVersion && (
             <div className="flex items-center justify-between text-[9px]" style={{ color: "var(--text-tertiary)" }}>
-              <span>pi++</span>
+              <span>Pi++</span>
               <span style={{ fontFamily: "var(--font-mono)" }}>v{appVersion}</span>
             </div>
           )}
@@ -325,7 +325,7 @@ export function Sidebar({
               <div style={{ borderTop: "1px solid var(--border-light)" }} />
               <div className="flex items-center justify-between text-[9px]" style={{ color: "var(--text-tertiary)" }}>
                 <span>Pi agent</span>
-                <span style={{ fontFamily: "var(--font-mono)" }}>{piVersion}</span>
+                <span style={{ fontFamily: "var(--font-mono)" }}>v{piVersion}</span>
               </div>
             </>
           )}
