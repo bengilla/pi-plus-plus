@@ -679,10 +679,6 @@ export function ChatPanel({
     }
   }, [activeAgent, workspace, thinkingLevel, selectedModel, sessionId]);
 
-  const handleCompact = useCallback(() => {
-    handleSend("/compact", []);
-  }, [handleSend]);
-
   const handleExport = useCallback(async () => {
     if (!piSessionId) return;
     try {
@@ -826,49 +822,7 @@ export function ChatPanel({
           </div>
         </>
       )}
-      {/* Compact button */}
-      {!streaming && messages.length >= 4 && (
-        <>
-          <span className="shrink-0 w-px h-3 mx-1" style={{ background: "var(--accent)" }} />
-          <button
-            onClick={handleCompact}
-            className="shrink-0 text-[10px] px-1 py-0.5 transition-colors hover:opacity-70 inline-flex items-center gap-1"
-            style={{ color: "var(--text-tertiary)" }}
-            title={zh ? "压缩上下文" : "Compact context"}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <path d="M9 12h6" />
-            </svg>
-            {zh ? "压缩" : "Compact"}
-          </button>
-        </>
-      )}
-      {/* Auto-trigger warning */}
-      {(() => {
-        const budgetTokens = messages.reduce((s, m) => s + (m.inputTokens ?? 0) + (m.outputTokens ?? 0), 0);
-        const maxContext = 200_000;
-        const pct = budgetTokens / maxContext;
-        if (pct < 0.6) return null;
-        return (
-          <>
-            <span className="shrink-0 w-px h-3 mx-1" style={{ background: !streaming && pct >= 0.8 ? "var(--accent)" : "oklch(70% 0.15 80 / 0.6)" }} />
-            <span
-              className="shrink-0 text-[10px] inline-flex items-center gap-1 cursor-pointer hover:opacity-70"
-              style={{ color: pct >= 0.8 ? "oklch(70% 0.15 80)" : "var(--text-tertiary)" }}
-              onClick={!streaming ? handleCompact : undefined}
-              title={zh ? `上下文占用 ${Math.round(pct * 100)}%，点击压缩` : `Context at ${Math.round(pct * 100)}%, click to compact`}
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <path d="M12 9v4" />
-                <path d="M12 17h.01" />
-              </svg>
-              {Math.round(pct * 100)}%
-            </span>
-          </>
-        );
-      })()}
+
       {/* Export button — shows when session has Pi session ID */}
       {!streaming && piSessionId && (
         <>

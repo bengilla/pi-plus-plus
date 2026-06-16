@@ -59,6 +59,7 @@ packages/
 - `stdout.on('data')` → push + resolveWait needs double-check after setting promise
 - `handleStop`: capture refs FIRST, then abort — abort triggers finally which clears refs
 - `syncPiSessions`: use `setIndexes((prev) => ...)` functional update to avoid stale snapshot
+- `deleteConversationsByWorkspace`: uses `deletingSessionIds` ref to prevent `syncPiSessions` from re-adding sessions whose DELETE request is still in-flight
 
 ## Environment
 

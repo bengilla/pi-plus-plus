@@ -68,13 +68,14 @@ export default function Home() {
 
   // Conversations from hook
   const {
-    activeConvId, activeConv, convList,
+    activeConvId, activeConv, convList, projectWorkspaces,
     loadingConvId, loadConvMessages,
     newConversation, selectConversation,
     deleteConversation, renameConversation,
     syncPiSessions,
     onMessagesChange,
     deleteConversationsBySession,
+    deleteConversationsByWorkspace,
   } = useConversations(workspace, activeAgent);
 
   // Version check
@@ -265,10 +266,12 @@ export default function Home() {
           onSelectConversation={selectConversation}
           onDeleteConversation={deleteConversation}
           onRenameConversation={renameConversation}
+          onDeleteWorkspace={deleteConversationsByWorkspace}
           agents={agents}
           onFileClick={handleFileClick}
           onAgentInfoClick={handleAgentInfoClick}
           language={language}
+          projectWorkspaces={projectWorkspaces}
         />
       </div>
       {sidebarOpen && (

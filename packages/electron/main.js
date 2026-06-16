@@ -390,6 +390,16 @@ ipcMain.on("pi-installed", async () => {
 
 ipcMain.handle("get-pi-path", () => findPi());
 
+ipcMain.handle("open-folder-dialog", async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Open Project Folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 // ── Cleanup ──────────────────────────────────────────────
 app.on("window-all-closed", () => {
   if (serverProcess) {

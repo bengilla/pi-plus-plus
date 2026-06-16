@@ -17,7 +17,7 @@ Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 - **VPN/proxy aware**: auto-detects proxy settings from shell profile when launched from Finder
 - **Key validation**: non-blocking — saves even if network is down, tests on first use
 - **Model management**: filter models by auth, toggle enabled/disabled, set default
-- **Compaction**: manual compact button + auto-trigger token usage warning
+- **Project side panel**: native folder picker, persistent project list, conversations under each project
 - **Pi settings editor**: structured toggles/inputs for compaction, retry, trust, telemetry
 - **Context files preview**: see which AGENTS.md/CLAUDE.md files Pi loaded
 - **Session tree**: navigate conversation branches, fork sessions

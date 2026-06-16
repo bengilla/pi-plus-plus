@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type { ChatMessageSnapshot } from "@/components/ChatPanel";
 
 // ── Types ────────────────────────────────────────────────────
@@ -91,6 +91,8 @@ export function useConversations(workspace: string, activeAgent: string) {
   const [indexes, setIndexes] = useState<ConvIndex[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   // messagesCache: in-memory only, NOT persisted. Lost on browser close.
+  // Track session IDs being deleted to prevent sync from re-adding them
+  const deletingSessionIds = useRef<Set<string>>(new Set());
   const [messagesCache, setMessagesCache] = useState<Map<string, ChatMessageSnapshot[]>>(() => new Map());
   const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
 
@@ -104,6 +106,30 @@ export function useConversations(workspace: string, activeAgent: string) {
       return belongs ? prev : null;
     });
   }, [workspace]);
+
+  // Derive project list from all conversation indexes
+  const projectWorkspaces = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; lastActivityAt: number }>();
+    for (const c of indexes) {
+      const ws = c.workspace || "";
+      if (!ws) continue;
+      const existing = map.get(ws);
+      const ts = c.lastActivityAt ?? c.createdAt;
+      if (existing) {
+        existing.count++;
+        if (ts > existing.lastActivityAt) existing.lastActivityAt = ts;
+      } else {
+        map.set(ws, {
+          name: ws.split("/").filter(Boolean).pop() || ws,
+          count: 1,
+          lastActivityAt: ts,
+        });
+      }
+    }
+    return Array.from(map.entries())
+      .map(([workspace, info]) => ({ workspace, ...info }))
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+  }, [indexes]);
 
   const currentProjectConvs = projectConvs(indexes, workspace)
     .slice()
@@ -351,6 +377,45 @@ export function useConversations(workspace: string, activeAgent: string) {
     [activeConvId, activeAgent, workspace],
   );
 
+  /** Delete all conversations belonging to a workspace, including Pi sessions. */
+  const deleteConversationsByWorkspace = useCallback((ws: string) => {
+    setIndexes((prev) => {
+      const toDelete = prev.filter((c) => (c.workspace ?? "") === ws);
+      const updated = prev.filter((c) => (c.workspace ?? "") !== ws);
+      if (updated.length !== prev.length) saveConvs(updated);
+      // Delete Pi session files (async, track IDs to prevent sync re-adding)
+      for (const c of toDelete) {
+        if (c.piSessionId) {
+          deletingSessionIds.current.add(c.piSessionId);
+          fetch(`/api/pi/sessions?id=${encodeURIComponent(c.piSessionId)}&workspace=${encodeURIComponent(ws)}`, {
+            method: "DELETE",
+          })
+            .finally(() => { deletingSessionIds.current.delete(c.piSessionId!); })
+            .catch((e: unknown) => { console.error("[pi++] Failed to delete Pi session:", e); });
+        }
+      }
+      return updated;
+    });
+    setMessagesCache((prev) => {
+      const next = new Map(prev);
+      let changed = false;
+      for (const [id] of next) {
+        const idx = indexes.find((c) => c.id === id);
+        if (idx && (idx.workspace ?? "") === ws) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    // If active conv belonged to deleted workspace, deselect it
+    setActiveConvId((prev) => {
+      if (!prev) return null;
+      const idx = indexes.find((c) => c.id === prev);
+      return idx && (idx.workspace ?? "") === ws ? null : prev;
+    });
+  }, [indexes]);
+
   const deleteConversationsBySession = useCallback((sessionId: string) => {
     setIndexes((prev) => {
       const updated = prev.filter((c) => c.piSessionId !== sessionId);
@@ -387,6 +452,8 @@ export function useConversations(workspace: string, activeAgent: string) {
         const merged = new Map<string, ConvIndex>();
         for (const c of prev) merged.set(keyOf(c), c);
         for (const c of data.conversations as ConvIndex[]) {
+          // Skip sessions currently being deleted to avoid race condition
+          if (c.piSessionId && deletingSessionIds.current.has(c.piSessionId)) continue;
           const key = keyOf(c);
           const existing = merged.get(key);
           if (existing) {
@@ -409,6 +476,7 @@ export function useConversations(workspace: string, activeAgent: string) {
     activeConvId,
     activeConv,
     convList,
+    projectWorkspaces,
     loadingConvId,
     loadConvMessages,
     newConversation,
@@ -418,5 +486,6 @@ export function useConversations(workspace: string, activeAgent: string) {
     syncPiSessions,
     onMessagesChange,
     deleteConversationsBySession,
+    deleteConversationsByWorkspace,
   };
 }
