@@ -254,7 +254,10 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
     }
     if (e.key === "ArrowDown" && !e.shiftKey) {
       e.preventDefault();
-      if (historyIndexRef.current <= 0) {
+      // Already at bottom (not navigating history): do nothing
+      if (historyIndexRef.current < 0) return;
+      // Returning from first history item back to fresh input
+      if (historyIndexRef.current === 0) {
         historyIndexRef.current = -1;
         setInput("");
         return;
