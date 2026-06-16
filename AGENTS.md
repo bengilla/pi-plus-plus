@@ -101,6 +101,26 @@ packages/
 - `installFromDMG()` — mounts DMG via `hdiutil attach`, writes detached shell script to replace .app + restart
 - Update script template: kill old → `rm -rf` old bundle → `cp -R` from DMG → detach DMG → `open` new app
 
+## Versioning (Semver)
+
+`MAJOR.MINOR.PATCH` — follow semver strictly. During `0.x` phase, MAJOR may change freely.
+
+| 触发 | 改动 | 示例 |
+|------|------|------|
+| Bug 修复, typo, 样式微调 | PATCH `0.1.0→0.1.1` | `npm version patch` |
+| 新功能, 向后兼容 | MINOR `0.1.0→0.2.0` | `npm version minor` |
+| 破坏性变更, 架构大改 | MAJOR `0.x→1.0.0` | `npm version major` |
+
+**发版流程：**
+```bash
+npm version patch|minor|major    # 同步更新两个 package.json 的 version
+npm run app:build                # 构建 DMG
+git tag v$(node -p "require('./packages/electron/package.json').version")
+gh release create vX.Y.Z release/pi++-X.Y.Z-arm64.dmg --title "vX.Y.Z" --notes "..."
+git push --follow-tags
+```
+旧用户启动后 10s 自动检测到新版本 → 弹窗 → 一键下载安装重启。
+
 ## GitHub
 
 - [ ] GitHub Actions CI — auto `npx tsc --noEmit` + `npm run build` on PR
