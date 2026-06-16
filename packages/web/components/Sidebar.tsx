@@ -147,13 +147,22 @@ export function Sidebar({
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <AppIcon name="folder" size={13} />
-              {zh ? "打开文件夹..." : "Open Folder..."}
+              {zh ? "打开项目..." : "Open Project..."}
             </span>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
-          {projectWorkspaces.length > 0 ? (
-            projectWorkspaces.map((p) => {
+          {/* Always include current workspace even if no conversations yet */}
+          {(() => {
+            const displayProjects = workspace && !projectWorkspaces.some(p => p.workspace === workspace)
+              ? [{ workspace, name: workspace.split("/").filter(Boolean).pop() || workspace, count: 0, lastActivityAt: Date.now() }, ...projectWorkspaces]
+              : projectWorkspaces;
+            if (displayProjects.length === 0) return (
+              <div className="px-2 py-4 text-center text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                {zh ? "打开项目开始" : "Open a project to start"}
+              </div>
+            );
+            return displayProjects.map((p) => {
               const active = p.workspace === workspace;
               return (
                 <div key={p.workspace} className="mb-0.5">
@@ -297,12 +306,8 @@ export function Sidebar({
                   )}
                 </div>
               );
-            })
-          ) : (
-            <div className="px-2 py-4 text-center text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-              {zh ? "打开文件夹开始" : "Open a folder to start"}
-            </div>
-          )}
+            });
+          })()}
         </div>
       </div>
 
