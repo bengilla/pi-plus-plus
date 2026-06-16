@@ -210,7 +210,7 @@ export function Sidebar({
                         style={{ color: "var(--text-tertiary)" }}
                         title={zh ? "新建对话" : "New chat"}
                       >
-                        <AppIcon name="message-plus" size={12} />
+                        <AppIcon name="plus" size={13} strokeWidth={2.2} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteProjectWs(p.workspace); }}
@@ -292,16 +292,7 @@ export function Sidebar({
                           </div>
                         ))
                       )}
-                      <button
-                        onClick={onNewConversation}
-                        className="w-full mt-0.5 text-center px-2 py-1 text-xs transition-colors hover:bg-[var(--accent-dim)]"
-                        style={{ color: "var(--accent)", border: "1px dashed var(--accent)" }}
-                      >
-                        <span className="inline-flex items-center justify-center gap-1.5">
-                          <AppIcon name="message-plus" size={12} />
-                          {zh ? "新对话" : "New chat"}
-                        </span>
-                      </button>
+
                     </div>
                   )}
                 </div>
