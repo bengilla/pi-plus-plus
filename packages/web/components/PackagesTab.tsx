@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { AppIcon } from "./AppIcon";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -195,8 +196,8 @@ export function PackagesTab({ language = "en" }: Props) {
 
       {/* Error / Output */}
       {error && (
-        <div className="px-3 py-2 text-xs" style={{ color: "var(--error)", background: "oklch(0.55 0.2 30 / 0.06)", border: "1px solid oklch(0.55 0.2 30 / 0.15)" }}>
-          ⚠️ {error}
+        <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--error)", background: "oklch(0.55 0.2 30 / 0.06)", border: "1px solid oklch(0.55 0.2 30 / 0.15)" }}>
+          <AppIcon name="info" size={13} /> {error}
           <button onClick={fetchPackages} className="ml-2 underline">{zh ? "重试" : "Retry"}</button>
         </div>
       )}

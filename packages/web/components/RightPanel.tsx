@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { SyntaxHighlighter, piDarkTheme } from "@/lib/utils/prism";
 import type { AgentDefinition } from "@/lib/agents/types";
 import { AgentIcon } from "./AgentIcon";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 
 interface AgentInfo {
   id: string;
@@ -128,10 +129,7 @@ function PanelHeader({ title, onClose }: { title: string; onClose: () => void })
         style={{ color: "var(--text-secondary)" }}
         title="Close panel"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
+        <AppIcon name="x" size={14} />
       </button>
     </div>
   );
@@ -269,7 +267,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
             {error && (
               <MetaCard>
                 <div className="flex items-center gap-2" style={{ color: "var(--error)", fontSize: "var(--text-sm)" }}>
-                  <span>⚠️</span> {error}
+                  <AppIcon name="info" size={14} /> {error}
                 </div>
               </MetaCard>
             )}
@@ -279,12 +277,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                 {/* File identity + properties */}
                 <MetaCard compact>
                   <div className="flex items-start gap-2.5">
-                    <span
-                      className="mt-0.5 h-7 w-7 shrink-0"
-                      style={{ background: lang?.color ?? "var(--text-tertiary)", opacity: 0.85 }}
-                      aria-hidden="true"
-                    >
-                    </span>
+                    <FileTypeIcon name={fileName} size={28} />
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
                         <div
@@ -336,10 +329,7 @@ export function RightPanel({ view, filePath, agent, agentDefinition, workspace, 
                         title={zh ? "复制" : "Copy"}
                         aria-label={zh ? "复制" : "Copy"}
                       >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
+                        <AppIcon name="copy" size={12} />
                       </button>
                   </div>
                   <div

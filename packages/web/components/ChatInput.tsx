@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, type DragEvent } from "react";
 import { flattenFiles } from "@/lib/utils/chat";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 import { LoopButton, type LoopState } from "./LoopButton";
 
 // ── Types ────────────────────────────────────────────────────
@@ -418,13 +419,15 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                   color: "var(--color-accent)",
                 }}
               >
-                {a.type === "image" ? "🖼️" : "📎"} {a.name}
+                <FileTypeIcon name={a.name} size={14} /> {a.name}
                 <button
                   onClick={() => removeAttachment(a.name)}
-                  className="px-1 hover:opacity-70"
+                  className="inline-flex h-4 w-4 items-center justify-center hover:opacity-70"
                   style={{ color: "var(--color-text-secondary)" }}
+                  title={zh ? "移除" : "Remove"}
+                  aria-label={zh ? "移除" : "Remove"}
                 >
-                  ×
+                  <AppIcon name="x" size={11} />
                 </button>
               </span>
             ))}
@@ -459,7 +462,9 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                     background: i === skillSelected ? "var(--bg-selected)" : "transparent",
                   }}
                 >
-                  <span className="shrink-0">{isActive ? "✅" : "➕"}</span>
+                  <span className="shrink-0" style={{ color: isActive ? "var(--success)" : "var(--accent)" }}>
+                    <AppIcon name={isActive ? "check" : "plus"} size={13} />
+                  </span>
                   <div className="flex-1 min-w-0">
                     <span className="font-medium">{s.name}</span>
                     <span className="ml-2 text-[10px] truncate" style={{ color: "var(--text-secondary)" }}>
@@ -486,13 +491,15 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                 className="inline-flex items-center gap-1 pl-2 pr-1 py-1 text-xs"
                 style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
               >
-                ⚡ {s.name}
+                <AppIcon name="zap" size={12} /> {s.name}
                 <button
                   onClick={() => removeProjectSkill(s.id)}
-                  className="px-1 hover:opacity-70"
+                  className="inline-flex h-4 w-4 items-center justify-center hover:opacity-70"
                   style={{ color: "var(--text-secondary)" }}
+                  title={zh ? "移除" : "Remove"}
+                  aria-label={zh ? "移除" : "Remove"}
                 >
-                  ×
+                  <AppIcon name="x" size={11} />
                 </button>
               </span>
             ))}
@@ -524,9 +531,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                     i === mentionSelected ? "var(--bg-selected)" : "transparent",
                 }}
               >
-                <span className="shrink-0 opacity-50">
-                  {f.name.includes(".") ? "📄" : "📁"}
-                </span>
+                <FileTypeIcon name={f.name} type={f.name.includes(".") ? "file" : "directory"} size={14} className="opacity-80" />
                 <span
                   className="truncate"
                   style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}
@@ -609,8 +614,8 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                 {loopState.progress.message}
               </span>
             )}
-            {loopState.progress.status === "pass" && <span style={{ color: "var(--accent)" }}>✅</span>}
-            {loopState.progress.status === "fail" && <span style={{ color: "var(--error)" }}>❌</span>}
+            {loopState.progress.status === "pass" && <span style={{ color: "var(--accent)" }}><AppIcon name="check" size={13} /></span>}
+            {loopState.progress.status === "fail" && <span style={{ color: "var(--error)" }}><AppIcon name="x" size={13} /></span>}
           </div>
         )}
 
@@ -877,9 +882,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
               title={zh ? "添加附件" : "Attach"}
               aria-label={zh ? "添加附件" : "Attach"}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
+              <AppIcon name="paperclip" size={14} />
             </button>
             <input
               ref={fileInputRef}
@@ -904,9 +907,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                 title={zh ? "停止" : "Stop"}
                 aria-label={zh ? "停止" : "Stop"}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="7" y="7" width="10" height="10" rx="1.5" />
-                </svg>
+                <AppIcon name="stop" size={12} />
               </button>
             ) : (
               <button
@@ -924,10 +925,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
                 title={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}
                 aria-label={briefMode ? (zh ? "开始执行" : "Start") : (zh ? "发送" : "Send")}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 19V5" />
-                  <path d="m5 12 7-7 7 7" />
-                </svg>
+                <AppIcon name="arrow-up" size={14} strokeWidth={2.2} />
               </button>
             )}
           </div>

@@ -1,22 +1,14 @@
 "use client";
 
-/** pi++ logo — π in a circle */
-export function Logo() {
+/** pi++ logo */
+export function Logo({ size = 22 }: { size?: number }) {
   return (
-    <span
-      className="inline-flex items-center justify-center rounded-full shrink-0 select-none"
-      style={{
-        width: 22,
-        height: 22,
-        background: "var(--accent)",
-        color: "var(--bg)",
-        fontSize: 13,
-        fontWeight: 600,
-        lineHeight: 1,
-      }}
+    <img
+      src="/logo-44.png"
+      alt="pi++"
       title="pi++"
-    >
-      π
-    </span>
+      className="inline-flex shrink-0 select-none"
+      style={{ width: size, height: size }}
+    />
   );
 }

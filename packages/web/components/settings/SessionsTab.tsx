@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { FileTypeIcon } from "../AppIcon";
 import { SessionTreeView } from "../SessionTreeView";
 
 export function SessionsTab({ language, workspace, onDeleteSession }: {
@@ -104,11 +105,14 @@ export function SessionsTab({ language, workspace, onDeleteSession }: {
       ) : (
         <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto">
           {groupedSessions.map(([ws, sessList]) => {
-            const label = ws === "__none__" ? (zh ? "📁 (不使用项目)" : "📁 (No Project)") : `📁 ${ws.split("/").filter(Boolean).pop() || ws}`;
+            const label = ws === "__none__" ? (zh ? "(不使用项目)" : "(No Project)") : (ws.split("/").filter(Boolean).pop() || ws);
             return (
               <div key={ws} className="mb-3">
                 <div className="px-3 py-1.5 text-[10px] font-semibold truncate" style={{ color: "var(--text-tertiary)", background: "var(--bg)", borderBottom: "1px solid var(--border-light)" }}>
-                  {label} · {sessList.length}
+                  <span className="inline-flex items-center gap-1.5">
+                    <FileTypeIcon name={label} type="directory" size={13} />
+                    {label} · {sessList.length}
+                  </span>
                 </div>
                 <div className="space-y-1 px-2 pt-1">
                   {sessList.map((s) => (

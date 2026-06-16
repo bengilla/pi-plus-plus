@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon } from "../AppIcon";
 
 interface Props {
   language: "en" | "zh";
@@ -88,7 +89,7 @@ export function PiSettingsTab({ language, workspace }: Props) {
       {error && (
         <div className="px-3 py-2 text-xs" style={{ color: "oklch(60% 0.15 30)", background: "oklch(60% 0.15 30 / 0.08)", border: "1px solid oklch(60% 0.15 30 / 0.2)" }}>
           {error}
-          <button className="ml-2 underline" onClick={() => setError("")}>✕</button>
+          <button className="ml-2 inline-flex align-middle hover:opacity-70" onClick={() => setError("")}><AppIcon name="x" size={11} /></button>
         </div>
       )}
 

@@ -6,7 +6,20 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "pi++",
   description: "Pi coding agent workspace — code, explore, and build with your local AI",
-  icons: "/favicon.svg",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -57,18 +70,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             pointerEvents: "none",
           }}
         >
-          <span
+          <img
+            src="/logo.png"
+            alt="pi++"
             style={{
-              fontSize: "3rem",
-              color: "oklch(72% 0.12 175)",
+              width: "80px",
+              height: "80px",
               animation: "pi-pulse 1.2s ease-in-out infinite",
-              fontFamily: "system-ui, sans-serif",
-              fontWeight: 300,
               userSelect: "none",
             }}
-          >
-            π
-          </span>
+          />
         </div>
         <ErrorBoundary>
         {children}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AgentIcon } from "./AgentIcon";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 import { ContextFilesSection } from "./sidebar/ContextFilesSection";
 
 export interface ConvInfo {
@@ -108,25 +110,16 @@ export function Sidebar({
       {/* ── Pi header ───────────────────────────────────── */}
       <div className="flex items-center px-2 h-[42px] border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1.5">
-          <span
-            className="inline-flex items-center justify-center rounded-full"
-            style={{
-              width: 26,
-              height: 26,
-              background: "var(--accent)",
-              color: "var(--bg)",
-              fontSize: 16,
-              fontWeight: 600,
-              lineHeight: 1,
-            }}
-          >π</span>
+          <AgentIcon agentId="pi" size={26} />
           <span className="text-xs font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi++</span>
         </div>
         <button
           onClick={onAgentInfoClick}
-          className="ml-auto text-[10px] px-1.5 py-0.5 transition-colors hover:bg-[var(--accent-dim)]"
+          className="ml-auto inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors hover:bg-[var(--accent-dim)]"
           style={{ color: "var(--accent)", background: "transparent" }}
+          title={zh ? "信息" : "Info"}
         >
+          <AppIcon name="info" size={12} />
           {zh ? "信息" : "Info"}
         </button>
       </div>
@@ -139,7 +132,10 @@ export function Sidebar({
             className="w-full py-1.5 text-[10px] font-medium transition-colors hover:opacity-80"
             style={{ color: "var(--accent)", background: "transparent", border: "1px dashed var(--accent)" }}
           >
-            📂 {zh ? "打开文件夹..." : "Open Folder..."}
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <AppIcon name="folder" size={13} />
+              {zh ? "打开文件夹..." : "Open Folder..."}
+            </span>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
@@ -165,12 +161,13 @@ export function Sidebar({
                       }}
                     >
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] shrink-0" style={{ color: "var(--text-tertiary)" }}>
-                          {expandedProject === p.workspace ? "▼" : "▶"}
+                        <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
+                          <AppIcon name={expandedProject === p.workspace ? "chevron-down" : "chevron-right"} size={11} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[11px] font-medium" style={{ color: active ? "var(--accent)" : "var(--text)" }}>
-                            📁 {p.name}
+                          <div className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-medium" style={{ color: active ? "var(--accent)" : "var(--text)" }}>
+                            <FileTypeIcon name={p.name} type="directory" size={15} open={expandedProject === p.workspace} />
+                            <span className="truncate">{p.name}</span>
                           </div>
                         </div>
                       </div>
@@ -189,9 +186,7 @@ export function Sidebar({
                         style={{ color: "var(--text-tertiary)" }}
                         title={zh ? "新建对话" : "New chat"}
                       >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 5v14M5 12h14" />
-                        </svg>
+                        <AppIcon name="message-plus" size={12} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteProjectWs(p.workspace); }}
@@ -199,9 +194,7 @@ export function Sidebar({
                         style={{ color: "var(--text-tertiary)" }}
                         title={zh ? "删除项目及所有对话" : "Delete project and all chats"}
                       >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
+                        <AppIcon name="trash" size={12} />
                       </button>
                     </div>
                   </div>
@@ -263,9 +256,7 @@ export function Sidebar({
                                     style={{ color: "oklch(68% 0.13 250)" }}
                                     title={zh ? "编辑" : "Edit"}
                                   >
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                                    </svg>
+                                    <AppIcon name="edit" size={12} />
                                   </button>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
@@ -273,9 +264,7 @@ export function Sidebar({
                                     style={{ color: "var(--error)" }}
                                     title={zh ? "删除" : "Delete"}
                                   >
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                    </svg>
+                                    <AppIcon name="trash" size={12} />
                                   </button>
                                 </div>
                               </div>
@@ -288,7 +277,10 @@ export function Sidebar({
                         className="w-full mt-0.5 text-left px-2 py-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
                         style={{ color: "var(--text-tertiary)" }}
                       >
-                        + {zh ? "新对话" : "New chat"}
+                        <span className="inline-flex items-center gap-1.5">
+                          <AppIcon name="message-plus" size={12} />
+                          {zh ? "新对话" : "New chat"}
+                        </span>
                       </button>
                     </div>
                   )}
@@ -311,11 +303,7 @@ export function Sidebar({
         <button onClick={onOpenSettings}
           className="flex w-full items-center gap-2 px-2 py-1.5 text-xs transition-colors hover:opacity-70"
           style={{ color: "var(--text-secondary)" }} title="Settings">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
+          <AppIcon name="settings" size={14} />
           {zh ? "设置" : "Settings"}
         </button>
       </div>

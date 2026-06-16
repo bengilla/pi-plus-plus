@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon } from "./AppIcon";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -221,8 +222,8 @@ export function SessionTreeView({ sessionId, workspace, language = "en", onClose
 
   if (error) {
     return (
-      <div className="px-4 py-4 text-xs" style={{ color: "var(--error)" }}>
-        ⚠️ {error}
+      <div className="flex items-center gap-1.5 px-4 py-4 text-xs" style={{ color: "var(--error)" }}>
+        <AppIcon name="info" size={13} /> {error}
         <button onClick={fetchTree} className="ml-2 underline">{zh ? "重试" : "Retry"}</button>
       </div>
     );

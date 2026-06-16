@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 
 interface FileNode {
   name: string;
@@ -114,7 +115,7 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
         {tree.map((node) => (
           renaming === node.path ? (
             <div key={node.path} className="flex items-center gap-2 px-2 py-1">
-              <span className="shrink-0 text-xs">{node.type === "directory" ? "📁" : fileIcon(node.name)}</span>
+              <FileTypeIcon name={node.name} type={node.type} size={16} />
               <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleRenameSubmit(node.path); if (e.key === "Escape") setRenaming(null); }}
                 onBlur={() => handleRenameSubmit(node.path)}
@@ -127,16 +128,24 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
               <button onClick={() => { if (node.type === "directory") onNavigate(workspace.replace(/\/$/, "") + "/" + node.name); else onFileClick?.(workspace.replace(/\/$/, "") + "/" + node.name); }}
                 className="flex-1 text-left flex items-center gap-2 px-1 py-0.5 text-xs hover:opacity-80 min-w-0"
                 style={{ color: node.type === "directory" ? "var(--color-text)" : "var(--color-text-secondary)" }}>
-                <span className="shrink-0">{node.type === "directory" ? "📁" : fileIcon(node.name)}</span>
+                <FileTypeIcon name={node.name} type={node.type} size={16} />
                 <span className="truncate">{node.name}</span>
-                {node.type === "directory" && <span className="ml-auto text-[10px]" style={{ color: "var(--color-text-secondary)", opacity: 0.4 }}>›</span>}
+                {node.type === "directory" && (
+                  <span className="ml-auto inline-flex" style={{ color: "var(--color-text-secondary)", opacity: 0.45 }}>
+                    <AppIcon name="chevron-right" size={12} />
+                  </span>
+                )}
               </button>
               <button onClick={() => handleRenameStart(node)}
-                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "var(--color-text-secondary)" }} title={zh ? "重命名" : "Rename"}>✏️</button>
+                className="shrink-0 inline-flex h-5 w-5 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--bg-hover)]"
+                style={{ color: "var(--color-text-secondary)" }} title={zh ? "重命名" : "Rename"} aria-label={zh ? "重命名" : "Rename"}>
+                <AppIcon name="edit" size={12} />
+              </button>
               <button onClick={() => handleDelete(node)}
-                className="shrink-0 px-1 py-0.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "oklch(0.55 0.2 30)" }} title={zh ? "删除" : "Delete"}>🗑</button>
+                className="shrink-0 inline-flex h-5 w-5 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--bg-hover)]"
+                style={{ color: "oklch(0.55 0.2 30)" }} title={zh ? "删除" : "Delete"} aria-label={zh ? "删除" : "Delete"}>
+                <AppIcon name="trash" size={12} />
+              </button>
             </div>
           )
         ))}
@@ -148,37 +157,31 @@ export function FileTree({ workspace, onNavigate, onFileClick, language = "en" }
       {/* New item input */}
       {showNewFile && (
         <div className="flex items-center gap-1 px-2 py-1 text-xs" style={{ borderTop: "1px solid var(--color-border)" }}>
-          <span className="shrink-0">{newItemType === "folder" ? "📁" : "📄"}</span>
+          <FileTypeIcon name={newFileName || (newItemType === "folder" ? "folder" : "file")} type={newItemType === "folder" ? "directory" : "file"} size={16} />
           <input value={newFileName} onChange={(e) => setNewFileName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowNewFile(false); }}
             placeholder={newItemType === "folder" ? "folder-name" : "filename.ts"}
             className="flex-1 px-1.5 py-0.5 outline-none text-xs"
             style={{ background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-accent)" }}
             autoFocus spellCheck={false} />
-          <button onClick={handleCreate} className="px-2 py-0.5 text-[10px]"
-            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "创建" : "Create"}</button>
+          <button onClick={handleCreate} className="inline-flex h-6 w-6 items-center justify-center"
+            style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }} title={zh ? "创建" : "Create"} aria-label={zh ? "创建" : "Create"}>
+            <AppIcon name="check" size={13} />
+          </button>
         </div>
       )}
 
       {/* Toolbar */}
       <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderTop: "1px solid var(--color-border)" }}>
-        <button onClick={() => startNewItem("file")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
-          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件" : "New"}</button>
-        <button onClick={() => startNewItem("folder")} className="flex-1 px-2 py-1.5 text-xs hover:opacity-80"
-          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>{zh ? "新文件夹" : "Folder"}</button>
+        <button onClick={() => startNewItem("file")} className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>
+          <AppIcon name="file" size={13} />{zh ? "新文件" : "New"}
+        </button>
+        <button onClick={() => startNewItem("folder")} className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs hover:opacity-80"
+          style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}>
+          <AppIcon name="folder" size={13} />{zh ? "新文件夹" : "Folder"}
+        </button>
       </div>
     </div>
   );
-}
-
-function fileIcon(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    md: "📝", mdx: "📝", ts: "🟦", tsx: "⚛️", js: "🟨", jsx: "⚛️",
-    css: "🎨", json: "📋", yaml: "📋", yml: "📋", html: "🌐",
-    py: "🐍", rs: "🦀", go: "🔷", java: "☕",
-    png: "🖼️", jpg: "🖼️", jpeg: "🖼️", gif: "🖼️", svg: "🖼️", pdf: "📄",
-    gitignore: "⚙️", env: "🔒",
-  };
-  return map[ext ?? ""] ?? "📄";
 }

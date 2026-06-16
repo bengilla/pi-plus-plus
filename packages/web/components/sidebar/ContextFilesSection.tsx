@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AppIcon, FileTypeIcon } from "../AppIcon";
 
 interface ContextFile {
   path: string;
@@ -36,7 +37,9 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
           className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
           style={{ color: "var(--text-tertiary)" }}
         >
-          <span className="text-[8px]" style={{ color: "var(--accent)" }}>{open ? "▼" : "▶"}</span>
+          <span className="inline-flex" style={{ color: "var(--accent)" }}>
+            <AppIcon name={open ? "chevron-down" : "chevron-right"} size={11} />
+          </span>
           {zh ? "上下文文件" : "Context Files"}
           <span className="px-1 py-px font-normal" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>{contextFiles.length}</span>
         </button>
@@ -54,9 +57,7 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
                 className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] text-left transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <span style={{ color: f.scope === "global" ? "oklch(68% 0.13 250)" : f.scope === "cwd" ? "oklch(72% 0.12 175)" : "oklch(70% 0.15 80)" }}>
-                  {f.name === "AGENTS.md" ? "📋" : "📝"}
-                </span>
+                <FileTypeIcon name={f.name} size={14} />
                 <span className="truncate flex-1" style={{ fontFamily: "var(--font-mono)" }}>{f.name}</span>
                 <span className="shrink-0 text-[8px]" style={{ color: "var(--text-tertiary)" }}>{scopeLabel}</span>
               </button>

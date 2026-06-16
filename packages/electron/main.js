@@ -86,7 +86,7 @@ function showInstallWindow() {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     height: 100vh; padding: 40px; text-align: center;
   }
-  .icon { font-size: 56px; margin-bottom: 20px; }
+  .icon { width: 56px; height: 56px; margin-bottom: 20px; }
   h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; color: #fff; }
   .subtitle { font-size: 14px; color: #999; margin-bottom: 28px; line-height: 1.6; }
   .btn {
@@ -105,7 +105,7 @@ function showInstallWindow() {
   @keyframes spin { to { transform: rotate(360deg); } }
 </style></head>
 <body>
-  <div class="icon">𑁤</div>
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADgAAAA4CAYAAACohjseAAADUElEQVR4nO2Yz28bRRTHv+/N7NopSSnqLwUJpCYSh+TSA3fCDSGBhFTzB3Dg3Bu9IMcXVJV/gwOqD1UviFuTfwFILvySKMHCpbhJE2ft3XkPzZqkibR2nCUt6mo+ku317PvOm7c7s9r5AoFAIBAIBAKBwP8DlRE19K7pYqOUtjRrwPq7reyF5nwZoFPGqj9o/HrnFkf2appkSqQE8ASZnNDtZK0qaVRncol7vLzY/6JFLYGCQKOxnIRFCVRxs3Zp7qrZGxwpuxgiGn8Z1fc1STyKsTMR+p3tJ2vA7Smu2H8vEIqtwV9PX8mSVACKiWALiyQfqgP/VdgPgQhUG6tVZIAOXd+yEh6WGao9RezhMCzi94ec1lXUGaJW9OrMJ+n2fgZf6LNoZWvIiXwoqfveGnDmRlf/4JisXWaDbzWV0aR7ps2i8zN2uNP/Spx+nqZiDGGwTv8+ZKacnqXv4NeLN/88OL7x4+1t4jFz0DeLbt1769bvRac/+unLCzDF2rxPpu17i58Vap/zFFVqbKxGS21kPxy9a4UZbNxsNrnzesfM/zHv8rYVMNYg31kTT1pSqmq9dnMZtt1YTUE09Z2b5hE2HiLtLkNarZaQTk7KEPVxvdd6ebz/YGWkZZWJWgLl2u5lSJniyhf4EsGoOIyKw6g4jIrDqDiMisOoOIyKw6g4jIrDZYW76NDUjoCCuhvdw9jN9qbf8EzrJtDu3ClynVWBC+j5bcCJL8Ck7EvRFawfbhvuNtri2xhmmhdoXfhlulxnVmBTmwwsGf+rRzeqhRlcHtf54FNz0LSKZt7mz02SKojyuKVRrhdmOt34+c43pm4Xsv1MiHCFmC6oqOd4f96PUf2NDQ/Fyf6e1N+pRX9z7GYfwGBGnMQgetN7E8dlpMREKvpEFV1bM+wG2UNavPZemz52z990Irxdv3T+cupNJ1GIc8cch6NwxNc4thjuJDBpZOLHsTXz8fVorgYZOkjqinNAwcZcBNPF6FyM3a3e/KMSXqxFOe4nj3becIPM+3p+IXnzzBtkhwM4+M8Ep+y/JTmX9NKns3Cz/eH9LBnWSaCiYsZpc8+KyLm9hBnauYLNUuuw0lAZUdkFn5u2Z6APBAKBQCAQCAQCgUAAJ/APfw54+ugIXOQAAAAASUVORK5CYII=" alt="pi++" class="icon" />
   <h1>Pi CLI 未安装</h1>
   <p class="subtitle">Pi 是 AI 对话引擎，pi++ 依赖它运行。<br>点击下方按钮自动安装（通过 npm）。</p>
   <button class="btn" id="installBtn" onclick="install()">🟢 安装 Pi CLI</button>

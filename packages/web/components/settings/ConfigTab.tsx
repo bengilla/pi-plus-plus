@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon } from "../AppIcon";
 
 export function ConfigTab({ language, workspace }: { language: "en" | "zh"; workspace: string }) {
   const zh = language === "zh";
@@ -75,7 +76,7 @@ export function ConfigTab({ language, workspace }: { language: "en" | "zh"; work
   if (error && !settings) {
     return (
       <div className="p-5">
-        <div className="text-xs" style={{ color: "var(--error)" }}>⚠️ {error}</div>
+        <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--error)" }}><AppIcon name="info" size={13} />{error}</div>
         <button onClick={loadSettings} className="mt-2 px-3 py-1 text-xs transition-colors hover:opacity-80"
           style={{ color: "var(--accent)", border: "1px solid var(--accent)", background: "transparent" }}>
           {zh ? "重试" : "Retry"}
@@ -188,8 +189,8 @@ export function ConfigTab({ language, workspace }: { language: "en" | "zh"; work
           className="w-full font-mono text-xs p-3 outline-none resize-none"
           style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border-light)", minHeight: "120px", fontFamily: "var(--font-mono)", fontSize: "11px", lineHeight: "1.5" }}
           spellCheck={false} />
-        {error && <div className="mt-1 text-[10px]" style={{ color: "var(--error)" }}>⚠️ {error}</div>}
-        {success && <div className="mt-1 text-[10px]" style={{ color: "oklch(65% 0.15 155)" }}>✓ {success}</div>}
+        {error && <div className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: "var(--error)" }}><AppIcon name="info" size={11} />{error}</div>}
+        {success && <div className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: "oklch(65% 0.15 155)" }}><AppIcon name="check" size={11} />{success}</div>}
       </div>
 
       {/* File paths */}

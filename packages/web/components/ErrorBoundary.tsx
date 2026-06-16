@@ -34,7 +34,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           style={{ background: "var(--bg)", color: "var(--text)" }}
         >
           <div className="text-center max-w-md">
-            <div className="text-3xl mb-3">π</div>
+            <img src="/logo-64.png" alt="pi++" className="w-12 h-12 mx-auto mb-3" />
             <div className="text-sm font-semibold mb-2" style={{ color: "var(--error)" }}>
               Something went wrong
             </div>

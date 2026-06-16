@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 
 interface ContextFile {
   path: string;
@@ -92,22 +93,13 @@ export function ContextFilesIndicator({ workspace, language }: Props) {
           background: expanded ? "var(--bg-raised)" : "transparent",
         }}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
-        </svg>
+        <AppIcon name="file" size={12} />
         <span>
           {zh ? "上下文文件" : "Context files"} ({existing.length})
         </span>
-        <svg
-          width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", marginLeft: "auto" }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        <span className="ml-auto inline-flex">
+          <AppIcon name={expanded ? "chevron-down" : "chevron-right"} size={10} />
+        </span>
       </button>
 
       {/* Expanded list */}
@@ -120,10 +112,7 @@ export function ContextFilesIndicator({ workspace, language }: Props) {
               className="w-full flex items-center gap-1.5 px-1.5 py-1 text-[10px] transition-colors hover:opacity-80 text-left group"
               style={{ color: "var(--text-secondary)" }}
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
+              <FileTypeIcon name={f.displayPath} size={12} />
               <span className="truncate flex-1">{f.displayPath}</span>
               {levelBadge(f.level)}
               <span className="text-[9px] shrink-0 opacity-50">{formatSize(f.size)}</span>
@@ -151,7 +140,7 @@ export function ContextFilesIndicator({ workspace, language }: Props) {
                 className="text-sm hover:opacity-70"
                 style={{ color: "var(--text-tertiary)" }}
               >
-                ✕
+                <AppIcon name="x" size={13} />
               </button>
             </div>
             <pre className="flex-1 overflow-auto p-3 text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono, monospace)" }}>

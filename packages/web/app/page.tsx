@@ -427,7 +427,7 @@ export default function Home() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-center mb-4">
-              <div className="text-3xl mb-2">π</div>
+              <img src="/logo-64.png" alt="pi++" className="w-12 h-12 mx-auto mb-2" />
               <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
                 {language === "zh" ? "Pi 有新版本可用" : "Pi Update Available"}
               </div>

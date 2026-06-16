@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { AppIcon } from "./AppIcon";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -178,7 +179,7 @@ export function LoopButton({ workspace, language: lang, onStateChange }: Props) 
               className="px-1 text-[11px] hover:opacity-70"
               style={{ color: "var(--text-tertiary)" }}
             >
-              ✕
+              <AppIcon name="x" size={11} />
             </button>
           </div>
         ) : running ? (
@@ -208,11 +209,7 @@ export function LoopButton({ workspace, language: lang, onStateChange }: Props) 
             }}
             title={zh ? "Loop：输入目标后，AI 自动写代码 → 验证 → 修错 → 审核，循环直到通过" : "Loop: Set a goal, AI auto-codes → verifies → fixes → reviews, repeating until it passes"}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 4 1 10 7 10" />
-              <polyline points="23 20 23 14 17 14" />
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15" />
-            </svg>
+            <AppIcon name="refresh" size={12} />
             Loop
           </button>
         )}
@@ -229,9 +226,12 @@ export function LoopButton({ workspace, language: lang, onStateChange }: Props) 
           >
             <div className="flex items-center justify-between mb-3">
               <span className="font-medium text-sm" style={{ color: "var(--accent)" }}>
-                {report.strategy.includes("未能") ? "⛔" : "✅"} Loop {zh ? "报告" : "Report"}
+                <span className="inline-flex items-center gap-1.5">
+                  <AppIcon name={report.strategy.includes("未能") ? "x" : "check"} size={13} />
+                  Loop {zh ? "报告" : "Report"}
+                </span>
               </span>
-              <button onClick={() => setReport(null)} style={{ color: "var(--text-tertiary)" }}>✕</button>
+              <button onClick={() => setReport(null)} style={{ color: "var(--text-tertiary)" }}><AppIcon name="x" size={12} /></button>
             </div>
 
             <div className="space-y-2 mb-3">

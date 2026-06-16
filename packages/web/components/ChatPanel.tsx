@@ -10,6 +10,7 @@ import { ToolResultBlock } from "./ToolResultBlock";
 import { ChatInput } from "./ChatInput";
 import { ContextFilesIndicator } from "./ContextFilesIndicator";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { AppIcon, FileTypeIcon } from "./AppIcon";
 
 interface Attachment {
   name: string;
@@ -744,7 +745,9 @@ export function ChatPanel({
                   ? (selectedModel || currentModel).split("/").pop()
                   : (selectedModel || currentModel)}
               </span>
-              <span className="ml-1.5 text-[8px] shrink-0" style={{ color: "var(--accent)" }}>▼</span>
+              <span className="ml-1.5 shrink-0" style={{ color: "var(--accent)" }}>
+                <AppIcon name={modelDropdownOpen ? "chevron-down" : "chevron-right"} size={10} />
+              </span>
             </button>
             {modelDropdownOpen && (
               <>
@@ -806,10 +809,10 @@ export function ChatPanel({
                               }}
                             >
                               <span className="w-2.5 text-center shrink-0" style={{ color: "var(--accent)" }}>
-                                {isActive ? "✓" : ""}
+                                {isActive ? <AppIcon name="check" size={11} /> : ""}
                               </span>
                               <span className="flex-1 truncate">{m.name}</span>
-                              {m.thinking && <span className="text-[8px] shrink-0" style={{ color: "var(--text-tertiary)" }}>🧠</span>}
+                              {m.thinking && <span className="shrink-0" style={{ color: "var(--text-tertiary)" }}><AppIcon name="zap" size={10} /></span>}
                             </button>
                           );
                         })}
@@ -833,11 +836,7 @@ export function ChatPanel({
             style={{ color: "oklch(68% 0.13 250)" }}
             title={zh ? "导出 HTML" : "Export HTML"}
           >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
+            <AppIcon name="download" size={11} />
             {zh ? "导出" : "Export"}
           </button>
         </>
@@ -893,7 +892,7 @@ export function ChatPanel({
                         className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px]"
                         style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
                       >
-                        {a.type === "image" ? "🖼️" : "📎"} {a.name}
+                        <FileTypeIcon name={a.name} size={13} /> {a.name}
                       </span>
                     ))}
                   </div>
@@ -915,7 +914,7 @@ export function ChatPanel({
                   }}
                 >
                   {msg.role === "error" ? (
-                    `⚠️ ${msg.content}`
+                    <span className="inline-flex items-start gap-2"><AppIcon name="info" size={14} /> <span>{msg.content}</span></span>
                   ) : msg.role === "assistant" && msg.blocks ? (
                     (() => {
                       const groups: { type: "tool" | "text" | "think"; items: typeof msg.blocks }[] = [];
@@ -1020,10 +1019,7 @@ export function ChatPanel({
                       title="Copy"
                       aria-label="Copy message"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                      </svg>
+                      <AppIcon name="copy" size={11} />
                     </button>
                     <button
                       onClick={() => { setEditingMsgId(msg.id); setEditingText(msg.content); }}
@@ -1032,9 +1028,7 @@ export function ChatPanel({
                       title="Edit"
                       aria-label="Edit message"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
+                      <AppIcon name="edit" size={11} />
                     </button>
                   </div>
                 )}
@@ -1066,10 +1060,7 @@ export function ChatPanel({
                         title="Copy"
                         aria-label="Copy message"
                       >
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
+                        <AppIcon name="copy" size={11} />
                       </button>
                       {msg.createdAt > 0 && (
                         <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
@@ -1196,7 +1187,7 @@ export function ChatPanel({
                     background: item.type === "steering" ? "oklch(68% 0.13 250 / 0.06)" : "oklch(72% 0.12 175 / 0.06)",
                   }}
                 >
-                  <span className="text-[10px]">{item.type === "steering" ? "→" : "↳"}</span>
+                  <AppIcon name={item.type === "steering" ? "arrow-up" : "message-plus"} size={10} />
                   <span className="truncate max-w-[200px]">{item.text}</span>
                 </button>
               ))}
@@ -1206,7 +1197,7 @@ export function ChatPanel({
                 style={{ color: "var(--text-tertiary)" }}
                 title={zh ? "关闭" : "Dismiss"}
               >
-                ✕
+                <AppIcon name="x" size={12} />
               </button>
             </div>
           )}
@@ -1215,17 +1206,14 @@ export function ChatPanel({
           {compactionMessage && !streaming && (
             <div className="fade-in flex justify-start">
               <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--accent)", background: "oklch(72% 0.12 175 / 0.06)", border: "1px solid oklch(72% 0.12 175 / 0.15)" }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <path d="M9 12h6" />
-                </svg>
+                <AppIcon name="zap" size={12} />
                 <span>{compactionMessage}</span>
                 <button
                   onClick={() => setCompactionMessage("")}
                   className="ml-1 hover:opacity-70"
                   style={{ color: "var(--accent)" }}
                 >
-                  ×
+                  <AppIcon name="x" size={11} />
                 </button>
               </div>
             </div>

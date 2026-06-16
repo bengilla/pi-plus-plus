@@ -1,5 +1,7 @@
 "use client";
 
+import { AppIcon, type IconName } from "./AppIcon";
+
 interface Props {
   agentName: string;
   agentDescription?: string;
@@ -10,25 +12,25 @@ interface Props {
 
 const STARTERS = [
   {
-    icon: "🧭",
+    icon: "compass" as IconName,
     label: "Codebase orientation",
     desc: "Get a structured overview of the codebase",
     prompt: "Give me a concise overview of this codebase: structure, key files, main flows, and areas to be careful with.",
   },
   {
-    icon: "📋",
+    icon: "file" as IconName,
     label: "Implementation brief",
     desc: "Turn a requirement into a step-by-step plan and execute",
     prompt: "Help me turn this requirement into an implementation plan, then execute it step by step:",
   },
   {
-    icon: "🔍",
+    icon: "search" as IconName,
     label: "Review current work",
     desc: "Check for bugs, regressions, and missing verification",
     prompt: "Review the current project changes for bugs, UI regressions, and missing verification.",
   },
   {
-    icon: "🐛",
+    icon: "bug" as IconName,
     label: "Debug an issue",
     desc: "Find relevant code paths and propose a fix",
     prompt: "Investigate this issue. Start by finding the relevant code paths, then propose and implement a fix:",
@@ -39,10 +41,10 @@ export function WelcomeScreen({ agentName, agentDescription, agentVersion, onSta
   const zh = language === "zh";
   const starters = zh
     ? [
-        { icon: "🧭", label: "了解代码库", desc: "获取代码库的结构化概览", prompt: "请简洁梳理这个代码库：目录结构、关键文件、主要流程，以及需要小心的地方。" },
-        { icon: "📋", label: "整理实现计划", desc: "把需求整理成计划，按步骤执行", prompt: "请把这个需求整理成实现计划，然后按步骤执行：" },
-        { icon: "🔍", label: "检查当前改动", desc: "检查 bug、UI 回归和缺失验证", prompt: "请检查当前项目改动，重点看 bug、UI 回归和缺少的验证。" },
-        { icon: "🐛", label: "排查问题", desc: "找到相关代码路径并修复", prompt: "请排查这个问题。先找到相关代码路径，再提出并实现修复：" },
+        { icon: "compass" as IconName, label: "了解代码库", desc: "获取代码库的结构化概览", prompt: "请简洁梳理这个代码库：目录结构、关键文件、主要流程，以及需要小心的地方。" },
+        { icon: "file" as IconName, label: "整理实现计划", desc: "把需求整理成计划，按步骤执行", prompt: "请把这个需求整理成实现计划，然后按步骤执行：" },
+        { icon: "search" as IconName, label: "检查当前改动", desc: "检查 bug、UI 回归和缺失验证", prompt: "请检查当前项目改动，重点看 bug、UI 回归和缺少的验证。" },
+        { icon: "bug" as IconName, label: "排查问题", desc: "找到相关代码路径并修复", prompt: "请排查这个问题。先找到相关代码路径，再提出并实现修复：" },
       ]
     : STARTERS;
 
@@ -82,7 +84,9 @@ export function WelcomeScreen({ agentName, agentDescription, agentVersion, onSta
               style={{ background: "transparent", borderColor: "var(--border-light)" }}
             >
               <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--text)" }}>
-                <span className="text-sm">{starter.icon}</span>
+                <span className="inline-flex" style={{ color: "var(--accent)" }}>
+                  <AppIcon name={starter.icon} size={15} />
+                </span>
                 {starter.label}
               </div>
               <div className="mt-1 text-[11px] leading-relaxed" style={{ color: "var(--text-tertiary)" }}>

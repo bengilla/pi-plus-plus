@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AppIcon } from "../AppIcon";
 
 interface ProviderInfo {
   type: string;
@@ -136,8 +137,8 @@ export function AuthTab({ language }: { language: "en" | "zh" }) {
           : "Keys and tokens stored in ~/.pi/agent/auth.json, shared with CLI. Keys are validated on save."}
       </div>
 
-      {error && <div className="text-[10px] px-3 py-1.5" style={{ color: "var(--error)", background: "oklch(55% 0.22 20 / 0.06)", border: "1px solid oklch(55% 0.22 20 / 0.15)" }}>⚠ {error}</div>}
-      {success && <div className="text-[10px] px-3 py-1.5" style={{ color: "oklch(65% 0.15 155)", background: "oklch(65% 0.15 155 / 0.06)", border: "1px solid oklch(65% 0.15 155 / 0.15)" }}>✓ {success}</div>}
+      {error && <div className="flex items-center gap-1.5 text-[10px] px-3 py-1.5" style={{ color: "var(--error)", background: "oklch(55% 0.22 20 / 0.06)", border: "1px solid oklch(55% 0.22 20 / 0.15)" }}><AppIcon name="info" size={12} />{error}</div>}
+      {success && <div className="flex items-center gap-1.5 text-[10px] px-3 py-1.5" style={{ color: "oklch(65% 0.15 155)", background: "oklch(65% 0.15 155 / 0.06)", border: "1px solid oklch(65% 0.15 155 / 0.15)" }}><AppIcon name="check" size={12} />{success}</div>}
 
       {/* Configured */}
       <div>
@@ -163,7 +164,7 @@ export function AuthTab({ language }: { language: "en" | "zh" }) {
                     {oauth ? "token" : providers[p.id]?.keyPreview ?? "••••"}
                   </div>
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "oklch(65% 0.15 155)" }} />
-                  <button onClick={() => handleDelete(p.id)} className="ml-1 p-0.5 hover:opacity-70 text-[10px]" style={{ color: "var(--text-tertiary)" }}>✕</button>
+                  <button onClick={() => handleDelete(p.id)} className="ml-1 p-0.5 hover:opacity-70 text-[10px]" style={{ color: "var(--text-tertiary)" }}><AppIcon name="x" size={11} /></button>
                 </div>
               );
             })}
