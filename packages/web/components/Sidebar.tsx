@@ -315,9 +315,12 @@ export function Sidebar({
           {zh ? "设置" : "Settings"}
         </button>
         {appVersion && (
-          <div className="text-center mt-1 text-[9px] select-none" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
-            v{appVersion}
-          </div>
+          <>
+            <div className="mx-2 my-1" style={{ borderTop: "1px solid var(--border-light)" }} />
+            <div className="text-center text-[9px] select-none" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+              v{appVersion}
+            </div>
+          </>
         )}
       </div>
 
