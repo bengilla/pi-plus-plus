@@ -75,11 +75,16 @@ export function Sidebar({
   const [editingTitle, setEditingTitle] = useState("");
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [piVersion, setPiVersion] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/app/version")
       .then((r) => r.json())
       .then((d) => setAppVersion(d.version))
+      .catch(() => {});
+    fetch("/api/pi/version")
+      .then((r) => r.json())
+      .then((d: { currentVersion?: string }) => setPiVersion(d.currentVersion || null))
       .catch(() => {});
   }, []);
 
@@ -306,6 +311,27 @@ export function Sidebar({
       {/* ── Context Files ────────────────────────────────── */}
       {workspace && <ContextFilesSection workspace={workspace} onFileClick={onFileClick} language={language} />}
 
+      {/* ── Info ──────────────────────────────────────────── */}
+      {(appVersion || piVersion) && (
+        <div className="px-2 py-1.5 border-t shrink-0 space-y-1" style={{ borderColor: "var(--border)" }}>
+          {appVersion && (
+            <div className="flex items-center justify-between text-[9px]" style={{ color: "var(--text-tertiary)" }}>
+              <span>pi++</span>
+              <span style={{ fontFamily: "var(--font-mono)" }}>v{appVersion}</span>
+            </div>
+          )}
+          {piVersion && (
+            <>
+              <div style={{ borderTop: "1px solid var(--border-light)" }} />
+              <div className="flex items-center justify-between text-[9px]" style={{ color: "var(--text-tertiary)" }}>
+                <span>Pi agent</span>
+                <span style={{ fontFamily: "var(--font-mono)" }}>{piVersion}</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Footer ────────────────────────────────────────── */}
       <div className="p-2 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
         <button onClick={onOpenSettings}
@@ -314,14 +340,6 @@ export function Sidebar({
           <AppIcon name="settings" size={14} />
           {zh ? "设置" : "Settings"}
         </button>
-        {appVersion && (
-          <>
-            <div className="mx-2 my-1" style={{ borderTop: "1px solid var(--border-light)" }} />
-            <div className="text-center text-[9px] select-none" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
-              v{appVersion}
-            </div>
-          </>
-        )}
       </div>
 
       {/* ── Delete conversation confirmation ─────────── */}
