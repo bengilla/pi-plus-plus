@@ -74,6 +74,14 @@ export function Sidebar({
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/app/version")
+      .then((r) => r.json())
+      .then((d) => setAppVersion(d.version))
+      .catch(() => {});
+  }, []);
 
   // Auto-expand when workspace changes
   useEffect(() => {
@@ -306,6 +314,11 @@ export function Sidebar({
           <AppIcon name="settings" size={14} />
           {zh ? "设置" : "Settings"}
         </button>
+        {appVersion && (
+          <div className="text-center mt-1 text-[9px] select-none" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+            v{appVersion}
+          </div>
+        )}
       </div>
 
       {/* ── Delete conversation confirmation ─────────── */}
