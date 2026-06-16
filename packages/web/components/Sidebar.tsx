@@ -158,7 +158,13 @@ export function Sidebar({
               return (
                 <div key={p.workspace} className="mb-0.5">
                   {/* Project header */}
-                  <div className="group flex items-center">
+                  <div
+                    className="group flex items-center pr-1"
+                    style={{
+                      background: active ? "var(--bg-selected)" : undefined,
+                      borderLeft: active ? "2px solid var(--accent)" : "2px solid transparent",
+                    }}
+                  >
                     <button
                       onClick={() => {
                         if (p.workspace === workspace) {
@@ -167,11 +173,7 @@ export function Sidebar({
                           onWorkspaceChange(p.workspace);
                         }
                       }}
-                      className="flex-1 text-left pl-2 pr-1 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
-                      style={{
-                        background: active ? "var(--bg-selected)" : undefined,
-                        borderLeft: active ? "2px solid var(--accent)" : "2px solid transparent",
-                      }}
+                      className="flex-1 text-left pl-2 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
