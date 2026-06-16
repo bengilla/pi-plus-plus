@@ -111,11 +111,11 @@ export function Sidebar({
       <div className="flex items-center px-2 h-[42px] border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1.5">
           <AgentIcon agentId="pi" size={26} />
-          <span className="text-xs font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi++</span>
+          <span className="text-sm font-semibold leading-none" style={{ color: "var(--accent)" }}>Pi++</span>
         </div>
         <button
           onClick={onAgentInfoClick}
-          className="ml-auto inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 transition-colors hover:bg-[var(--accent-dim)]"
+          className="ml-auto inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 transition-colors hover:bg-[var(--accent-dim)]"
           style={{ color: "var(--accent)", background: "transparent" }}
           title={zh ? "信息" : "Info"}
         >
@@ -129,7 +129,7 @@ export function Sidebar({
         <div className="shrink-0 px-2 pt-2 pb-1">
           <button
             onClick={openFolderPicker}
-            className="w-full py-1.5 text-[10px] font-medium transition-colors hover:opacity-80"
+            className="w-full py-1.5 text-[11px] font-medium transition-colors hover:opacity-80"
             style={{ color: "var(--accent)", background: "transparent", border: "1px dashed var(--accent)" }}
           >
             <span className="inline-flex items-center justify-center gap-1.5">
@@ -165,7 +165,7 @@ export function Sidebar({
                           <AppIcon name={expandedProject === p.workspace ? "chevron-down" : "chevron-right"} size={11} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-center gap-1.5 truncate text-[11px] font-medium" style={{ color: active ? "var(--accent)" : "var(--text)" }}>
+                          <div className="flex min-w-0 items-center gap-1.5 truncate text-[13px] font-medium" style={{ color: active ? "var(--accent)" : "var(--text)" }}>
                             <FileTypeIcon name={p.name} type="directory" size={15} open={expandedProject === p.workspace} />
                             <span className="truncate">{p.name}</span>
                           </div>
@@ -240,12 +240,12 @@ export function Sidebar({
                               <div className="flex items-start gap-1.5">
                                 <div className="min-w-0 flex-1">
                                   <div
-                                    className="truncate text-[11px]"
+                                    className="truncate text-xs"
                                     style={{ color: c.id === activeConvId ? "var(--accent)" : "var(--text-secondary)" }}
                                   >
                                     {c.title}
                                   </div>
-                                  <div className="flex items-center gap-1.5 mt-0.5 text-[9px]" style={{ color: "var(--text-tertiary)" }}>
+                                  <div className="flex items-center gap-1.5 mt-0.5 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
                                     <span className="shrink-0">{formatRelativeTime(c.createdAt)}</span>
                                   </div>
                                 </div>
@@ -274,10 +274,10 @@ export function Sidebar({
                       )}
                       <button
                         onClick={onNewConversation}
-                        className="w-full mt-0.5 text-left px-2 py-1 text-[10px] transition-colors hover:bg-[var(--bg-hover)]"
-                        style={{ color: "var(--text-tertiary)" }}
+                        className="w-full mt-0.5 text-center px-2 py-1 text-xs transition-colors hover:bg-[var(--accent-dim)]"
+                        style={{ color: "var(--accent)", border: "1px dashed var(--accent)" }}
                       >
-                        <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-flex items-center justify-center gap-1.5">
                           <AppIcon name="message-plus" size={12} />
                           {zh ? "新对话" : "New chat"}
                         </span>

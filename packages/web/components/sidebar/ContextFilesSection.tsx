@@ -34,7 +34,7 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
       <div className="px-2 py-1.5">
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
+          className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider hover:opacity-70 transition-opacity"
           style={{ color: "var(--text-tertiary)" }}
         >
           <span className="inline-flex" style={{ color: "var(--accent)" }}>
@@ -54,12 +54,12 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
               <button
                 key={f.path}
                 onClick={() => onFileClick(f.path)}
-                className="w-full flex items-center gap-1.5 px-2 py-1 text-[10px] text-left transition-colors hover:bg-[var(--bg-hover)]"
+                className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-left transition-colors hover:bg-[var(--bg-hover)]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 <FileTypeIcon name={f.name} size={14} />
                 <span className="truncate flex-1" style={{ fontFamily: "var(--font-mono)" }}>{f.name}</span>
-                <span className="shrink-0 text-[8px]" style={{ color: "var(--text-tertiary)" }}>{scopeLabel}</span>
+                <span className="shrink-0 text-[10px]" style={{ color: "var(--text-tertiary)" }}>{scopeLabel}</span>
               </button>
             );
           })}
