@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, Notification } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
 const fs = require("fs");
@@ -284,16 +284,144 @@ function showUpdateDialog(latest, current, downloadUrl) {
 
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: "info",
-    buttons: ["下载更新", "稍后提醒"],
+    buttons: ["立即更新", "稍后提醒"],
     defaultId: 0,
     cancelId: 1,
     title: "pi++ 更新",
     message: `发现新版本 v${latest}`,
-    detail: `当前版本: v${current}\n\n是否下载最新版本？`,
+    detail: `当前版本: v${current}\n\n是否下载并安装最新版本？`,
   });
 
   if (choice === 0) {
-    shell.openExternal(downloadUrl);
+    downloadAndInstall(downloadUrl, latest);
+  }
+}
+
+// ── In-app update: download DMG → install → restart ──────
+function downloadAndInstall(url, version) {
+  const dmgPath = path.join(app.getPath("downloads"), `pi++-${version}-arm64.dmg`);
+
+  const updateWin = new BrowserWindow({
+    width: 420,
+    height: 200,
+    resizable: false,
+    frame: true,
+    title: "pi++ 更新",
+    alwaysOnTop: true,
+    webPreferences: { nodeIntegration: false, contextIsolation: true },
+  });
+
+  updateWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, sans-serif;
+    background: #1a1a1a; color: #e0e0e0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100vh; padding: 30px; text-align: center;
+  }
+  h2 { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 16px; }
+  .bar-bg { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+  .bar-fill { height: 100%; width: 0%; background: #4ade80; border-radius: 4px; transition: width 0.3s; }
+  .status { font-size: 12px; color: #888; }
+</style></head><body>
+  <h2>正在下载 pi++ v${version}...</h2>
+  <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
+  <div class="status" id="status">准备中...</div>
+</body></html>`)}`);
+
+  const file = fs.createWriteStream(dmgPath);
+  let downloaded = 0;
+  let total = 0;
+
+  function handleResponse(res) {
+    total = parseInt(res.headers["content-length"] || "0", 10);
+    res.pipe(file);
+    res.on("data", (chunk) => {
+      downloaded += chunk.length;
+      if (total > 0 && !updateWin.isDestroyed()) {
+        const pct = Math.round((downloaded / total) * 100);
+        const dlMB = (downloaded / 1024 / 1024).toFixed(1);
+        const totMB = (total / 1024 / 1024).toFixed(1);
+        updateWin.webContents.executeJavaScript(
+          `document.getElementById('bar').style.width='${pct}%';document.getElementById('status').textContent='${pct}% (${dlMB} MB / ${totMB} MB)';`
+        ).catch(() => {});
+      }
+    });
+    res.on("end", () => { file.end(); installFromDMG(dmgPath, updateWin); });
+  }
+
+  function downloadError(err) {
+    if (!updateWin.isDestroyed()) {
+      updateWin.webContents.executeJavaScript(
+        `document.getElementById('status').textContent='下载失败: ${err.message.replace(/'/g, "\\\'")}';document.getElementById('status').style.color='#f87171';`
+      ).catch(() => {});
+    }
+  }
+
+  https.get(url, (res) => {
+    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+      file.close();
+      https.get(res.headers.location, handleResponse).on("error", downloadError);
+      return;
+    }
+    handleResponse(res);
+  }).on("error", downloadError);
+}
+
+function installFromDMG(dmgPath, updateWin) {
+  if (!updateWin.isDestroyed()) {
+    updateWin.webContents.executeJavaScript(
+      `document.querySelector('h2').textContent='正在安装...';document.getElementById('status').textContent='请稍候';`
+    ).catch(() => {});
+  }
+
+  try {
+    const attachOut = execSync(`hdiutil attach -nobrowse -readonly "${dmgPath}"`, { encoding: "utf8", timeout: 30000 });
+    let mountPoint = "";
+    for (const line of attachOut.trim().split("\n")) {
+      const parts = line.split("\t");
+      if (parts.length >= 3 && parts[2].startsWith("/Volumes/")) {
+        mountPoint = parts[2];
+        break;
+      }
+    }
+    if (!mountPoint) throw new Error("Failed to find mount point");
+
+    const newAppPath = path.join(mountPoint, "pi++.app");
+    if (!fs.existsSync(newAppPath)) throw new Error(`App not found in DMG: ${newAppPath}`);
+
+    const currentAppBundle = app.getPath("exe").replace(/\/Contents\/MacOS\/.*$/, "");
+
+    const scriptPath = path.join(app.getPath("temp"), "pipp-update.sh");
+    const script = `#!/bin/bash
+set -e
+sleep 2
+pkill -f "pi\\+\\+.app" 2>/dev/null || true
+sleep 1
+rm -rf "${currentAppBundle}"
+cp -R "${newAppPath}" "${currentAppBundle}"
+hdiutil detach "${mountPoint}" -quiet 2>/dev/null || true
+rm -f "${dmgPath}"
+rm -f "${scriptPath}"
+open "${currentAppBundle}"
+`;
+    fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+
+    spawn("osascript", ["-e", `do shell script "${scriptPath} > /tmp/pipp-update.log 2>&1 &"`], {
+      detached: true, stdio: "ignore",
+    }).unref();
+
+    if (!updateWin.isDestroyed()) updateWin.close();
+    app.quit();
+  } catch (err) {
+    console.error("[update] Install failed:", err.message);
+    if (!updateWin.isDestroyed()) {
+      updateWin.webContents.executeJavaScript(
+        `document.querySelector('h2').textContent='安装失败';document.getElementById('status').textContent='${err.message.replace(/'/g, "\\\'")}';document.getElementById('status').style.color='#f87171';`
+      ).catch(() => {});
+    }
   }
 }
 
