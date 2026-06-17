@@ -11,7 +11,7 @@
   },
   "build": {
     "appId": "com.pi-plus-plus.app",
-    "productName": "pi++",
+    "productName": "Pi++",
     "artifactName": "Pi++ ${version}-${arch}.${ext}",
     "npmRebuild": false,
     "directories": {
