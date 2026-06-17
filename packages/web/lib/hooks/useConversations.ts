@@ -131,9 +131,51 @@ export function useConversations(workspace: string, activeAgent: string) {
       .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
   }, [indexes]);
 
+  // Standalone conversations: workspace is empty string
+  const standaloneConvs = projectConvs(indexes, "")
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt);
+
   const currentProjectConvs = projectConvs(indexes, workspace)
     .slice()
     .sort((a, b) => b.createdAt - a.createdAt);
+
+  // Build convList from standalone + current project conversations
+  function buildConvInfoList(convs: ConvIndex[]): ConvInfo[] {
+    return convs.map((c) => {
+      const cached = messagesCache.get(c.id);
+      let totalTokens = 0, inputTokens = 0, outputTokens = 0, cacheTokens = 0;
+      if (cached) {
+        for (const m of cached) {
+          const inT = m.inputTokens ?? (m.role === "user" ? Math.round(m.content.length / 4) : 0);
+          const outT = m.outputTokens ?? (m.role === "assistant" ? Math.round(m.content.length / 4) : 0);
+          const cacheT = m.cacheTokens ?? 0;
+          inputTokens += inT;
+          outputTokens += outT;
+          cacheTokens += cacheT;
+          totalTokens += inT + outT;
+        }
+      } else {
+        inputTokens = c.piTotalInputTokens ?? 0;
+        outputTokens = c.piTotalOutputTokens ?? 0;
+        cacheTokens = c.piTotalCacheTokens ?? 0;
+        totalTokens = inputTokens + outputTokens;
+      }
+      return {
+        id: c.id,
+        title: c.title,
+        agentId: c.agentId,
+        createdAt: c.createdAt,
+        lastActivityAt: c.lastActivityAt ?? c.createdAt,
+        totalTokens,
+        inputTokens,
+        outputTokens,
+        cacheTokens,
+      };
+    });
+  }
+
+  const standaloneConvList: ConvInfo[] = buildConvInfoList(standaloneConvs);
 
   // Build convList: token numbers come from the loaded messages if present,
   // otherwise fall back to the Pi-derived summary fields (Q3-3c: updated after load).
@@ -169,8 +211,8 @@ export function useConversations(workspace: string, activeAgent: string) {
     };
   });
 
-  // Active conv: index + cached messages (may be empty if not yet loaded)
-  const activeIndex = currentProjectConvs.find((c) => c.id === activeConvId) ?? null;
+  // Active conv: search both standalone and project conversations
+  const activeIndex = [...standaloneConvs, ...currentProjectConvs].find((c) => c.id === activeConvId) ?? null;
   const activeConv: ConvData | null = activeIndex
     ? { ...activeIndex, messages: messagesCache.get(activeIndex.id) ?? [] }
     : null;
@@ -217,14 +259,15 @@ export function useConversations(workspace: string, activeAgent: string) {
     [indexes, messagesCache],
   );
 
-  const newConversation = useCallback(() => {
+  const newConversation = useCallback((standalone = false) => {
     const now = Date.now();
     const id = now.toString();
+    const targetWs = standalone ? "" : workspace;
     const c: ConvIndex = {
       id,
       title: "New conversation",
       agentId: activeAgent,
-      workspace,
+      workspace: targetWs,
       createdAt: now,
       lastActivityAt: now,
     };
@@ -251,8 +294,8 @@ export function useConversations(workspace: string, activeAgent: string) {
     const isDeletingActive = activeConvId === id;
     let nextConvId: string | null = null;
     if (isDeletingActive) {
-      const current = projectConvs(indexes, workspace);
-      const remaining = current.filter((c) => c.id !== id);
+      const allCurrent = [...standaloneConvs, ...projectConvs(indexes, workspace)];
+      const remaining = allCurrent.filter((c) => c.id !== id);
       nextConvId = remaining.length > 0 ? remaining[0].id : null;
     }
 
@@ -476,6 +519,7 @@ export function useConversations(workspace: string, activeAgent: string) {
     activeConvId,
     activeConv,
     convList,
+    standaloneConvList,
     projectWorkspaces,
     loadingConvId,
     loadConvMessages,

@@ -1,7 +1,9 @@
 # pi++
 
-<img width="1552" height="900" alt="截屏2026-06-15 09 35 20" src="https://github.com/user-attachments/assets/dfdd22f0-04cf-452e-b687-a5c2f4d9be42" />
-<img width="1552" height="899" alt="截屏2026-06-15 09 35 37" src="https://github.com/user-attachments/assets/88b297b2-90a9-46e8-a85f-995bb8d867b1" />
+[中文版](./README_zh.md)
+
+<img width="1552" height="900" alt="screenshot-dark" src="https://github.com/user-attachments/assets/dfdd22f0-04cf-452e-b687-a5c2f4d9be42" />
+<img width="1552" height="899" alt="screenshot-light" src="https://github.com/user-attachments/assets/88b297b2-90a9-46e8-a85f-995bb8d867b1" />
 
 Pi coding agent desktop workspace — a native macOS app wrapping Pi CLI with a three-panel chat UI.
 
@@ -11,13 +13,14 @@ Pi coding agent desktop workspace — a native macOS app wrapping Pi CLI with a 
 
 Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 
-- **Three-panel layout**: sidebar (conversations), chat, settings/context panel
+- **Standalone chats** — talk without opening a project; conversations live independently from folders
+- **Project conversations** — folder-based chats with context files (AGENTS.md, CLAUDE.md)
+- **Three-panel layout**: sidebar (chats + projects), chat panel, inspector
 - **Bidirectional state**: app reads/writes Pi's native files (`auth.json`, `settings.json`, sessions `.jsonl`), no separate database
 - **OAuth login**: ChatGPT Plus/Pro, Anthropic Claude — click Login, browser opens
 - **VPN/proxy aware**: auto-detects proxy settings from shell profile when launched from Finder
 - **Key validation**: non-blocking — saves even if network is down, tests on first use
 - **Model management**: filter models by auth, toggle enabled/disabled, set default
-- **Project side panel**: native folder picker, persistent project list, conversations under each project
 - **Pi settings editor**: structured toggles/inputs for compaction, retry, trust, telemetry
 - **Context files preview**: see which AGENTS.md/CLAUDE.md files Pi loaded
 - **Session tree**: navigate conversation branches, fork sessions
@@ -50,45 +53,45 @@ Requires Pi CLI (`npm install -g pi-coding-agent`). The app guides you through i
 
 ## Loop — Auto-Fix
 
-Loop 是一键自动修复机制：输入目标，AI 自动编写代码 → 运行验证 → 修正错误 → 独立审核，循环直到通过。
+Loop is a one-click auto-fix mechanism: describe the goal, AI writes code → runs verification → fixes errors → independent review, looping until it passes.
 
-**位置：** Chat / Brief 切换栏右侧的 Loop 按钮。
+**Location:** Chat / Brief toggle bar → Loop button on the right.
 
-**使用：**
-1. 点击 Loop → 输入目标（如"修复所有类型错误"）→ 回车
-2. Loop 自动运行，进度条实时显示当前阶段和轮数
-3. 完成后弹出报告卡：策略、轮数、耗时、可展开日志
+**Usage:**
+1. Click Loop → enter your goal (e.g. "fix all type errors") → Enter
+2. Loop runs automatically with a progress bar showing the current phase and round
+3. A report card appears on completion: strategy, rounds, duration, expandable logs
 
-**工作流程：**
+**Workflow:**
 
 ```
-Phase 1: 直接修复 (3轮)
-  ├─ pi 分析错误 → 修改代码 → 运行验证命令
-  ├─ 通过 → ✅ 报告
-  └─ 失败 → 升级
+Phase 1: Direct Fix (3 rounds)
+  ├─ pi analyzes errors → edits code → runs verify command
+  ├─ PASS → ✅ report
+  └─ FAIL → escalate
 
-Phase 2: Maker + Checker (3轮)
-  ├─ Maker: 编写代码
-  ├─ Checker: 独立审查（不同会话，防止自评）
-  ├─ PASS → ✅ 报告
-  └─ FAIL → 下一轮
+Phase 2: Maker + Checker (3 rounds)
+  ├─ Maker: write code
+  ├─ Checker: independent review (different session, prevents self-review)
+  ├─ PASS → ✅ report
+  └─ FAIL → next round
 
-Phase 3: 人工介入
-  └─ ⛔ 显示详细日志，请人工检查
+Phase 3: Human intervention
+  └─ ⛔ Shows detailed logs, manual investigation needed
 ```
 
-**验证命令：** Loop 自动检测项目类型并生成 `.pi/verify.sh`：
+**Verification command:** Loop auto-detects project type and generates `.pi/verify.sh`:
 
-| 项目类型 | 自动生成 |
-|----------|----------|
-| `package.json` 有 `typecheck` | `npm run typecheck` |
-| `package.json` 有 `build` | `npm run build` |
+| Project type | Auto-generated |
+|-------------|----------------|
+| `package.json` with `typecheck` | `npm run typecheck` |
+| `package.json` with `build` | `npm run build` |
 | `go.mod` | `go build ./...` |
 | `Cargo.toml` | `cargo build` |
 
-也可以手动创建 `.pi/verify.sh` 自定义验证逻辑。
+You can also manually create `.pi/verify.sh` for custom verification logic.
 
-**无需额外安装。** Loop 完全由 pi++ 内置的 API 端点驱动，使用项目已有的 pi CLI。
+**No extra install needed.** Loop runs entirely on pi++'s built-in API endpoints using your existing pi CLI.
 
 ## Development
 

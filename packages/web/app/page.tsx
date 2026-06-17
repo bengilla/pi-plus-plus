@@ -68,7 +68,7 @@ export default function Home() {
 
   // Conversations from hook
   const {
-    activeConvId, activeConv, convList, projectWorkspaces,
+    activeConvId, activeConv, convList, standaloneConvList, projectWorkspaces,
     loadingConvId, loadConvMessages,
     newConversation, selectConversation,
     deleteConversation, renameConversation,
@@ -132,6 +132,25 @@ export default function Home() {
     setWorkspace(newPath);
     localStorage.setItem(WORKSPACE_KEY, newPath);
   }, []);
+
+  // Select conversation and auto-switch workspace for standalone
+  const handleSelectConversation = useCallback((id: string) => {
+    selectConversation(id);
+    // Standalone conversations have no workspace; switch to empty workspace
+    const isStandalone = standaloneConvList.some(c => c.id === id);
+    if (isStandalone && workspace !== "") {
+      setWorkspace("");
+      localStorage.setItem(WORKSPACE_KEY, "");
+    }
+  }, [selectConversation, standaloneConvList, workspace]);
+
+  const handleNewStandaloneConversation = useCallback(() => {
+    newConversation(true);
+    if (workspace !== "") {
+      setWorkspace("");
+      localStorage.setItem(WORKSPACE_KEY, "");
+    }
+  }, [newConversation, workspace]);
 
   const handleFileClick = useCallback((filePath: string) => {
     setSelectedFilePath(filePath);
@@ -261,9 +280,11 @@ export default function Home() {
           onWorkspaceChange={navigateTo}
           onOpenSettings={() => setShowSettings(true)}
           conversations={convList}
+          standaloneConversations={standaloneConvList}
           activeConvId={activeConvId}
-          onNewConversation={newConversation}
-          onSelectConversation={selectConversation}
+          onNewConversation={() => newConversation(false)}
+          onNewStandaloneConversation={handleNewStandaloneConversation}
+          onSelectConversation={handleSelectConversation}
           onDeleteConversation={deleteConversation}
           onRenameConversation={renameConversation}
           onDeleteWorkspace={deleteConversationsByWorkspace}
