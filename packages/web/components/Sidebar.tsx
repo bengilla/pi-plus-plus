@@ -245,7 +245,7 @@ export function Sidebar({
           </button>
         </button>
         {expandedProjects && (
-          <div className="px-2 pb-1" onClick={onDeselectConversation}>
+          <div className="px-2 pb-1 max-h-[40vh] overflow-y-auto" onClick={onDeselectConversation}>
             {/* Always include current workspace even if no conversations yet */}
             {(() => {
               const displayProjects = workspace && !projectWorkspaces.some(p => p.workspace === workspace)

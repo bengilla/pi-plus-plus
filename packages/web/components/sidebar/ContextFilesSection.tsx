@@ -16,7 +16,7 @@ export function ContextFilesSection({ workspace, onFileClick, language }: {
 }) {
   const zh = language === "zh";
   const [contextFiles, setContextFiles] = useState<ContextFile[]>([]);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
