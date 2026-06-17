@@ -85,7 +85,7 @@ export function PiSettingsTab({ language, workspace }: Props) {
   const warnings = global.warnings ?? {};
 
   return (
-    <div className="flex flex-col gap-4 text-xs">
+    <div className="flex flex-col gap-4 text-xs p-5">
       {error && (
         <div className="px-3 py-2 text-xs" style={{ color: "oklch(60% 0.15 30)", background: "oklch(60% 0.15 30 / 0.08)", border: "1px solid oklch(60% 0.15 30 / 0.2)" }}>
           {error}

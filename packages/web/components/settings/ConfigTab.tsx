@@ -121,17 +121,17 @@ export function ConfigTab({ language, workspace }: { language: "en" | "zh"; work
       {settings?.global && (
         <div>
           <div className="text-xs font-medium mb-2" style={{ color: "var(--text)" }}>{zh ? "默认配置" : "Default Settings"}</div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="space-y-1.5 text-xs">
             {[
               { key: "defaultProvider", label: zh ? "默认 Provider" : "Default Provider" },
               { key: "defaultModel", label: zh ? "默认模型" : "Default Model" },
               { key: "defaultThinkingLevel", label: zh ? "默认思考级别" : "Default Thinking" },
             ].map(({ key, label }) => (
-              <div key={key} className="px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}>
-                <div className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{label}</div>
-                <div className="mt-0.5 truncate" style={{ color: "var(--text)", fontFamily: "var(--font-mono)" }}>
+              <div key={key} className="flex items-center justify-between px-3 py-2" style={{ background: "var(--bg)", border: "1px solid var(--border-light)" }}>
+                <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>{label}</span>
+                <span className="truncate max-w-[60%]" style={{ color: "var(--text)", fontFamily: "var(--font-mono)", fontSize: "11px" }}>
                   {String(settings.global[key] ?? "—")}
-                </div>
+                </span>
               </div>
             ))}
           </div>
@@ -185,6 +185,11 @@ export function ConfigTab({ language, workspace }: { language: "en" | "zh"; work
             </button>
           </div>
         </div>
+        {editScope === "project" && workspace && settings?.project && Object.keys(settings.project).length === 0 && (
+          <div className="mb-1 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+            {zh ? `项目 ${workspace.split("/").filter(Boolean).pop() || workspace} 尚无项目级设置。添加键值对后保存即可。` : `No project-level settings for ${workspace.split("/").filter(Boolean).pop() || workspace}. Add key-value pairs and save.`}
+          </div>
+        )}
         <textarea value={editValue} onChange={(e) => setEditValue(e.target.value)}
           className="w-full font-mono text-xs p-3 outline-none resize-none"
           style={{ background: "var(--bg)", color: "var(--text)", border: "1px solid var(--border-light)", minHeight: "120px", fontFamily: "var(--font-mono)", fontSize: "11px", lineHeight: "1.5" }}

@@ -289,6 +289,10 @@ export function useConversations(workspace: string, activeAgent: string) {
     setActiveConvId(id);
   }, []);
 
+  const deselectConversation = useCallback(() => {
+    setActiveConvId(null);
+  }, []);
+
   const deleteConversation = useCallback((id: string) => {
     // Determine next active conv BEFORE updating state
     const isDeletingActive = activeConvId === id;
@@ -525,6 +529,7 @@ export function useConversations(workspace: string, activeAgent: string) {
     loadConvMessages,
     newConversation,
     selectConversation,
+    deselectConversation,
     deleteConversation,
     renameConversation,
     syncPiSessions,

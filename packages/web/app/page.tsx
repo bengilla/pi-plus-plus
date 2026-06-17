@@ -70,7 +70,7 @@ export default function Home() {
   const {
     activeConvId, activeConv, convList, standaloneConvList, projectWorkspaces,
     loadingConvId, loadConvMessages,
-    newConversation, selectConversation,
+    newConversation, selectConversation, deselectConversation,
     deleteConversation, renameConversation,
     syncPiSessions,
     onMessagesChange,
@@ -95,11 +95,11 @@ export default function Home() {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === "b") { e.preventDefault(); setSidebarOpen((p) => !p); }
-      if (e.key === "Escape") { setRightPanelOpen(false); setShowSettings(false); }
+      if (e.key === "Escape") { setRightPanelOpen(false); setShowSettings(false); deselectConversation(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, []);
+  }, [deselectConversation]);
 
   const refreshAgents = useCallback(async () => {
     const r = await fetch("/api/agents");
@@ -288,6 +288,7 @@ export default function Home() {
           onDeleteConversation={deleteConversation}
           onRenameConversation={renameConversation}
           onDeleteWorkspace={deleteConversationsByWorkspace}
+          onDeselectConversation={deselectConversation}
           agents={agents}
           onFileClick={handleFileClick}
           onAgentInfoClick={handleAgentInfoClick}

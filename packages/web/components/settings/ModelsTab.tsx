@@ -7,6 +7,7 @@ interface ModelInfo {
   name: string;
   provider: string;
   enabled: boolean;
+  hasAuth?: boolean;
   capabilities: { key: string; label: string }[];
 }
 
@@ -93,6 +94,7 @@ export function ModelsTab({ language }: { language: "en" | "zh" }) {
                     style={{
                       background: isDefault ? "var(--accent-dim)" : "var(--bg)",
                       border: isDefault ? "1px solid var(--accent)" : "1px solid var(--border-light)",
+                      opacity: m.hasAuth === false ? 0.5 : 1,
                     }}
                   >
                     <button

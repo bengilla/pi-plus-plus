@@ -14,6 +14,8 @@ Pi CLI is powerful, but it's terminal-only. pi++ adds a desktop UI with:
 
 - **Standalone chats** — talk without opening a project; conversations live independently from folders
 - **Project conversations** — folder-based chats with context files (AGENTS.md, CLAUDE.md)
+- **ESC to clear** — press Escape to deselect conversation, collapse project, or close panels
+- **Click to deselect** — click empty space in sidebar to clear active selection
 - **Three-panel layout**: sidebar (chats + projects), chat panel, inspector
 - **Bidirectional state**: app reads/writes Pi's native files (`auth.json`, `settings.json`, sessions `.jsonl`), no separate database
 - **OAuth login**: ChatGPT Plus/Pro, Anthropic Claude — click Login, browser opens

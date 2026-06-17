@@ -54,7 +54,7 @@ export async function GET() {
   const defaultModel = buildModelId(settings ?? {});
   const models: {
     id: string; name: string; provider: string;
-    enabled: boolean; capabilities: Capability[];
+    enabled: boolean; hasAuth?: boolean; capabilities: Capability[];
   }[] = [];
 
   try {
@@ -72,14 +72,14 @@ export async function GET() {
       const provider = cols[0];
       const modelName = cols[1];
       const id = `${provider}/${modelName}`;
-      // Only include models from providers with valid auth (auth.json or env var)
-      if (!providerHasAuth(provider)) continue;
+      const hasAuth = providerHasAuth(provider);
       const caps = parseCapabilities(cols);
       models.push({
         id,
         name: modelName,
         provider,
         enabled: enabledSet.has(id),
+        hasAuth,
         capabilities: caps,
       });
     }

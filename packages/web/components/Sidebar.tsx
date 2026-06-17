@@ -44,6 +44,7 @@ interface Props {
   onDeleteConversation: (id: string) => void;
   onRenameConversation: (id: string, title: string) => void;
   onDeleteWorkspace: (ws: string) => void;
+  onDeselectConversation: () => void;
   agents: AgentInfo[];
   onFileClick: (path: string) => void;
   onAgentInfoClick: () => void;
@@ -66,6 +67,7 @@ function formatRelativeTime(ts: number): string {
 export function Sidebar({
   workspace, onWorkspaceChange, onOpenSettings,
   conversations, standaloneConversations, activeConvId, onNewConversation, onNewStandaloneConversation, onSelectConversation, onDeleteConversation, onRenameConversation,
+  onDeselectConversation,
   agents, onFileClick, onAgentInfoClick,
   language = "en",
   projectWorkspaces,
@@ -98,6 +100,15 @@ export function Sidebar({
     setExpandedProjects(true);
   }, [workspace]);
 
+  // ESC collapses expanded project
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpandedProject(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const zh = language === "zh";
 
   const openFolderPicker = useCallback(async () => {
@@ -128,7 +139,7 @@ export function Sidebar({
     <div
       key={c.id}
       className="group cursor-pointer py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
-      onClick={() => onSelectConversation(c.id)}
+      onClick={(e) => { e.stopPropagation(); onSelectConversation(c.id); }}
       style={{
         paddingLeft: c.id === activeConvId ? "8px" : "10px",
         paddingRight: "2px",
@@ -234,7 +245,7 @@ export function Sidebar({
           </button>
         </button>
         {expandedProjects && (
-          <div className="px-2 pb-1">
+          <div className="px-2 pb-1" onClick={onDeselectConversation}>
             {/* Always include current workspace even if no conversations yet */}
             {(() => {
               const displayProjects = workspace && !projectWorkspaces.some(p => p.workspace === workspace)
@@ -248,7 +259,7 @@ export function Sidebar({
               return displayProjects.map((p) => {
                 const active = p.workspace === workspace;
                 return (
-                  <div key={p.workspace} className="mb-0.5">
+                  <div key={p.workspace}>
                     {/* Project header */}
                     <div
                       className="group flex items-center pr-1"
@@ -258,14 +269,16 @@ export function Sidebar({
                       }}
                     >
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (p.workspace === workspace) {
                             setExpandedProject(expandedProject === p.workspace ? null : p.workspace);
                           } else {
                             onWorkspaceChange(p.workspace);
                           }
                         }}
-                        className="flex-1 text-left pl-2 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
+                        className="flex-1 text-left pl-2 py-1 transition-colors hover:bg-[var(--bg-hover)]"
+                        style={{ outline: "none" }}
                       >
                         <div className="flex items-center gap-1.5">
                           <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
@@ -290,7 +303,7 @@ export function Sidebar({
                             }
                           }}
                           className="px-1 py-1.5 transition-colors hover:text-[var(--accent)]"
-                          style={{ color: "var(--text-tertiary)" }}
+                          style={{ outline: "none", color: "var(--text-tertiary)" }}
                           title={zh ? "新建对话" : "New chat"}
                         >
                           <AppIcon name="plus" size={13} strokeWidth={2.2} />
@@ -330,6 +343,7 @@ export function Sidebar({
         <button
           onClick={() => setExpandedChats((p) => !p)}
           className="w-full shrink-0 px-2 pt-2 pb-1 flex items-center justify-between transition-colors hover:bg-[var(--bg-hover)]"
+          style={{ outline: "none" }}
         >
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
@@ -349,7 +363,7 @@ export function Sidebar({
           </button>
         </button>
         {expandedChats && (
-          <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
+          <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0" onClick={onDeselectConversation}>
             {standaloneConversations.length === 0 ? (
               <div className="px-2 py-3 text-center text-[10px]" style={{ color: "var(--text-tertiary)" }}>
                 {zh ? "无需项目的自由对话" : "Free chats without a project"}

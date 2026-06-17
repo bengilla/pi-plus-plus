@@ -274,7 +274,7 @@ export function ChatPanel({
           setCurrentProvider(modelData.provider || "");
           setSelectedModel(modelData.model);
         }
-        setAvailableModels(modelsData.models.filter((m) => m.enabled));
+        setAvailableModels(modelsData.models.filter((m) => m.enabled && m.hasAuth !== false));
       })
       .catch(() => {});
   }, [modelVersion]);
@@ -753,7 +753,7 @@ export function ChatPanel({
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setModelDropdownOpen(false)} />
                 <div
-                  className="fixed z-50 min-w-[200px] max-h-[280px] overflow-y-auto p-1"
+                  className="fixed z-[100] min-w-[200px] max-h-[280px] overflow-y-auto p-1"
                   style={{ ...modelDropdownStyle, background: "var(--bg-elevated)", border: "1px solid var(--border)", boxShadow: "var(--shadow-modal)" }}
                 >
                   {(() => {
