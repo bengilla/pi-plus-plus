@@ -114,9 +114,9 @@ packages/
 **发版流程：**
 ```bash
 npm version patch|minor|major    # 同步更新两个 package.json 的 version
-npm run app:build                # 构建 DMG
+npm run app:build                # 构建 DMG → release/Pi++ X.Y.Z-arm64.dmg
 git tag v$(node -p "require('./packages/electron/package.json').version")
-gh release create vX.Y.Z release/pi++-X.Y.Z-arm64.dmg --title "vX.Y.Z" --notes "..."
+gh release create vX.Y.Z "release/Pi++ X.Y.Z-arm64.dmg" --title "vX.Y.Z" --notes "..."
 git push --follow-tags
 ```
 旧用户启动后 10s 自动检测到新版本 → 弹窗 → 一键下载安装重启。
