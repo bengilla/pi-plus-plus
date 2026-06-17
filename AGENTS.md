@@ -54,12 +54,12 @@ packages/
 - `useState` lazy init with `localStorage` → hydrate mismatch. SSR-safe default, load in `useEffect`
 - CSS `:root` dark, `[data-theme="light"]` overrides. All layers agree on default
 
-## Race Conditions (v0.2.x)
+## Race Conditions (resolved patterns)
 
-- `stdout.on('data')` → push + resolveWait needs double-check after setting promise
-- `handleStop`: capture refs FIRST, then abort — abort triggers finally which clears refs
-- `syncPiSessions`: use `setIndexes((prev) => ...)` functional update to avoid stale snapshot
-- `deleteConversationsByWorkspace`: uses `deletingSessionIds` ref to prevent `syncPiSessions` from re-adding sessions whose DELETE request is still in-flight
+- `stdout.on('data')` → `waitForNext()`: first check → set `resolveWait` → second check. The second check catches `push()` that fired between the first check and setting the callback. JS single-thread ensures no events fire during synchronous block, but the re-check guards against the push→no-op edge case when transitioning into await.
+- `handleStop`: capture `stream*Ref.current` values into local vars FIRST, then `abort()`. Abort triggers `finally` which clears refs, but local captures are safe.
+- `syncPiSessions`: always use `setIndexes((prev) => ...)` functional updater, never read `indexes` directly from closure.
+- `deleteConversationsByWorkspace`: populate `deletingSessionIds` ref BEFORE firing async DELETE requests. `syncPiSessions` checks this ref to skip re-adding sessions whose deletion is in-flight.
 
 ## Environment
 
