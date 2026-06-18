@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { ContentBlock } from "@/lib/agents/types";
 import { formatTokens, formatTime, formatDuration } from "@/lib/utils/chat";
 import { MarkdownBody } from "./MarkdownBody";
@@ -113,6 +113,15 @@ export function ChatPanel({
   const zh = language === "zh";
 
   const [messages, setMessages] = useState<Message[]>(() => toMessages(initialMessages));
+  // Extract user message contents for ChatInput history (newest first)
+  const userHistory = useMemo(
+    () =>
+      messages
+        .filter((m) => m.role === "user" && m.content.trim().length > 1)
+        .map((m) => m.content)
+        .reverse(),
+    [messages],
+  );
   const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const streamStartRef = useRef(0);
@@ -1230,6 +1239,7 @@ export function ChatPanel({
         onSend={handleSend}
         onStop={handleStop}
         footerExtras={modelSelector}
+        initialHistory={userHistory}
         onScrollToBottom={() => {
           isNearBottomRef.current = true;
           bottomRef.current?.scrollIntoView({ behavior: "smooth" });

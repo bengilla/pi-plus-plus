@@ -31,9 +31,11 @@ interface Props {
   footerExtras?: React.ReactNode;
   /** Called when pressing ArrowDown at the bottom of history (scroll messages to bottom) */
   onScrollToBottom?: () => void;
+  /** User message contents from the loaded conversation (newest first), seeds input history */
+  initialHistory?: string[];
 }
 
-export function ChatInput({ agentName, workspace, language: lang, streaming, onSend, onStop, footerExtras, onScrollToBottom }: Props) {
+export function ChatInput({ agentName, workspace, language: lang, streaming, onSend, onStop, footerExtras, onScrollToBottom, initialHistory }: Props) {
   const zh = lang === "zh";
 
   const [loopState, setLoopState] = useState<LoopState>({ running: false, progress: null, report: null });
@@ -66,6 +68,16 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
   const composingRef = useRef(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Seed input history from loaded conversation user messages
+  useEffect(() => {
+    if (!initialHistory || initialHistory.length === 0) return;
+    const existing = new Set(inputHistoryRef.current);
+    const toAdd = initialHistory.filter((t) => !existing.has(t));
+    if (toAdd.length > 0) {
+      inputHistoryRef.current = [...toAdd, ...inputHistoryRef.current].slice(0, 50);
+    }
+  }, [initialHistory]);
 
   // ── Panel drag resize ────────────────────────────────────
   useEffect(() => {
@@ -242,8 +254,8 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
     if (e.key === "ArrowUp" && !e.shiftKey) {
       const history = inputHistoryRef.current;
       if (history.length === 0) return;
-      // Only navigate history when input is empty; otherwise let textarea handle cursor
-      if (input.trim().length > 0) return;
+      // Only start history navigation when input is empty; once navigating, allow cycling
+      if (historyIndexRef.current === -1 && input.trim().length > 0) return;
       e.preventDefault();
       if (historyIndexRef.current === -1) {
         historyDraftRef.current = input;
@@ -262,9 +274,17 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
     }
     if (e.key === "ArrowDown" && !e.shiftKey) {
       e.preventDefault();
-      // Already at bottom (not navigating history): scroll to end of conversation
+      // Not navigating history: move cursor to end of input, or scroll if empty
       if (historyIndexRef.current < 0) {
-        onScrollToBottom?.();
+        if (input.length > 0) {
+          const ta = textareaRef.current;
+          if (ta) {
+            const len = input.length;
+            ta.setSelectionRange(len, len);
+          }
+        } else {
+          onScrollToBottom?.();
+        }
         return;
       }
       // Returning from first history item back to saved draft
