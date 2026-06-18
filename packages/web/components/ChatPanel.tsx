@@ -1230,6 +1230,10 @@ export function ChatPanel({
         onSend={handleSend}
         onStop={handleStop}
         footerExtras={modelSelector}
+        onScrollToBottom={() => {
+          isNearBottomRef.current = true;
+          bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        }}
       />
     </div>
   );

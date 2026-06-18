@@ -29,9 +29,11 @@ interface Props {
   onStop: () => void;
   /** Extra buttons to show in the bottom bar between attach and send/stop */
   footerExtras?: React.ReactNode;
+  /** Called when pressing ArrowDown at the bottom of history (scroll messages to bottom) */
+  onScrollToBottom?: () => void;
 }
 
-export function ChatInput({ agentName, workspace, language: lang, streaming, onSend, onStop, footerExtras }: Props) {
+export function ChatInput({ agentName, workspace, language: lang, streaming, onSend, onStop, footerExtras, onScrollToBottom }: Props) {
   const zh = lang === "zh";
 
   const [loopState, setLoopState] = useState<LoopState>({ running: false, progress: null, report: null });
@@ -60,6 +62,7 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputHistoryRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
+  const historyDraftRef = useRef("");
   const composingRef = useRef(false);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -239,7 +242,12 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
     if (e.key === "ArrowUp" && !e.shiftKey) {
       const history = inputHistoryRef.current;
       if (history.length === 0) return;
+      // Only navigate history when input is empty; otherwise let textarea handle cursor
+      if (input.trim().length > 0) return;
       e.preventDefault();
+      if (historyIndexRef.current === -1) {
+        historyDraftRef.current = input;
+      }
       const nextIdx = Math.min(historyIndexRef.current + 1, history.length - 1);
       historyIndexRef.current = nextIdx;
       setInput(history[nextIdx] ?? "");
@@ -254,12 +262,22 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
     }
     if (e.key === "ArrowDown" && !e.shiftKey) {
       e.preventDefault();
-      // Already at bottom (not navigating history): do nothing
-      if (historyIndexRef.current < 0) return;
-      // Returning from first history item back to fresh input
+      // Already at bottom (not navigating history): scroll to end of conversation
+      if (historyIndexRef.current < 0) {
+        onScrollToBottom?.();
+        return;
+      }
+      // Returning from first history item back to saved draft
       if (historyIndexRef.current === 0) {
         historyIndexRef.current = -1;
-        setInput("");
+        setInput(historyDraftRef.current);
+        setTimeout(() => {
+          const ta = textareaRef.current;
+          if (ta) {
+            const len = historyDraftRef.current.length;
+            ta.setSelectionRange(len, len);
+          }
+        }, 0);
         return;
       }
       const nextIdx = historyIndexRef.current - 1;
