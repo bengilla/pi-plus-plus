@@ -53,6 +53,7 @@ packages/
 - Theme & font scale init before paint to avoid flicker
 - `useState` lazy init with `localStorage` → hydrate mismatch. SSR-safe default, load in `useEffect`
 - CSS `:root` dark, `[data-theme="light"]` overrides. All layers agree on default
+- **Turbopack build cache**: server-side code changes (lib/agents/) may not be picked up. `rm -rf packages/web/.next` before a fresh build when `spawn.ts`, route handlers, or other server modules change. The Electron app copies `.next/standalone` — if it's stale, the DMG ships old code.
 
 ## Race Conditions (resolved patterns)
 
@@ -113,11 +114,21 @@ packages/
 
 **发版流程：**
 ```bash
-npm version patch|minor|major    # 同步更新两个 package.json 的 version
+npm version patch|minor|major    # 只更新根 package.json，workspace 需手动同步
+node -e "
+const fs = require('fs');
+const v = JSON.parse(fs.readFileSync('package.json','utf8')).version;
+['packages/electron','packages/web'].forEach(p => {
+  const j = JSON.parse(fs.readFileSync(p+'/package.json','utf8'));
+  j.version = v; fs.writeFileSync(p+'/package.json', JSON.stringify(j,null,2)+'\n');
+});
+"
 npm run app:build                # 构建 DMG → release/Pi++ X.Y.Z-arm64.dmg
-git tag v$(node -p "require('./packages/electron/package.json').version")
-gh release create vX.Y.Z "release/Pi++ X.Y.Z-arm64.dmg" --title "vX.Y.Z" --notes "..."
+# 如果改了 server 端代码（lib/agents/），先 rm -rf packages/web/.next 清除 Turbopack 缓存
+git add -A && git commit -m "chore: bump version to X.Y.Z"
+git tag -d vX.Y.Z && git tag vX.Y.Z   # npm version 创建的 tag 在 workspace 同步前，需重建
 git push --follow-tags
+gh release create vX.Y.Z "release/Pi++ X.Y.Z-arm64.dmg" --title "vX.Y.Z" --notes "..."
 ```
 旧用户启动后 10s 自动检测到新版本 → 弹窗 → 一键下载安装重启。
 
@@ -127,3 +138,18 @@ git push --follow-tags
 - [ ] Branch protection — require PR review before merge to main
 - [ ] Enable Discussions tab
 - [ ] Project board
+
+## Image Generation
+
+Pi++ renders images inline from tool results (ToolResultBlock). Image generation requires a Pi extension package:
+
+| Package | Model | Auth |
+|---|---|---|
+| `pi-codex-image-gen` | gpt-image-2 via Codex backend | ChatGPT Plus/Pro login, no API key |
+| `@amaster.ai/pi-image-gen` | Multi-provider (OpenAI, Gemini, Qwen, OpenRouter) | Varies by provider |
+
+- Install via 设置 → 包: `npm:pi-codex-image-gen`
+- Extension registers `codex_generate_image` tool; returns `{ type: "image", data: base64, mimeType }`
+- Pi++ `extractContentImages()` parses image blocks from `tool_execution_end.result.content`
+- SSE tool_result events may exceed 1MB — ChatPanel lineBuffer prevents cross-chunk truncation
+- Disable via 设置 → 包 toggle (removes from `settings.json` packages, takes effect next session)
