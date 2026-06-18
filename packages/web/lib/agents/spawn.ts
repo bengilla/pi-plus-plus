@@ -127,10 +127,15 @@ function extractContentText(content: unknown): string {
 
 /** Extract image blocks from tool result content array */
 function extractContentImages(content: unknown): { data: string; mimeType: string }[] | undefined {
-  if (!Array.isArray(content)) return undefined;
-  const images = content
-    .filter((b: { type?: string; data?: string; mimeType?: string }) => b.type === "image" && b.data)
-    .map((b: { data: string; mimeType: string }) => ({ data: b.data, mimeType: b.mimeType ?? "image/png" }));
+  let arr = content;
+  // result.content may be JSON-stringified by Pi
+  if (typeof arr === "string") {
+    try { arr = JSON.parse(arr); } catch { return undefined; }
+  }
+  if (!Array.isArray(arr)) return undefined;
+  const images = (arr as Record<string, unknown>[])
+    .filter((b) => b.type === "image" && typeof b.data === "string" && b.data.length > 0)
+    .map((b) => ({ data: b.data as string, mimeType: (b.mimeType as string) ?? "image/png" }));
   return images.length > 0 ? images : undefined;
 }
 
@@ -242,8 +247,14 @@ export function parsePiLine(line: string): AgentEvent | null {
       };
     }
     if (evt.type === "tool_execution_end") {
-      const output = extractContentText(evt.result?.content);
-      const images = extractContentImages(evt.result?.content);
+      // result may be JSON-stringified by Pi
+      let result = evt.result;
+      if (typeof result === "string") {
+        try { result = JSON.parse(result); } catch { /* keep as-is */ }
+      }
+      const resultContent = result && typeof result === "object" ? (result as Record<string, unknown>).content : undefined;
+      const output = extractContentText(resultContent);
+      const images = extractContentImages(resultContent);
       return {
         type: "tool_result",
         toolId: evt.toolCallId ?? "",
