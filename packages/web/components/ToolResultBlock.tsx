@@ -4,15 +4,16 @@ import { useState, memo } from "react";
 
 interface Props {
   toolOutput: string;
+  images?: { data: string; mimeType: string }[];
 }
 
 const MUTED_TEXT = "oklch(75% 0 0)";
 
-export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Props) {
+export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput, images }: Props) {
   const [expanded, setExpanded] = useState(false);
   const output = toolOutput.trim();
 
-  if (!output) return null;
+  if (!output && (!images || images.length === 0)) return null;
 
   const preview = output.split("\n")[0].slice(0, 100);
 
@@ -41,7 +42,7 @@ export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Pro
             </span>
           )}
         </span>
-        <span className="shrink-0 tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars</span>
+        <span className="shrink-0 tabular-nums" style={{ opacity: 0.65 }}>{output.length} chars{images && images.length > 0 ? ` · ${images.length} img` : ""}</span>
       </button>
       {expanded && (
         <div
@@ -54,6 +55,19 @@ export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput }: Pro
           }}
         >
           {toolOutput}
+        </div>
+      )}
+      {images && images.length > 0 && (
+        <div className="px-3 py-2 flex flex-wrap gap-2">
+          {images.map((img, i) => (
+            <img
+              key={i}
+              src={`data:${img.mimeType};base64,${img.data}`}
+              alt={`Generated image ${i + 1}`}
+              className="max-w-full h-auto"
+              style={{ maxHeight: "320px", border: "1px solid var(--color-border)" }}
+            />
+          ))}
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@ interface PackageInfo {
   description: string;
   type: "npm" | "git" | "path";
   path: string;
+  enabled: boolean;
   resources: {
     extensions: number;
     skills: number;
@@ -40,13 +41,20 @@ function readSettings(): SettingsJson {
   }
 }
 
+function writeSettings(settings: SettingsJson): void {
+  const { writeFileSync, mkdirSync } = require("node:fs");
+  const dir = join(homedir(), ".pi", "agent");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(getSettingsPath(), JSON.stringify(settings, null, 2) + "\n", "utf-8");
+}
+
 function detectSourceType(source: string): "npm" | "git" | "path" {
   if (source.startsWith("npm:") || source.startsWith("npm@")) return "npm";
   if (source.startsWith("git:") || source.startsWith("https://") || source.startsWith("http://") || source.startsWith("ssh://")) return "git";
   return "path";
 }
 
-function discoverPackage(source: string): PackageInfo | null {
+function discoverPackage(source: string, enabledSources: Set<string>): PackageInfo | null {
   try {
     const settings = readSettings();
     const packages = settings.packages ?? [];
@@ -138,6 +146,7 @@ function discoverPackage(source: string): PackageInfo | null {
       description: meta.description || "",
       type,
       path: pkgPath,
+      enabled: enabledSources.has(resolvedSource),
       resources: {
         extensions: countDir(piManifest.extensions),
         skills: countDir(piManifest.skills),
@@ -157,10 +166,11 @@ export async function GET() {
   try {
     const settings = readSettings();
     const packageSources = settings.packages ?? [];
+    const enabledSet = new Set(packageSources);
 
     const packages: PackageInfo[] = [];
     for (const source of packageSources) {
-      const info = discoverPackage(source);
+      const info = discoverPackage(source, enabledSet);
       if (info) packages.push(info);
     }
 
@@ -187,6 +197,7 @@ export async function GET() {
                   description: meta.description || "",
                   type: "npm",
                   path: join(scanDir, item),
+                  enabled: false,
                   resources: {
                     extensions: 0,
                     skills: 0,
@@ -238,6 +249,21 @@ export async function POST(req: NextRequest) {
       case "update":
         cmdArgs = source ? ["update", "--extension", source] : ["update", "--extensions"];
         break;
+      case "enable":
+      case "disable": {
+        if (!source) return NextResponse.json({ error: "source required for enable/disable" }, { status: 400 });
+        const settings = readSettings();
+        const packages: string[] = settings.packages ?? [];
+        if (action === "disable") {
+          settings.packages = packages.filter((p) => p !== source);
+        } else {
+          if (!packages.includes(source)) {
+            settings.packages = [...packages, source];
+          }
+        }
+        writeSettings(settings);
+        return NextResponse.json({ ok: true, enabled: action === "enable" });
+      }
       default:
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }

@@ -125,6 +125,15 @@ function extractContentText(content: unknown): string {
   return "";
 }
 
+/** Extract image blocks from tool result content array */
+function extractContentImages(content: unknown): { data: string; mimeType: string }[] | undefined {
+  if (!Array.isArray(content)) return undefined;
+  const images = content
+    .filter((b: { type?: string; data?: string; mimeType?: string }) => b.type === "image" && b.data)
+    .map((b: { data: string; mimeType: string }) => ({ data: b.data, mimeType: b.mimeType ?? "image/png" }));
+  return images.length > 0 ? images : undefined;
+}
+
 /** Extract tool call info (id + name) from a partial.content array, if present */
 function extractToolCallFromPartial(content: unknown): { id?: string; name?: string } | null {
   if (!Array.isArray(content)) return null;
@@ -234,10 +243,12 @@ export function parsePiLine(line: string): AgentEvent | null {
     }
     if (evt.type === "tool_execution_end") {
       const output = extractContentText(evt.result?.content);
+      const images = extractContentImages(evt.result?.content);
       return {
         type: "tool_result",
         toolId: evt.toolCallId ?? "",
         toolOutput: output || (evt.isError ? "Tool execution error" : ""),
+        images,
       };
     }
 

@@ -12,6 +12,7 @@ interface PackageInfo {
   description: string;
   type: "npm" | "git" | "path";
   path: string;
+  enabled: boolean;
   resources: {
     extensions: number;
     skills: number;
@@ -35,6 +36,7 @@ export function PackagesTab({ language = "en" }: Props) {
   const [installing, setInstalling] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [output, setOutput] = useState<string | null>(null);
 
   const fetchPackages = useCallback(async () => {
@@ -127,6 +129,28 @@ export function PackagesTab({ language = "en" }: Props) {
       setOutput(`❌ ${e instanceof Error ? e.message : "Update failed"}`);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleToggle = async (source: string, enabled: boolean) => {
+    setToggling(source);
+    try {
+      const r = await fetch("/api/pi/packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: enabled ? "disable" : "enable", source }),
+      });
+      const data = await r.json();
+      if (data.error) {
+        setOutput(`❌ ${data.error}`);
+      } else {
+        setOutput(`✅ ${data.enabled ? (zh ? "已启用，下次对话生效" : "Enabled, takes effect next session") : (zh ? "已禁用，下次对话生效" : "Disabled, takes effect next session")}`);
+        fetchPackages();
+      }
+    } catch (e) {
+      setOutput(`❌ ${e instanceof Error ? e.message : "Toggle failed"}`);
+    } finally {
+      setToggling(null);
     }
   };
 
@@ -240,7 +264,25 @@ export function PackagesTab({ language = "en" }: Props) {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium truncate" style={{ color: "var(--text)" }}>{pkg.name}</span>
+                    <button
+                      onClick={() => handleToggle(pkg.source, pkg.enabled)}
+                      disabled={toggling === pkg.source}
+                      className="relative h-4 w-8 shrink-0 transition-colors disabled:opacity-50"
+                      title={pkg.enabled ? (zh ? "禁用此包" : "Disable") : (zh ? "启用此包" : "Enable")}
+                      style={{
+                        background: pkg.enabled ? "var(--accent)" : "var(--bg-hover)",
+                        border: `1px solid ${pkg.enabled ? "var(--accent)" : "var(--border-light)"}`,
+                      }}
+                    >
+                      <span
+                        className="absolute top-1/2 h-3 w-3 -translate-y-1/2 transition-all"
+                        style={{
+                          left: pkg.enabled ? "16px" : "2px",
+                          background: pkg.enabled ? "#fff" : "var(--text-tertiary)",
+                        }}
+                      />
+                    </button>
+                    <span className="font-medium truncate" style={{ color: pkg.enabled ? "var(--text)" : "var(--text-tertiary)" }}>{pkg.name}</span>
                     {typeBadge(pkg.type)}
                     <span style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
                       v{pkg.version}

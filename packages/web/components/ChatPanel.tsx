@@ -578,11 +578,13 @@ export function ChatPanel({
                 );
                 if (existing && existing.type === "tool_result") {
                   existing.toolOutput = (existing.toolOutput ?? "") + (parsed.toolOutput ?? "");
+                  if (parsed.images) existing.images = parsed.images;
                 } else {
                   streamBlocksRef.current.push({
                     type: "tool_result",
                     id: targetId ?? `result-${streamBlocksRef.current.length}`,
                     toolOutput: parsed.toolOutput ?? "",
+                    images: parsed.images,
                   });
                 }
                 streamTickRef.current++;
@@ -950,7 +952,7 @@ export function ChatPanel({
                                   case "tool_use":
                                     return <ToolCallBlock key={i} toolName={block.toolName} toolInput={block.toolInput} status={block.status} />;
                                   case "tool_result":
-                                    return <ToolResultBlock key={i} toolOutput={block.toolOutput} />;
+                                    return <ToolResultBlock key={i} toolOutput={block.toolOutput} images={block.images} />;
                                   default:
                                     return null;
                                 }
@@ -1122,7 +1124,7 @@ export function ChatPanel({
                               case "tool_use":
                                 return <ToolCallBlock key={i} toolName={block.toolName || "…"} toolInput={block.toolInput} status={block.status} />;
                               case "tool_result":
-                                return <ToolResultBlock key={i} toolOutput={block.toolOutput} />;
+                                return <ToolResultBlock key={i} toolOutput={block.toolOutput} images={block.images} />;
                               default:
                                 return null;
                             }

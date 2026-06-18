@@ -3,7 +3,7 @@ export type ContentBlock =
   | { type: "text"; content: string }
   | { type: "thinking"; content: string; duration?: number }
   | { type: "tool_use"; id: string; toolName: string; toolInput: Record<string, unknown>; status: "running" | "completed" | "error" }
-  | { type: "tool_result"; id: string; toolOutput: string };
+  | { type: "tool_result"; id: string; toolOutput: string; images?: { data: string; mimeType: string }[] };
 
 // ── Agent event (SSE stream) ──────────────────────────────
 export interface AgentEvent {
@@ -14,6 +14,8 @@ export interface AgentEvent {
   toolId?: string;
   toolInput?: Record<string, unknown>;
   toolOutput?: string;
+  /** Base64-encoded images from tool results (e.g. codex_generate_image) */
+  images?: { data: string; mimeType: string }[];
   error?: string;
   /** Actual token counts from provider usage (overrides length-based estimate) */
   inputTokens?: number;
