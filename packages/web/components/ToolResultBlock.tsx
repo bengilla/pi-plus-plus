@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 
 interface Props {
   toolOutput: string;
@@ -16,6 +16,14 @@ export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput, image
   if (!output && (!images || images.length === 0)) return null;
 
   const preview = output.split("\n")[0].slice(0, 100);
+
+  const handleDownload = useCallback((img: { data: string; mimeType: string }, index: number) => {
+    const ext = img.mimeType.split("/")[1] ?? "png";
+    const link = document.createElement("a");
+    link.download = `generated-${index + 1}.${ext}`;
+    link.href = `data:${img.mimeType};base64,${img.data}`;
+    link.click();
+  }, []);
 
   return (
     <div
@@ -59,15 +67,36 @@ export const ToolResultBlock = memo(function ToolResultBlock({ toolOutput, image
       )}
       {images && images.length > 0 && (
         <div className="px-3 py-2 flex flex-wrap gap-2">
-          {images.map((img, i) => (
-            <img
-              key={i}
-              src={`data:${img.mimeType};base64,${img.data}`}
-              alt={`Generated image ${i + 1}`}
-              className="max-w-full h-auto"
-              style={{ maxHeight: "320px", border: "1px solid var(--color-border)" }}
-            />
-          ))}
+          {images.map((img, i) => {
+            const src = `data:${img.mimeType};base64,${img.data}`;
+            const ext = img.mimeType.split("/")[1] ?? "png";
+            const filename = `generated-${i + 1}.${ext}`;
+            return (
+              <div key={i} className="relative group">
+                <img
+                  src={src}
+                  alt={`Generated image ${i + 1}`}
+                  className="max-w-full h-auto"
+                  style={{ maxHeight: "320px", border: "1px solid var(--color-border)" }}
+                />
+                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+                  <a
+                    href={src}
+                    download={filename}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-[10px] rounded shadow"
+                    style={{ background: "var(--bg-elevated)", color: "var(--text)", border: "1px solid var(--border)" }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDownload(img, i);
+                    }}
+                    title={`Download ${filename}`}
+                  >
+                    ↓ {filename}
+                  </a>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

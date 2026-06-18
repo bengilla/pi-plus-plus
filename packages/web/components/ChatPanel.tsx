@@ -412,6 +412,7 @@ export function ChatPanel({
 
       const decoder = new TextDecoder();
       let full = "";
+      let lineBuffer = ""; // accumulates partial SSE lines across chunks
 
       // Flush accumulated thinking text into a ThinkingBlock.
       const flushThinking = (textContent = "") => {
@@ -439,7 +440,9 @@ export function ChatPanel({
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        lineBuffer += chunk;
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop() ?? "";
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -637,6 +640,32 @@ export function ChatPanel({
               streamTickRef.current++;
             }
           }
+        }
+      }
+
+      // Flush any remaining partial SSE line
+      if (lineBuffer.trim() && lineBuffer.startsWith("data: ")) {
+        const lastData = lineBuffer.slice(6);
+        if (lastData !== "[DONE]") {
+          try {
+            const lastParsed = JSON.parse(lastData);
+            if (lastParsed.type === "tool_result") {
+              const targetId = lastParsed.toolId;
+              const existing = streamBlocksRef.current.find((b) => b.type === "tool_result" && b.id === targetId);
+              if (existing && existing.type === "tool_result") {
+                existing.toolOutput = (existing.toolOutput ?? "") + (lastParsed.toolOutput ?? "");
+                if (lastParsed.images) existing.images = lastParsed.images;
+              } else {
+                streamBlocksRef.current.push({
+                  type: "tool_result",
+                  id: targetId ?? `result-${streamBlocksRef.current.length}`,
+                  toolOutput: lastParsed.toolOutput ?? "",
+                  images: lastParsed.images,
+                });
+              }
+              streamTickRef.current++;
+            }
+          } catch { /* incomplete JSON, skip */ }
         }
       }
 
