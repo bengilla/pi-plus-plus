@@ -56,6 +56,11 @@ export function spawnAgent(opts: SpawnOptions): SpawnSession {
     stderr += d.toString();
   });
 
+  // Capture spawn-level errors (binary not found, cwd inaccessible, etc.)
+  child.on("error", (err) => {
+    stderr += `Spawn error: ${err.message}`;
+  });
+
   const result = new Promise<{ code: number | null; stderr: string }>((resolve) => {
     child.on("close", (code) => {
       clearTimeout(timer);

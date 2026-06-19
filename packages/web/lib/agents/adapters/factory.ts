@@ -52,8 +52,16 @@ export function createAdapter(definition: AgentDefinition, binaryPath: string): 
         // Check exit code — 143 (128+SIGTERM) means user clicked Stop, not an error
         const { code, stderr } = await child.result;
         if (code !== 0 && code !== null && code !== 143) {
-          const errMsg = stderr.trim() || `exited with code ${code}`;
-          yield { type: "error", error: `${definition.name}: ${errMsg}` };
+          const raw = stderr.trim();
+          if (raw.includes("uv_cwd") || raw.includes("EPERM: operation not permitted, uv_cwd")) {
+            yield {
+              type: "error",
+              permissionError: true,
+              error: `Cannot access workspace: ${workspace}. iCloud Drive directories prevent this. Move the project out of iCloud Drive, or grant pi++ Full Disk Access in System Settings.`,
+            };
+          } else {
+            yield { type: "error", error: `${definition.name}: ${raw || `exited with code ${code}`}` };
+          }
         }
         yield { type: "done" };
       } catch (err) {

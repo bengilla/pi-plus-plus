@@ -83,6 +83,8 @@ export default function Home() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [modelVersion, setModelVersion] = useState(0);
+  // Permission modal (triggered by iCloud Drive / macOS permission errors)
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   // Panel state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -368,6 +370,7 @@ export default function Home() {
             onThinkingLevelChange={setThinkingLevel}
             language={language}
             modelVersion={modelVersion}
+            onPermissionNeeded={() => setShowPermissionModal(true)}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center min-h-0" style={{ background: "var(--bg)" }}>
@@ -409,6 +412,52 @@ export default function Home() {
           language={language}
         />
       </div>
+
+      {/* Permission modal — macOS Full Disk Access for iCloud Drive workspaces */}
+      {showPermissionModal && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}
+          onClick={() => setShowPermissionModal(false)}
+        >
+          <div
+            className="w-full max-w-sm p-6 shadow-xl fade-in"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-5">
+              <div className="text-3xl mb-3">🔒</div>
+              <div className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+                {language === "zh" ? "需要完全磁盘访问权限" : "Full Disk Access Required"}
+              </div>
+              <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                {language === "zh"
+                  ? `当前工作区在 iCloud Drive 中。macOS 会阻止子进程访问此目录。\n\n请前往 系统设置 → 隐私与安全性 → 完全磁盘访问权限，添加 Pi++.app 并开启。`
+                  : `Your workspace is in iCloud Drive. macOS prevents child processes from accessing this directory.\n\nGo to System Settings → Privacy & Security → Full Disk Access, add Pi++.app and enable it.`}
+              </div>
+            </div>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => setShowPermissionModal(false)}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-light)" }}
+              >
+                {language === "zh" ? "知道了" : "Dismiss"}
+              </button>
+              <button
+                onClick={() => {
+                  window.open("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles", "_blank");
+                  setShowPermissionModal(false);
+                }}
+                className="px-4 py-1.5 text-xs transition-opacity hover:opacity-80"
+                style={{ color: "var(--accent)", background: "transparent", border: "1px solid var(--accent)" }}
+              >
+                {language === "zh" ? "打开系统设置" : "Open System Settings"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings modal */}
       <SettingsModal

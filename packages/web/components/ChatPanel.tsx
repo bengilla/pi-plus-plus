@@ -73,6 +73,8 @@ interface Props {
   language?: "en" | "zh";
   modelVersion?: number;
   sessionId?: string | null;
+  /** Called when a permission error (e.g. iCloud Drive) requires user action */
+  onPermissionNeeded?: () => void;
 }
 
 function toMessages(messages?: ChatMessageSnapshot[]): Message[] {
@@ -108,6 +110,7 @@ export function ChatPanel({
   language = "en",
   modelVersion,
   sessionId,
+  onPermissionNeeded,
 }: Props) {
   const displayName = agentName ?? activeAgent;
   const zh = language === "zh";
@@ -404,6 +407,10 @@ export function ChatPanel({
 
       if (!r.ok) {
         const errData = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+        if (errData.permissionError) {
+          onPermissionNeeded?.();
+          return;
+        }
         throw new Error(errData.error ?? `HTTP ${r.status}`);
       }
 
@@ -451,6 +458,15 @@ export function ChatPanel({
             try {
               const parsed = JSON.parse(data);
               if (parsed.type === "error") {
+                if (parsed.permissionError) {
+                  onPermissionNeeded?.();
+                  setStreaming(false);
+                  streamContentRef.current = "";
+                  streamOutputTokensRef.current = 0;
+                  streamInputTokensRef.current = 0;
+                  streamTickRef.current = 0;
+                  return;
+                }
                 setMessages((prev) => [
                   ...prev,
                   { role: "error", content: parsed.error, id: Date.now().toString(), createdAt: Date.now() },

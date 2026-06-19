@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { existsSync, accessSync, constants } from "node:fs";
 import { initAgents, chat, interrupt } from "@/lib/agents";
 
 function isAbortLikeError(error: unknown): boolean {
@@ -55,6 +56,24 @@ export async function POST(req: NextRequest) {
   const workspace = (reqWorkspace && reqWorkspace !== "__none__")
     ? reqWorkspace
     : (process.env.PI_PLUS_PLUS_WORKSPACE || require("os").homedir());
+
+  // Verify workspace exists before spawning pi
+  if (!existsSync(workspace)) {
+    return Response.json({ error: `Workspace not found: ${workspace}` }, { status: 400 });
+  }
+  // Detect iCloud Drive paths — these cause uv_cwd failures in spawned child processes
+  const mobileDocs = `${require("os").homedir()}/Library/Mobile Documents`;
+  if (workspace.startsWith(mobileDocs)) {
+    try {
+      accessSync(workspace, constants.R_OK);
+    } catch {
+      return Response.json(
+        { error: "iCloud Drive permission issue", permissionError: true, workspace },
+        { status: 403 },
+      );
+    }
+  }
+
   const encoder = new TextEncoder();
 
   // Use TransformStream so writer.write() flushes each event immediately.

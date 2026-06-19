@@ -17,6 +17,8 @@ export interface AgentEvent {
   /** Base64-encoded images from tool results (e.g. codex_generate_image) */
   images?: { data: string; mimeType: string }[];
   error?: string;
+  /** When true, this error is a macOS/iCloud permission issue — show a modal, not a chat message */
+  permissionError?: boolean;
   /** Actual token counts from provider usage (overrides length-based estimate) */
   inputTokens?: number;
   outputTokens?: number;
