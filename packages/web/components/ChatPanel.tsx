@@ -1144,16 +1144,20 @@ export function ChatPanel({
                       groups.push({ type: category, items: [block] });
                     }
                   }
+                  let blockSeq = 0;
                   return groups.map((group, gi) => {
                     if (group.type === "tool") {
                       return (
                         <div key={`tool-group-${gi}`} className="my-1" style={{ border: "1px solid var(--border-light)", background: "var(--bg)" }}>
-                          {group.items.map((block, i) => {
+                          {group.items.map((block) => {
+                            const stableKey = block.type === "tool_use" && (block as { id?: string }).id
+                              ? (block as { id: string }).id
+                              : `block-${blockSeq++}`;
                             switch (block.type) {
                               case "tool_use":
-                                return <ToolCallBlock key={i} toolName={block.toolName || "…"} toolInput={block.toolInput} status={block.status} />;
+                                return <ToolCallBlock key={stableKey} toolName={block.toolName || "…"} toolInput={block.toolInput} status={block.status} />;
                               case "tool_result":
-                                return <ToolResultBlock key={i} toolOutput={block.toolOutput} images={block.images} />;
+                                return <ToolResultBlock key={stableKey} toolOutput={block.toolOutput} images={block.images} />;
                               default:
                                 return null;
                             }
@@ -1161,9 +1165,12 @@ export function ChatPanel({
                         </div>
                       );
                     }
-                    return group.items.map((block, i) => (
-                      block.type === "thinking" ? <ThinkingBlock key={`think-${gi}-${i}`} content={block.content} duration={block.duration} defaultOpen={false} level={thinkingLevel} /> : null
-                    ));
+                    return group.items.map((block) => {
+                      const stableKey = block.type === "thinking"
+                        ? `think-${gi}-${blockSeq++}`
+                        : `block-${blockSeq++}`;
+                      return block.type === "thinking" ? <ThinkingBlock key={stableKey} content={block.content} duration={block.duration} defaultOpen={false} level={thinkingLevel} /> : null;
+                    });
                   });
                 })()}
                 {streamContentRef.current && (
