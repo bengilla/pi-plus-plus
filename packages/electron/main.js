@@ -432,15 +432,68 @@ function scheduleUpdateChecks() {
   updateCheckTimer = setInterval(() => checkForUpdates(true), 24 * 60 * 60 * 1000);
 }
 
+// ── Launchd Cleanup ───────────────────────────────────
+// Stale launchd agent from earlier versions can block port 31508
+function unloadStaleLaunchdAgent() {
+  const label = "com.pi-plus-plus.server";
+  const plistPath = path.join(
+    process.env.HOME || "/",
+    "Library/LaunchAgents",
+    `${label}.plist`
+  );
+  if (!fs.existsSync(plistPath)) return;
+
+  console.log(`[electron] Removing stale launchd agent: ${plistPath}`);
+  try {
+    execSync(`launchctl bootout gui/$(id -u) "${plistPath}" 2>/dev/null; launchctl remove "${label}" 2>/dev/null || true`, {
+      encoding: "utf8",
+      timeout: 3000,
+    });
+    try { fs.unlinkSync(plistPath); } catch {}
+  } catch {
+    // Fallback: try older unload syntax
+    try {
+      execSync(`launchctl unload "${plistPath}" 2>/dev/null || true`, {
+        encoding: "utf8",
+        timeout: 3000,
+      });
+      try { fs.unlinkSync(plistPath); } catch {}
+    } catch {}
+  }
+}
+
+// ── Port Check ─────────────────────────────────────────
+function checkPort(port) {
+  return new Promise((resolve) => {
+    const net = require("net");
+    const server = net.createServer();
+    server.once("error", (err) => {
+      if (err.code === "EADDRINUSE") resolve(true);
+      else resolve(false);
+    });
+    server.once("listening", () => {
+      server.close();
+      resolve(false);
+    });
+    server.listen(port, "0.0.0.0");
+  });
+}
+
 // ── Start Next.js Server ─────────────────────────────────
 function startServer() {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const serverScript = path.join(
       __dirname,
       isDev ? "../../node_modules/.bin/next" : "server.js"
     );
     const args = isDev ? ["dev", "-p", String(PORT)] : [];
     const cwd = isDev ? path.join(__dirname, "..", "web") : resourcesPath;
+
+    // Pre-flight: check if port is already in use
+    if (await checkPort(PORT)) {
+      reject(new Error(`端口 ${PORT} 已被占用，请先关闭其他 pi++ 实例`));
+      return;
+    }
 
     if (isDev) {
       const nodeBin = findNode();
@@ -461,6 +514,16 @@ function startServer() {
         cwd: path.join(__dirname, "..", "web"),
         env: { ...devEnv, NODE_ENV: "development" },
         stdio: ["ignore", "pipe", "pipe"],
+      });
+      serverProcess.on("error", (err) => {
+        console.error(`[electron] Server spawn error: ${err.message}`);
+        reject(err);
+      });
+      serverProcess.on("close", (code) => {
+        console.error(`[electron] Server exited with code ${code}`);
+        const tail = stderrBuf.slice(-500).trim();
+        const detail = tail ? `\n服务器日志:\n${tail}` : "";
+        if (code !== null && code !== 0) reject(new Error(`Server exited code ${code}${detail}`));
       });
     } else {
       const nodeBin = findNode();
@@ -497,15 +560,22 @@ function startServer() {
       });
       serverProcess.on("close", (code) => {
         console.error(`[electron] Server exited with code ${code}`);
-        if (code !== null && code !== 0) reject(new Error(`Server exited code ${code}`));
+        const tail = stderrBuf.slice(-500).trim();
+        const detail = tail ? `\n服务器日志:\n${tail}` : "";
+        if (code !== null && code !== 0) reject(new Error(`Server exited code ${code}${detail}`));
       });
     }
 
+    // Capture stderr for error diagnostics
+    let stderrBuf = "";
     serverProcess.stdout.on("data", (data) => {
-      process.stdout.write(`[server] ${data}`);
+      const str = data.toString();
+      process.stdout.write(`[server] ${str}`);
     });
     serverProcess.stderr.on("data", (data) => {
-      process.stderr.write(`[server] ${data}`);
+      const str = data.toString();
+      stderrBuf += str;
+      process.stderr.write(`[server] ${str}`);
     });
 
     // Poll for readiness
@@ -591,6 +661,9 @@ async function bootstrap(piPath) {
   console.log(`Pi CLI found at: ${piPath}`);
   console.log(`Resources path: ${resourcesPath}`);
   console.log(`isDev: ${isDev}`);
+
+  // Remove stale launchd agent that may block port 31508
+  unloadStaleLaunchdAgent();
 
   try {
     await startServer();
