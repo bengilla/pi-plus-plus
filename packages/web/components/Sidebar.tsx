@@ -138,8 +138,16 @@ export function Sidebar({
   const renderConvItem = (c: ConvInfo, showIcon = false) => (
     <div
       key={c.id}
+      role="button"
+      tabIndex={0}
       className="group cursor-pointer py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
       onClick={(e) => { e.stopPropagation(); onSelectConversation(c.id); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelectConversation(c.id);
+        }
+      }}
       style={{
         paddingLeft: c.id === activeConvId ? "8px" : "10px",
         paddingRight: "2px",
@@ -223,27 +231,30 @@ export function Sidebar({
 
       {/* ── 项目 (Projects) ──────────────────────────────── */}
       <div className="border-b" style={{ borderColor: "var(--border)" }}>
-        <button
-          onClick={() => setExpandedProjects((p) => !p)}
+        <div
           className="w-full px-2 pt-2 pb-1 flex items-center justify-between transition-colors hover:bg-[var(--bg-hover)]"
         >
-          <span className="inline-flex items-center gap-1.5">
+          <button
+            onClick={() => setExpandedProjects((p) => !p)}
+            className="flex items-center gap-1.5 flex-1 text-left"
+            style={{ background: "transparent", border: "none", padding: 0, outline: "none", cursor: "pointer" }}
+          >
             <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
               <AppIcon name={expandedProjects ? "chevron-down" : "chevron-right"} size={10} />
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
               {zh ? "项目" : "Project"}
             </span>
-          </span>
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); openFolderPicker(); }}
             className="inline-flex items-center justify-center w-5 h-5 transition-colors hover:text-[var(--accent)]"
-            style={{ color: "var(--text-tertiary)" }}
+            style={{ color: "var(--text-tertiary)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
             title={zh ? "打开项目..." : "Open Project..."}
           >
             <AppIcon name="folder" size={13} />
           </button>
-        </button>
+        </div>
         {expandedProjects && (
           <div className="px-2 pb-1 max-h-[40vh] overflow-y-auto" onClick={onDeselectConversation}>
             {/* Always include current workspace even if no conversations yet */}
@@ -340,28 +351,30 @@ export function Sidebar({
 
       {/* ── 对话 (Standalone) ──────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-0 border-b" style={{ borderColor: "var(--border)" }}>
-        <button
-          onClick={() => setExpandedChats((p) => !p)}
+        <div
           className="w-full shrink-0 px-2 pt-2 pb-1 flex items-center justify-between transition-colors hover:bg-[var(--bg-hover)]"
-          style={{ outline: "none" }}
         >
-          <span className="inline-flex items-center gap-1.5">
+          <button
+            onClick={() => setExpandedChats((p) => !p)}
+            className="flex items-center gap-1.5 flex-1 text-left"
+            style={{ background: "transparent", border: "none", padding: 0, outline: "none", cursor: "pointer" }}
+          >
             <span className="inline-flex shrink-0" style={{ color: "var(--text-tertiary)" }}>
               <AppIcon name={expandedChats ? "chevron-down" : "chevron-right"} size={10} />
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>
               {zh ? "对话" : "Chats"}
             </span>
-          </span>
+          </button>
           <button
             onClick={(e) => { e.stopPropagation(); onNewStandaloneConversation(); }}
             className="inline-flex items-center justify-center w-5 h-5 transition-colors hover:text-[var(--accent)]"
-            style={{ color: "var(--text-tertiary)" }}
+            style={{ color: "var(--text-tertiary)", background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
             title={zh ? "新建对话" : "New chat"}
           >
             <AppIcon name="plus" size={13} strokeWidth={2.2} />
           </button>
-        </button>
+        </div>
         {expandedChats && (
           <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0" onClick={onDeselectConversation}>
             {standaloneConversations.length === 0 ? (

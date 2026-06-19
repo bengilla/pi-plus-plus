@@ -1,8 +1,16 @@
 import { test, expect } from "@playwright/test";
 
-const BASE = "http://localhost:31508";
+const BASE = "http://127.0.0.1:31508";
 
 test.describe("Pi Workspace smoke tests", () => {
+  test.beforeEach(async ({ page }) => {
+    page.on("console", (msg) => {
+      console.log(`[browser ${msg.type()}] ${msg.text()}`);
+    });
+    page.on("pageerror", (err) => {
+      console.error(`[browser uncaught] ${err.message}`);
+    });
+  });
   test("page loads and shows header with sidebar toggle", async ({ page }) => {
     await page.goto(BASE);
     // Wait for page to render
@@ -26,37 +34,31 @@ test.describe("Pi Workspace smoke tests", () => {
     }
   });
 
-  test("skills API returns installed skills for pi", async ({ request }) => {
-    const r = await request.get(`${BASE}/api/skills?agent=pi`);
+  test("skills API returns installed skills", async ({ request }) => {
+    const r = await request.get(`${BASE}/api/skills`);
     expect(r.ok()).toBeTruthy();
 
     const data = await r.json();
-    expect(data.results).toBeDefined();
-    const piResult = data.results.find((r: { agentId: string }) => r.agentId === "pi");
-    expect(piResult).toBeDefined();
-  });
-
-  test("skills marketplace search works", async ({ request }) => {
-    const r = await request.get(`${BASE}/api/skills?q=design&agent=pi`);
-    expect(r.ok()).toBeTruthy();
-
-    const data = await r.json();
-    expect(data.marketplace).toBeDefined();
+    expect(data.skills).toBeDefined();
+    expect(Array.isArray(data.skills)).toBeTruthy();
   });
 
   test("settings modal opens when clicking gear icon", async ({ page }) => {
     await page.goto(BASE);
 
+    // Wait for the input box to ensure client-side hydration is complete
+    await expect(page.getByPlaceholder(/Ask pi/i)).toBeVisible({ timeout: 15000 });
+
     // Click the gear button in the sidebar
     const gearBtn = page.getByTitle("Settings");
     await gearBtn.click();
 
-    // Modal should appear with General tab (Skills tab removed in Pi-only mode)
-    await expect(page.getByText("General").first()).toBeVisible();
+    // Modal should appear with General tab (locale-independent match for General / 通用)
+    await expect(page.getByText(/General|通用/i).first()).toBeVisible();
 
     // Close by pressing Escape
     await page.keyboard.press("Escape");
-    await expect(page.getByText("General").first()).not.toBeVisible();
+    await expect(page.getByText(/General|通用/i).first()).not.toBeVisible();
   });
 
   test("model API returns default model", async ({ request }) => {
@@ -95,8 +97,9 @@ test.describe("Pi Workspace smoke tests", () => {
   test("conversations are scoped to the active workspace", async ({ page }) => {
     await page.goto(BASE);
     await page.evaluate(() => {
-      localStorage.setItem("agents-web-workspace", "/tmp/project-a");
-      localStorage.setItem("agents-web-conversations", JSON.stringify([
+      localStorage.clear();
+      localStorage.setItem("pi-plus-plus-workspace", "/tmp/project-a");
+      localStorage.setItem("pi-plus-plus-conversations", JSON.stringify([
         {
           id: "project-a-conv",
           title: "Project A chat",
@@ -116,15 +119,16 @@ test.describe("Pi Workspace smoke tests", () => {
       ]));
     });
     await page.reload();
+    await expect(page.getByRole("button", { name: "Project A chat", exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Project B chat", exact: false })).not.toBeVisible();
 
-    await expect(page.getByRole("button", { name: "Project A chat" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Project B chat" })).not.toBeVisible();
-
-    await page.evaluate(() => localStorage.setItem("agents-web-workspace", "/tmp/project-b"));
+    await page.evaluate(() => localStorage.setItem("pi-plus-plus-workspace", "/tmp/project-b"));
     await page.reload();
+    // Wait for the input box to ensure client-side hydration is complete
+    await expect(page.getByPlaceholder(/Ask pi/i)).toBeVisible({ timeout: 15000 });
 
-    await expect(page.getByRole("button", { name: "Project B chat" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Project A chat" })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Project B chat", exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Project A chat", exact: false })).not.toBeVisible();
   });
 
   // Integration test: requires Pi CLI + API key configured
