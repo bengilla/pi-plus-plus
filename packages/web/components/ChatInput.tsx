@@ -586,45 +586,49 @@ export function ChatInput({ agentName, workspace, language: lang, streaming, onS
 
         {/* Chat / Brief toggle + Loop */}
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div
-              className="inline-flex overflow-hidden p-0.5 text-xs"
-              style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border-light)",
-              }}
-            >
-              {[
-                { value: false, label: zh ? "对话" : "Chat" },
-                { value: true, label: zh ? "计划" : "Brief" },
-              ].map((mode) => (
-                <button
-                  key={String(mode.value)}
-                  onClick={() => setBriefMode(mode.value)}
-                  className="px-2.5 py-1 transition-colors"
-                  style={{
-                    background:
-                      briefMode === mode.value
-                        ? "var(--bg-selected)"
-                        : "transparent",
-                    color:
-                      briefMode === mode.value
-                        ? "var(--text)"
-                        : "var(--text-secondary)",
-                  }}
-                  disabled={streaming}
-                >
-                  {mode.label}
-                </button>
-              ))}
+          {!loopState.expanded && (
+            <div className="flex items-center gap-2">
+              <div
+                className="inline-flex overflow-hidden p-0.5 text-xs"
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border-light)",
+                }}
+              >
+                {[
+                  { value: false, label: zh ? "对话" : "Chat" },
+                  { value: true, label: zh ? "计划" : "Brief" },
+                ].map((mode) => (
+                  <button
+                    key={String(mode.value)}
+                    onClick={() => setBriefMode(mode.value)}
+                    className="px-2.5 py-1 transition-colors"
+                    style={{
+                      background:
+                        briefMode === mode.value
+                          ? "var(--bg-selected)"
+                          : "transparent",
+                      color:
+                        briefMode === mode.value
+                          ? "var(--text)"
+                          : "var(--text-secondary)",
+                    }}
+                    disabled={streaming}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+              {briefMode && (
+                <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                  {zh ? "整理目标、步骤、链接和素材" : "Organize goals, steps, links, and assets"}
+                </span>
+              )}
             </div>
-            {briefMode && (
-              <span className="truncate text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                {zh ? "整理目标、步骤、链接和素材" : "Organize goals, steps, links, and assets"}
-              </span>
-            )}
+          )}
+          <div className={loopState.expanded ? "w-full" : ""}>
+            <LoopButton workspace={workspace} language={lang} onStateChange={setLoopState} />
           </div>
-          <LoopButton workspace={workspace} language={lang} onStateChange={setLoopState} />
         </div>
 
         {/* Loop progress bar */}

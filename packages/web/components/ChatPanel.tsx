@@ -291,6 +291,24 @@ export function ChatPanel({
       .catch(() => {});
   }, [modelVersion]);
 
+  // Cancel message editing when clicking outside the editor
+  useEffect(() => {
+    if (editingMsgId === null) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".editing-msg-container")) {
+        setEditingMsgId(null);
+      }
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener("click", handleOutsideClick);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [editingMsgId]);
+
   const handleStop = useCallback(() => {
     // Capture partial content BEFORE abort — abort triggers finally which clears refs
     const partialContent = streamContentRef.current;
@@ -938,7 +956,7 @@ export function ChatPanel({
                 paddingTop: startsTurn ? "22px" : undefined,
               }}
             >
-              <div className={msg.role === "user" ? "group max-w-[76%]" : "w-full"}>
+              <div className={msg.role === "user" ? (editingMsgId === msg.id ? "group w-full" : "group max-w-[76%]") : "w-full"}>
                 {/* Attachments in user message */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="mb-1.5 flex flex-wrap justify-end gap-1">
@@ -1022,40 +1040,81 @@ export function ChatPanel({
                       });
                     })()
                   ) : editingMsgId === msg.id ? (
-                    <textarea
-                      value={editingText}
-                      onChange={(e) => setEditingText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          const newText = editingText.trim();
-                          if (!newText || streaming) return;
-                          setEditingMsgId(null);
-                          // Truncate messages after this one, update this message
-                          setMessages((prev) => {
-                            const idx = prev.findIndex((m) => m.id === msg.id);
-                            if (idx === -1) return prev;
-                            const updated = [...prev];
-                            updated[idx] = { ...prev[idx], content: newText };
-                            return updated.slice(0, idx + 1);
-                          });
-                          // Resend the edited message
-                          handleSend(newText, [], { skipUserMsg: true });
-                        }
-                        if (e.key === "Escape") {
-                          setEditingMsgId(null);
-                        }
-                      }}
-                      className="w-full resize-none p-2 text-sm outline-none"
-                      style={{
-                        background: "var(--bg-input)",
-                        color: "var(--text)",
-                        border: "1px solid var(--accent)",
-                        minHeight: 40,
-                      }}
-                      rows={2}
-                      autoFocus
-                    />
+                    <div className="editing-msg-container flex flex-col gap-2 w-full">
+                      <textarea
+                        value={editingText}
+                        onChange={(e) => setEditingText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            const newText = editingText.trim();
+                            if (!newText || streaming) return;
+                            setEditingMsgId(null);
+                            // Truncate messages after this one, update this message
+                            setMessages((prev) => {
+                              const idx = prev.findIndex((m) => m.id === msg.id);
+                              if (idx === -1) return prev;
+                              const updated = [...prev];
+                              updated[idx] = { ...prev[idx], content: newText };
+                              return updated.slice(0, idx + 1);
+                            });
+                            // Resend the edited message
+                            handleSend(newText, [], { skipUserMsg: true });
+                          }
+                          if (e.key === "Escape") {
+                            setEditingMsgId(null);
+                          }
+                        }}
+                        className="w-full resize-none p-2 text-sm outline-none"
+                        rows={Math.max(3, editingText.split("\n").length)}
+                        style={{
+                          background: "var(--bg-input)",
+                          color: "var(--text)",
+                          border: "1px solid var(--accent)",
+                          minHeight: 60,
+                        }}
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2 text-[11px]">
+                        <button
+                          onClick={() => {
+                            const newText = editingText.trim();
+                            if (!newText || streaming) return;
+                            setEditingMsgId(null);
+                            setMessages((prev) => {
+                              const idx = prev.findIndex((m) => m.id === msg.id);
+                              if (idx === -1) return prev;
+                              const updated = [...prev];
+                              updated[idx] = { ...prev[idx], content: newText };
+                              return updated.slice(0, idx + 1);
+                            });
+                            handleSend(newText, [], { skipUserMsg: true });
+                          }}
+                          disabled={streaming || !editingText.trim()}
+                          className="px-2.5 py-0.5 border transition-colors hover:opacity-85"
+                          style={{
+                            borderColor: "var(--accent)",
+                            color: "var(--accent)",
+                            background: "transparent",
+                            borderRadius: "0px",
+                          }}
+                        >
+                          {zh ? "保存并重新发送" : "Save & Resend"}
+                        </button>
+                        <button
+                          onClick={() => setEditingMsgId(null)}
+                          className="px-2.5 py-0.5 border transition-colors hover:opacity-85"
+                          style={{
+                            borderColor: "var(--border-light)",
+                            color: "var(--text-secondary)",
+                            background: "transparent",
+                            borderRadius: "0px",
+                          }}
+                        >
+                          {zh ? "取消" : "Cancel"}
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <MarkdownBody content={msg.content} />
                   )}

@@ -83,10 +83,11 @@ async function runCommand(cmd: string, cwd: string): Promise<{ code: number | nu
   });
 }
 
-async function runPi(prompt: string, cwd: string, resume: boolean): Promise<string> {
+async function runPi(prompt: string, cwd: string, resume: boolean, model?: string): Promise<string> {
   const piBin = findPiBinary();
   const args = ["-p", prompt, "--mode", "json"];
   if (resume) args.push("--continue");
+  if (model) args.push("--model", model);
 
   return new Promise((resolve) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,13 +114,15 @@ function isAbortLikeError(error: unknown): boolean {
 // ── Route ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  let body: { goal?: string; workspace?: string };
+  let body: { goal?: string; workspace?: string; makerModel?: string; checkerModel?: string };
   try { body = await req.json(); } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const goal = body.goal;
   const cwd = body.workspace || process.cwd();
+  const makerModel = body.makerModel;
+  const checkerModel = body.checkerModel;
 
   if (!goal) {
     return Response.json({ error: "goal is required" }, { status: 400 });
@@ -163,6 +166,7 @@ export async function POST(req: NextRequest) {
             : `验证失败。请读取错误信息，只修改必要的文件来修复问题。完成后运行 ${verify} 确认。`,
           cwd,
           turn > 1,
+          makerModel,
         );
         fullLog += `\n--- Turn ${turn} (Phase 1) ---\n${piOutput.slice(-500)}\n`;
 
@@ -209,6 +213,7 @@ export async function POST(req: NextRequest) {
           `你是代码编写者。任务：${currentTask}。改动要最小化。完成后运行 ${verify} 确认。`,
           cwd,
           true,
+          makerModel,
         );
         fullLog += `\n--- Turn ${globalTurn} Maker ---\n${makerOutput.slice(-500)}\n`;
 
@@ -228,6 +233,7 @@ export async function POST(req: NextRequest) {
 只回答 PASS 或 FAIL，并给出简要理由。`,
           cwd,
           false,
+          checkerModel,
         );
         fullLog += `\n--- Turn ${globalTurn} Checker ---\n${reviewOutput.slice(-500)}\n`;
 
